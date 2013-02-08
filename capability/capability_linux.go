@@ -381,7 +381,7 @@ func (c *capsV3) Apply(kind CapType) (err error) {
 		if err != nil {
 			return
 		}
-		if (1<<CAP_SETPCAP)&data[0].effective != 0 {
+		if (1<<uint(CAP_SETPCAP))&data[0].effective != 0 {
 			for i := Cap(0); i <= CAP_LAST_CAP; i++ {
 				if c.Get(BOUNDING, i) {
 					continue
