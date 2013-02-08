@@ -304,9 +304,9 @@ const (
 	// Allow taking of leases on files
 	CAP_LEASE Cap = 28
 
-	CAP_AUDIT_WRITE       = 29
+	CAP_AUDIT_WRITE   Cap = 29
 	CAP_AUDIT_CONTROL Cap = 30
-	CAP_SETFCAP           = 31
+	CAP_SETFCAP       Cap = 31
 
 	// Override MAC access.
 	// The base kernel enforces no MAC policy.
