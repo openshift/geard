@@ -99,6 +99,7 @@
 package pflag
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -320,6 +321,10 @@ func (f *FlagSet) VisitAll(fn func(*Flag)) {
 	}
 }
 
+func (f *FlagSet) HasFlags() bool {
+	return len(f.formal) > 0
+}
+
 // VisitAll visits the command-line flags in lexicographical order, calling
 // fn for each.  It visits all flags, even those not set.
 func VisitAll(fn func(*Flag)) {
@@ -389,6 +394,26 @@ func (f *FlagSet) PrintDefaults() {
 		}
 		fmt.Fprintf(f.out(), format, flag.Shorthand, flag.Name, flag.DefValue, flag.Usage)
 	})
+}
+
+func (f *FlagSet) FlagUsages() string {
+	x := new(bytes.Buffer)
+
+	f.VisitAll(func(flag *Flag) {
+		format := "--%s=%s: %s\n"
+		if _, ok := flag.Value.(*stringValue); ok {
+			// put quotes on the value
+			format = "--%s=%q: %s\n"
+		}
+		if len(flag.Shorthand) > 0 {
+			format = "  -%s, " + format
+		} else {
+			format = "   %s   " + format
+		}
+		fmt.Fprintf(x, format, flag.Shorthand, flag.Name, flag.DefValue, flag.Usage)
+	})
+
+	return x.String()
 }
 
 // PrintDefaults prints to standard error the default values of all defined command-line flags.
@@ -844,31 +869,35 @@ func (f *FlagSet) Var(value Value, name string, usage string) {
 func (f *FlagSet) VarP(value Value, name, shorthand, usage string) {
 	// Remember the default value as a string; it won't change.
 	flag := &Flag{name, shorthand, usage, value, value.String()}
-	_, alreadythere := f.formal[name]
+	f.AddFlag(flag)
+}
+
+func (f *FlagSet) AddFlag(flag *Flag) {
+	_, alreadythere := f.formal[flag.Name]
 	if alreadythere {
-		msg := fmt.Sprintf("%s flag redefined: %s", f.name, name)
+		msg := fmt.Sprintf("%s flag redefined: %s", f.name, flag.Name)
 		fmt.Fprintln(f.out(), msg)
 		panic(msg) // Happens only if flags are declared with identical names
 	}
 	if f.formal == nil {
 		f.formal = make(map[string]*Flag)
 	}
-	f.formal[name] = flag
+	f.formal[flag.Name] = flag
 
-	if len(shorthand) == 0 {
+	if len(flag.Shorthand) == 0 {
 		return
 	}
-	if len(shorthand) > 1 {
-		fmt.Fprintf(f.out(), "%s shorthand more than ASCII character: %s\n", f.name, shorthand)
+	if len(flag.Shorthand) > 1 {
+		fmt.Fprintf(f.out(), "%s shorthand more than ASCII character: %s\n", f.name, flag.Shorthand)
 		panic("shorthand is more than one character")
 	}
 	if f.shorthands == nil {
 		f.shorthands = make(map[byte]*Flag)
 	}
-	c := shorthand[0]
+	c := flag.Shorthand[0]
 	old, alreadythere := f.shorthands[c]
 	if alreadythere {
-		fmt.Fprintf(f.out(), "%s shorthand reused: %q for %s and %s\n", f.name, c, name, old.Name)
+		fmt.Fprintf(f.out(), "%s shorthand reused: %q for %s and %s\n", f.name, c, flag.Name, old.Name)
 		panic("shorthand redefinition")
 	}
 	f.shorthands[c] = flag
@@ -923,7 +952,94 @@ func (f *FlagSet) setFlag(flag *Flag, value string, origArg string) error {
 	return nil
 }
 
-func (f *FlagSet) parseArgs(args []string) error {
+func (f *FlagSet) parseLongArg(s string, args []string) (a []string, err error) {
+	a = args
+	if len(s) == 2 { // "--" terminates the flags
+		f.args = append(f.args, args...)
+		return
+	}
+	name := s[2:]
+	if len(name) == 0 || name[0] == '-' || name[0] == '=' {
+		err = f.failf("bad flag syntax: %s", s)
+		return
+	}
+	split := strings.SplitN(name, "=", 2)
+	name = split[0]
+	m := f.formal
+	flag, alreadythere := m[name] // BUG
+	if !alreadythere {
+		if name == "help" { // special case for nice help message.
+			f.usage()
+			return args, ErrHelp
+		}
+		err = f.failf("unknown flag: --%s", name)
+		return
+	}
+	if len(split) == 1 {
+		if _, ok := flag.Value.(*boolValue); !ok {
+			err = f.failf("flag needs an argument: %s", s)
+			return
+		}
+		f.setFlag(flag, "true", s)
+	} else {
+		if e := f.setFlag(flag, split[1], s); e != nil {
+			err = e
+			return
+		}
+	}
+	return args, nil
+}
+
+func (f *FlagSet) parseShortArg(s string, args []string) (a []string, err error) {
+	a = args
+	shorthands := s[1:]
+	//fmt.Println("shorthands", shorthands)
+	//fmt.Print("all shorthands", f.shorthands)
+	for i := 0; i < len(shorthands); i++ {
+		c := shorthands[i]
+		//fmt.Println("c", c)
+		flag, alreadythere := f.shorthands[c]
+		//fmt.Println(alreadythere)
+		if !alreadythere {
+			//fmt.Println("not there")
+			if c == 'h' { // special case for nice help message.
+				f.usage()
+				err = ErrHelp
+				return
+			}
+			//TODO continue on error
+			err = f.failf("unknown shorthand flag: %q in -%s", c, shorthands)
+		}
+		if alreadythere {
+			if _, ok := flag.Value.(*boolValue); ok {
+				f.setFlag(flag, "true", s)
+				continue
+			}
+			if i < len(shorthands)-1 {
+				if e := f.setFlag(flag, shorthands[i+1:], s); e != nil {
+					err = e
+					return
+				}
+				break
+			}
+			if len(args) == 0 {
+				err = f.failf("flag needs an argument: %q in -%s", c, shorthands)
+				return
+			}
+			if e := f.setFlag(flag, args[0], s); e != nil {
+				err = e
+				return
+			}
+		}
+		a = args[1:]
+		break // should be unnecessary
+	}
+
+	return
+}
+
+func (f *FlagSet) parseArgs(args []string) (err error) {
+	//fmt.Println(args)
 	for len(args) > 0 {
 		s := args[0]
 		args = args[1:]
@@ -938,69 +1054,12 @@ func (f *FlagSet) parseArgs(args []string) error {
 		}
 
 		if s[1] == '-' {
-			if len(s) == 2 { // "--" terminates the flags
-				f.args = append(f.args, args...)
-				return nil
-			}
-			name := s[2:]
-			if len(name) == 0 || name[0] == '-' || name[0] == '=' {
-				return f.failf("bad flag syntax: %s", s)
-			}
-			split := strings.SplitN(name, "=", 2)
-			name = split[0]
-			m := f.formal
-			flag, alreadythere := m[name] // BUG
-			if !alreadythere {
-				if name == "help" { // special case for nice help message.
-					f.usage()
-					return ErrHelp
-				}
-				return f.failf("unknown flag: --%s", name)
-			}
-			if len(split) == 1 {
-				if _, ok := flag.Value.(*boolValue); !ok {
-					return f.failf("flag needs an argument: %s", s)
-				}
-				f.setFlag(flag, "true", s)
-			} else {
-				if err := f.setFlag(flag, split[1], s); err != nil {
-					return err
-				}
-			}
+			args, err = f.parseLongArg(s, args)
 		} else {
-			shorthands := s[1:]
-			for i := 0; i < len(shorthands); i++ {
-				c := shorthands[i]
-				flag, alreadythere := f.shorthands[c]
-				if !alreadythere {
-					if c == 'h' { // special case for nice help message.
-						f.usage()
-						return ErrHelp
-					}
-					return f.failf("unknown shorthand flag: %q in -%s", c, shorthands)
-				}
-				if _, ok := flag.Value.(*boolValue); ok {
-					f.setFlag(flag, "true", s)
-					continue
-				}
-				if i < len(shorthands)-1 {
-					if err := f.setFlag(flag, shorthands[i+1:], s); err != nil {
-						return err
-					}
-					break
-				}
-				if len(args) == 0 {
-					return f.failf("flag needs an argument: %q in -%s", c, shorthands)
-				}
-				if err := f.setFlag(flag, args[0], s); err != nil {
-					return err
-				}
-				args = args[1:]
-				break // should be unnecessary
-			}
+			args, err = f.parseShortArg(s, args)
 		}
 	}
-	return nil
+	return
 }
 
 // Parse parses flag definitions from the argument list, which should not
