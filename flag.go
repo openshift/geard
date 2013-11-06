@@ -993,15 +993,11 @@ func (f *FlagSet) parseLongArg(s string, args []string) (a []string, err error) 
 func (f *FlagSet) parseShortArg(s string, args []string) (a []string, err error) {
 	a = args
 	shorthands := s[1:]
-	//fmt.Println("shorthands", shorthands)
-	//fmt.Print("all shorthands", f.shorthands)
+
 	for i := 0; i < len(shorthands); i++ {
 		c := shorthands[i]
-		//fmt.Println("c", c)
 		flag, alreadythere := f.shorthands[c]
-		//fmt.Println(alreadythere)
 		if !alreadythere {
-			//fmt.Println("not there")
 			if c == 'h' { // special case for nice help message.
 				f.usage()
 				err = ErrHelp
@@ -1009,6 +1005,9 @@ func (f *FlagSet) parseShortArg(s string, args []string) (a []string, err error)
 			}
 			//TODO continue on error
 			err = f.failf("unknown shorthand flag: %q in -%s", c, shorthands)
+			if len(args) == 0 {
+				return
+			}
 		}
 		if alreadythere {
 			if _, ok := flag.Value.(*boolValue); ok {
@@ -1039,7 +1038,6 @@ func (f *FlagSet) parseShortArg(s string, args []string) (a []string, err error)
 }
 
 func (f *FlagSet) parseArgs(args []string) (err error) {
-	//fmt.Println(args)
 	for len(args) > 0 {
 		s := args[0]
 		args = args[1:]
