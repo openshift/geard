@@ -282,6 +282,7 @@ type Flag struct {
 	Usage     string // help message
 	Value     Value  // value as set
 	DefValue  string // default value (as text); for usage message
+	Changed   bool   // If the user set the value (or if left to default)
 }
 
 // sortFlags returns the flags as a slice in lexicographical sorted order.
@@ -370,6 +371,7 @@ func (f *FlagSet) Set(name, value string) error {
 		f.actual = make(map[string]*Flag)
 	}
 	f.actual[name] = flag
+	f.Lookup(name).Changed = true
 	return nil
 }
 
@@ -868,7 +870,7 @@ func (f *FlagSet) Var(value Value, name string, usage string) {
 // Like Var, but accepts a shorthand letter that can be used after a single dash.
 func (f *FlagSet) VarP(value Value, name, shorthand, usage string) {
 	// Remember the default value as a string; it won't change.
-	flag := &Flag{name, shorthand, usage, value, value.String()}
+	flag := &Flag{name, shorthand, usage, value, value.String(), false}
 	f.AddFlag(flag)
 }
 
@@ -948,7 +950,7 @@ func (f *FlagSet) setFlag(flag *Flag, value string, origArg string) error {
 		f.actual = make(map[string]*Flag)
 	}
 	f.actual[flag.Name] = flag
-
+	flag.Changed = true
 	return nil
 }
 
