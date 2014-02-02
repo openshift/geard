@@ -1,7 +1,7 @@
 package main
 
 import (
-	agent ".."
+	geard ".."
 	//"errors"
 	"fmt"
 	"log"
@@ -9,7 +9,7 @@ import (
 	//"strings"
 )
 
-var dispatcher = agent.Dispatcher{
+var dispatcher = geard.Dispatcher{
 	QueueFast:         10,
 	QueueSlow:         1,
 	Concurrent:        2,
@@ -24,7 +24,7 @@ func main() {
 func listenHttp() {
 	fmt.Println("Starting HTTP ... ")
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		agent.ServeApi(&dispatcher, w, r)
+		geard.ServeApi(&dispatcher, w, r)
 	})
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

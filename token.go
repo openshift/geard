@@ -1,4 +1,4 @@
-package agent
+package geard
 
 import (
 	"encoding/base64"
