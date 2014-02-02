@@ -49,29 +49,36 @@ func (d *Dispatcher) Dispatch(j Job) (done <-chan bool, err error) {
 	tracker := jobTracker{j, complete}
 
 	if existing, found := d.recentJobs.Put(j.Id(), tracker); found {
-		var job Job
+		var join Join
 		if existing != nil {
 			other, _ := existing.(jobTracker)
-			job = other.job
+			j, ok := other.job.(Join)
+			if !ok {
+				err = ErrRanToCompletion
+				return
+			}
+			join = j
 			complete = other.complete
 		}
 
-		joined, complete, errj := j.Join(job, complete)
+		joined, complete, errj := join.Join(j, complete)
 		if errj != nil {
 			log.Println("Attempt to join job rejected ", j)
 			err = errj
 			return
 		} else if joined {
-			log.Println("Joined already running job ", job)
+			log.Println("Joined already running job ", j)
 			done = complete
 			return
 		}
 		log.Println("Queueing an already existing job ", j)
 	}
 
-	queue := d.slowJobs
+	var queue chan jobTracker
 	if j.Fast() {
 		queue = d.fastJobs
+	} else {
+		queue = d.slowJobs
 	}
 
 	select {

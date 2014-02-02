@@ -2,7 +2,7 @@ package geard
 
 import (
 	"errors"
-	"fmt"
+	//"fmt"
 	"log"
 	"net/http"
 )
@@ -55,7 +55,7 @@ func ServeApi(dispatcher *Dispatcher, w http.ResponseWriter, r *http.Request) {
 
 	wait, errd := dispatcher.Dispatch(job)
 	if errd == ErrRanToCompletion {
-		fmt.Fprintln(w, errd.Error())
+		http.Error(w, errd.Error(), http.StatusNoContent)
 		return
 	} else if errd != nil {
 		serveRequestError(w, apiRequestError{errd, errd.Error(), http.StatusServiceUnavailable})
