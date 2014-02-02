@@ -9,9 +9,15 @@ import (
 	//"strings"
 )
 
-var dispatcher = agent.Dispatcher{}
+var dispatcher = agent.Dispatcher{
+	QueueFast:         10,
+	QueueSlow:         1,
+	Concurrent:        2,
+	TrackDuplicateIds: 1000,
+}
 
 func main() {
+	dispatcher.Start()
 	listenHttp()
 }
 

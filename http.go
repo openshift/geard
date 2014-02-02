@@ -1,73 +1,97 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 )
 
 func ServeApi(dispatcher *Dispatcher, w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.RequestURI)
-
-	path, has := TakePrefix(r.RequestURI, "/token/")
+	path, has := TakePrefix(r.URL.Path, "/token/")
 	if !has {
 		http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
 		return
 	}
 
-	token, id, path, err := extractToken(path)
-	if err != nil {
+	token, id, path, errt := extractToken(path, r)
+	if errt != nil {
+		log.Println(errt)
 		http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
 		return
 	}
 
+	var job Job
 	if subpath, has := TakePrefix(path, "content/"); has || path == "content" {
-		job, err := NewContentJob(id, token.ResourceType(), token.ResourceLocator(), subpath)
+		j, err := NewContentJob(id, token.ResourceType(), token.ResourceLocator(), subpath, w)
 		if err != nil {
 			serveRequestError(w, apiRequestError{err, "Content request is not properly formed: " + err.Error(), http.StatusBadRequest})
 			return
 		}
-
-		fmt.Fprintf(w, "Job %+v (with token %+v to subpath %s)", job, token, subpath)
-		dispatcher.Dispatch(job)
-		return
+		job = j
 
 	} else {
 		switch path {
+
 		case "container":
-			if r.Method == "PUT" {
-
-				job, err := NewCreateContainerJob(id, token.ResourceLocator(), token.ResourceType(), r.Body, w)
-				if err != nil {
-					serveRequestError(w, apiRequestError{err, "Content request is not properly formed: " + err.Error(), http.StatusBadRequest})
-					return
-				}
-
-				fmt.Fprintf(w, "Job %+v (with token %+v to subpath %s)", job, token, subpath)
-				dispatcher.Dispatch(job)
-				return
-
-			} else {
+			if r.Method != "PUT" {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
+
+			j, err := NewCreateContainerJob(id, token.ResourceLocator(), token.ResourceType(), r.Body, w)
+			if err != nil {
+				serveRequestError(w, apiRequestError{err, "Create container request is not properly formed: " + err.Error(), http.StatusBadRequest})
+				return
+			}
+			job = j
 		}
 	}
-	http.NotFound(w, r)
-}
 
-func extractToken(path string) (token *TokenData, id []byte, subpath string, rerr *apiRequestError) {
-	token, subpath, err := NewTokenFromPath(path)
-	if err != nil {
-		rerr = &apiRequestError{err, "Invalid authorization token", http.StatusForbidden}
+	if job == nil {
+		http.NotFound(w, r)
 		return
 	}
 
-	id, err = token.RequestId()
+	wait, errd := dispatcher.Dispatch(job)
+	if errd == ErrRanToCompletion {
+		fmt.Fprintln(w, errd.Error())
+		return
+	} else if errd != nil {
+		serveRequestError(w, apiRequestError{errd, errd.Error(), http.StatusServiceUnavailable})
+		return
+	}
+	<-wait
+}
+
+func extractToken(path string, r *http.Request) (token *TokenData, id RequestIdentifier, subpath string, rerr *apiRequestError) {
+	segment, subpath, has := TakeSegment(path)
+	if !has {
+		rerr = &apiRequestError{errors.New("No matching token path"), "Invalid authorization token", http.StatusForbidden}
+	}
+
+	if segment == "__test__" {
+		t, err := NewTokenFromMap(r.URL.Query())
+		if err != nil {
+			rerr = &apiRequestError{err, "Invalid test query: " + err.Error(), http.StatusForbidden}
+			return
+		}
+		token = t
+	} else {
+		t, err := NewTokenFromString(segment)
+		if err != nil {
+			rerr = &apiRequestError{err, "Invalid authorization token", http.StatusForbidden}
+			return
+		}
+		token = t
+	}
+
+	i, err := token.RequestId()
 	if err != nil {
 		rerr = &apiRequestError{err, "Token is missing data: " + err.Error(), http.StatusBadRequest}
 		return
 	}
+	id = i
 
 	return
 }

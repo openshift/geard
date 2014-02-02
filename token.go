@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 )
 
@@ -17,7 +18,7 @@ type TokenData struct {
 	R string // resource locator
 }
 
-func (t *TokenData) RequestId() ([]byte, error) {
+func (t *TokenData) RequestId() (RequestIdentifier, error) {
 	b, err := hex.DecodeString(t.I)
 	if err != nil {
 		return nil, err
@@ -25,7 +26,7 @@ func (t *TokenData) RequestId() ([]byte, error) {
 	if len(b) != 16 {
 		return nil, errors.New("Request ID must be exactly 16 bytes (32 hexadecimal characters) in length.")
 	}
-	return b, nil
+	return RequestIdentifier(b), nil
 }
 
 func (t *TokenData) ResourceType() string {
@@ -35,17 +36,34 @@ func (t *TokenData) ResourceLocator() string {
 	return t.R
 }
 
-func NewTokenFromPath(path string) (*TokenData, string, error) {
-	segment, subpath, has := TakeSegment(path)
-	if !has {
-		return nil, "", errors.New("No token present in path")
-	}
-
-	dec := json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(segment)))
+func NewTokenFromString(s string) (*TokenData, error) {
+	dec := json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(s)))
 	token := TokenData{}
 	if err := dec.Decode(&token); err != nil {
-		return nil, "", err
+		return nil, err
 	}
+	return &token, nil
+}
 
-	return &token, subpath, nil
+func NewTokenFromMap(m map[string][]string) (*TokenData, error) {
+	token := TokenData{}
+	token.I = firstParam(m, "i")
+	d, err := strconv.Atoi(firstParam(m, "d"))
+	if err != nil {
+		return nil, err
+	}
+	token.D = d
+	token.U = firstParam(m, "u")
+	token.T = firstParam(m, "t")
+	token.R = firstParam(m, "r")
+	return &token, nil
+}
+
+func firstParam(m map[string][]string, k string) string {
+	if a, found := m[k]; found {
+		if len(a) > 0 {
+			return a[0]
+		}
+	}
+	return ""
 }
