@@ -2,10 +2,15 @@ package geard
 
 import (
 	"container/list"
+	"encoding/hex"
 	"sync"
 )
 
 type RequestIdentifier []byte
+
+func (r RequestIdentifier) ToHex() string {
+	return hex.EncodeToString(r)
+}
 
 type RequestIdentifierMap struct {
 	keys  map[string]interface{}

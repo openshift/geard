@@ -48,6 +48,9 @@ func NewTokenFromString(s string) (*TokenData, error) {
 func NewTokenFromMap(m map[string][]string) (*TokenData, error) {
 	token := TokenData{}
 	token.I = firstParam(m, "i")
+	if len(token.I) < 32 {
+		token.I = strings.Repeat("0", 32-len(token.I)) + token.I
+	}
 	d, err := strconv.Atoi(firstParam(m, "d"))
 	if err != nil {
 		return nil, err

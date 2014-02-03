@@ -30,9 +30,9 @@ func (d *Dispatcher) work(queue <-chan jobTracker) {
 	go func() {
 		for tracker := range queue {
 			id := tracker.job.Id()
-			log.Printf("job START %v", id)
+			log.Printf("job START %s", id.ToHex())
 			tracker.job.Execute()
-			log.Printf("job END   %v", id)
+			log.Printf("job END   %s", id.ToHex())
 			close(tracker.complete)
 			d.recentJobs.Put(id, nil)
 		}
@@ -59,6 +59,9 @@ func (d *Dispatcher) Dispatch(j Job) (done <-chan bool, err error) {
 			}
 			join = j
 			complete = other.complete
+		} else {
+			err = ErrRanToCompletion
+			return
 		}
 
 		joined, complete, errj := join.Join(j, complete)

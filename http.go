@@ -39,7 +39,7 @@ func ServeApi(dispatcher *Dispatcher, w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			j, err := NewCreateContainerJob(id, token.ResourceLocator(), token.ResourceType(), r.Body, w)
+			j, err := NewCreateContainerJob(id, token.ResourceLocator(), token.U, token.ResourceType(), r.Body, w)
 			if err != nil {
 				serveRequestError(w, apiRequestError{err, "Create container request is not properly formed: " + err.Error(), http.StatusBadRequest})
 				return

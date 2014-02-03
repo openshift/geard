@@ -19,7 +19,6 @@ func main() {
 	if err := geard.StartSystemdConnection(); err != nil {
 		log.Println("WARNING: No systemd connection available via dbus: ", err)
 	}
-
 	dispatcher.Start()
 	listenHttp()
 }
