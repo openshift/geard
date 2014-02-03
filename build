@@ -1,0 +1,3 @@
+#!/bin/bash
+GOOS=linux GOARCH=amd64 go build -o geard.linux64 geard/main.go
+go build -o geard.local geard/main.go

@@ -3,7 +3,6 @@ package main
 import (
 	geard ".."
 	//"errors"
-	"fmt"
 	"log"
 	"net/http"
 	//"strings"
@@ -17,14 +16,19 @@ var dispatcher = geard.Dispatcher{
 }
 
 func main() {
+	if err := geard.StartSystemdConnection(); err != nil {
+		log.Println("WARNING: No systemd connection available via dbus: ", err)
+	}
+
 	dispatcher.Start()
 	listenHttp()
 }
 
 func listenHttp() {
-	fmt.Println("Starting HTTP ... ")
+	connect := ":8080"
+	log.Printf("Starting HTTP on %s ... ", connect)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		geard.ServeApi(&dispatcher, w, r)
 	})
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(connect, nil))
 }

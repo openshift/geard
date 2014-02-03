@@ -2,10 +2,10 @@ package geard
 
 import (
 	"errors"
-	"fmt"
+	//"fmt"
 	"io"
 	"io/ioutil"
-	"time"
+	//"time"
 )
 
 type createContainerJobRequest struct {
@@ -42,8 +42,7 @@ func (j *createContainerJobRequest) Fast() bool {
 }
 
 func (j *createContainerJobRequest) Execute() {
-	time.Sleep(8 * time.Second)
-	fmt.Fprintf(j.Output, "Yo, I did your container create job %+v\n", j)
+
 }
 
 func (j *createContainerJobRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
@@ -59,9 +58,6 @@ func (j *createContainerJobRequest) Join(job Job, complete <-chan bool) (joined 
 	c := make(chan bool)
 	done = c
 	go func() {
-		fmt.Fprintf(j.Output, "Joining an already running container create\n")
-		time.Sleep(3 * time.Second)
-		fmt.Fprintf(j.Output, "Other job must be done by now\n")
 		close(c)
 	}()
 	joined = true
