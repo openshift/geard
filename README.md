@@ -9,7 +9,8 @@ Try it out
 
 Take the systemd unit file in <code>contrib/geard.service</code> and enable it on your system (assumes Docker is installed) with: 
 
-    systemctl enable <path_to_geard.service>
+    curl https://raw.github.com/smarterclayton/geard/master/contrib/geard.service > /usr/lib/systemd/service/geard.service
+    systemctl enable /usr/lib/systemd/service/geard.service
     mkdir -p /var/lib/gears/units
     systemctl start geard
     
