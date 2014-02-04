@@ -16,9 +16,9 @@ Take the systemd unit file in <code>contrib/geard.service</code> and enable it o
     
 The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
 
-    curl -X PUT "http://localhost:2223/token/__test__/containers?u=deadbeef&d=1&t=pmorie%2Fsti-html-app&r=1&i=1" -d '{}'
+    curl -X PUT "http://localhost:2223/token/__test__/containers?u=deadbeef&d=1&t=pmorie%2Fsti-html-app&r=1&i=1" -d '{"ports":[{"external":"4343","internal":"8080"}]}'
     
-This will install a new systemd unit to <code>/var/lib/gears/units/gear-1.service</code> and invoke start.  Use
+This will install a new systemd unit to <code>/var/lib/gears/units/gear-1.service</code> and invoke start, and expose the port 8080 at 4343 on the host.  Use
 
     systemctl status gear-1
     
