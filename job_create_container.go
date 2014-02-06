@@ -13,12 +13,12 @@ import (
 )
 
 type createContainerJobRequest struct {
-	Request jobRequest
-	GearId  string
-	UserId  string
-	Image   string
-	Output  io.Writer
-	Data    *extendedCreateContainerData
+	jobRequest
+	GearId string
+	UserId string
+	Image  string
+	Output io.Writer
+	Data   *extendedCreateContainerData
 }
 
 type PortPair struct {
@@ -28,13 +28,6 @@ type PortPair struct {
 
 type extendedCreateContainerData struct {
 	Ports [](PortPair)
-}
-
-func (j *createContainerJobRequest) Id() RequestIdentifier {
-	return j.Request.RequestId
-}
-func (j *createContainerJobRequest) Fast() bool {
-	return false
 }
 
 func (j *createContainerJobRequest) Execute() {

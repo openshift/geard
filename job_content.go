@@ -7,16 +7,13 @@ import (
 )
 
 type contentJobRequest struct {
-	Request jobRequest
+	jobRequest
 	Type    string
 	Locator string
 	Subpath string
 	Output  io.Writer
 }
 
-func (j *contentJobRequest) Id() RequestIdentifier {
-	return j.Request.RequestId
-}
 func (j *contentJobRequest) Fast() bool {
 	return true
 }

@@ -19,6 +19,7 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 	}
 	handler.SetRoutes(
 		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dispatcher, ApiPutContainer)},
+		rest.Route{"PUT", "/token/:token/container/:action", JobRestHandler(dispatcher, ApiPutContainerAction)},
 		rest.Route{"GET", "/token/:token/content/*", JobRestHandler(dispatcher, ApiGetContent)},
 	)
 	return &handler
@@ -80,6 +81,21 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 	}
 
 	return &createContainerJobRequest{jobRequest{reqid}, token.ResourceLocator(), token.U, token.ResourceType(), w, &data}, nil
+}
+
+func ApiPutContainerAction(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	action := r.PathParam("action")
+	if token.ResourceLocator() == "" {
+		return nil, errors.New("You must provide the identifier of the container")
+	}
+	switch action {
+	case "started":
+		return &startedContainerStateJobRequest{jobRequest{reqid}, token.ResourceLocator(), token.U, w}, nil
+	case "stopped":
+		return &stoppedContainerStateJobRequest{jobRequest{reqid}, token.ResourceLocator(), token.U, w}, nil
+	default:
+		return nil, errors.New("You must provide a valid action for this container to take")
+	}
 }
 
 func ApiGetContent(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {

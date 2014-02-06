@@ -28,4 +28,12 @@ type jobRequest struct {
 	RequestId RequestIdentifier
 }
 
+func (j *jobRequest) Fast() bool {
+	return false
+}
+
+func (j *jobRequest) Id() RequestIdentifier {
+	return j.RequestId
+}
+
 var emptyReader = ioutil.NopCloser(bytes.NewReader([]byte{}))
