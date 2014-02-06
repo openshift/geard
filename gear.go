@@ -9,6 +9,8 @@ import (
 
 var basePath = "/var/lib/gears"
 
+type Gear string
+
 func VerifyDataPaths() error {
 	for _, path := range []string{basePath, filepath.Join(basePath, "units")} {
 		if err := checkPath(path, true); err != nil {
@@ -18,8 +20,12 @@ func VerifyDataPaths() error {
 	return nil
 }
 
-func PathForContainerUnit(id string) string {
-	return filepath.Join(basePath, "units", fmt.Sprintf("gear-%s.service", id))
+func UnitPathForGear(id string) string {
+	return filepath.Join(basePath, "units", UnitNameForGear(id))
+}
+
+func UnitNameForGear(id string) string {
+	return fmt.Sprintf("gear-%s.service", id)
 }
 
 func checkPath(path string, dir bool) error {

@@ -29,8 +29,5 @@ func main() {
 func listenHttp() {
 	connect := ":8080"
 	log.Printf("Starting HTTP on %s ... ", connect)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		geard.ServeApi(&dispatcher, w, r)
-	})
-	log.Fatal(http.ListenAndServe(connect, nil))
+	log.Fatal(http.ListenAndServe(connect, geard.NewHttpApiHandler(&dispatcher)))
 }

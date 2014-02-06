@@ -3,25 +3,22 @@ package geard
 import (
 	"errors"
 	//"fmt"
-	"encoding/json"
 	"io"
-	"io/ioutil"
+	//"io/ioutil"
 	//"time"
 	"bytes"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
-	"path/filepath"
 )
 
 type createContainerJobRequest struct {
-	Request     jobRequest
-	ContainerId string
-	UserId      string
-	Image       string
-	Output      io.Writer
-	Data        *extendedCreateContainerData
+	Request jobRequest
+	GearId  string
+	UserId  string
+	Image   string
+	Output  io.Writer
+	Data    *extendedCreateContainerData
 }
 
 type PortPair struct {
@@ -33,37 +30,6 @@ type extendedCreateContainerData struct {
 	Ports [](PortPair)
 }
 
-func NewCreateContainerJob(reqid RequestIdentifier, id string, userId string, image string, input io.Reader, output io.Writer) (Job, error) {
-	if reqid == nil {
-		return nil, errors.New("All jobs must define a request id")
-	}
-	if id == "" {
-		return nil, errors.New("A container must have an identifier")
-	}
-	if userId == "" {
-		return nil, errors.New("A container must have a user identifier")
-	}
-	if image == "" {
-		return nil, errors.New("A container must have an image locator")
-	}
-	if input == nil {
-		input = emptyReader
-	}
-	dec := json.NewDecoder(input)
-	data := extendedCreateContainerData{}
-	if err := dec.Decode(&data); err != nil {
-		return nil, err
-	}
-	if data.Ports == nil {
-		data.Ports = make([]PortPair, 0)
-	}
-
-	if output == nil {
-		output = ioutil.Discard
-	}
-	return &createContainerJobRequest{jobRequest{reqid}, id, userId, image, output, &data}, nil
-}
-
 func (j *createContainerJobRequest) Id() RequestIdentifier {
 	return j.Request.RequestId
 }
@@ -72,17 +38,17 @@ func (j *createContainerJobRequest) Fast() bool {
 }
 
 func (j *createContainerJobRequest) Execute() {
-	fmt.Fprintf(j.Output, "Creating gear %s ... \n", j.ContainerId)
+	fmt.Fprintf(j.Output, "Creating gear %s ... \n", j.GearId)
 
-	unitPath := PathForContainerUnit(j.ContainerId)
-	unitName := filepath.Base(unitPath)
+	unitPath := UnitPathForGear(j.GearId)
+
 	unit, err := os.OpenFile(unitPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 	if err == os.ErrExist {
 		fmt.Fprintf(j.Output, "A container already exists for this gear")
 		return
 	} else if err != nil {
 		log.Print("job_create_container: Unable to create unit file: ", err)
-		fmt.Fprintf(j.Output, "Unable to create a gear for this container due to %s", err.Error())
+		fmt.Fprintf(j.Output, "Unable to create a gear for this container due to %s\n", err.Error())
 		return
 	}
 
@@ -94,36 +60,35 @@ func (j *createContainerJobRequest) Execute() {
 		}
 	}
 
-	containerUnitTemplate.Execute(unit, containerUnit{j.ContainerId, j.Image, portSpec.String()})
-	fmt.Fprintf(unit, "\n\n[Gear]\nx-ContainerId=%s\nx-ContainerImage=%s\nx-ContainerUserId=%s\nx-ContainerRequestId=%s\n", j.ContainerId, j.Image, j.UserId, j.Id().ToHex())
+	containerUnitTemplate.Execute(unit, containerUnit{j.GearId, j.Image, portSpec.String()})
+	fmt.Fprintf(unit, "\n\n[Gear]\nx-GearId=%s\nx-ContainerImage=%s\nx-ContainerUserId=%s\nx-ContainerRequestId=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToHex())
 	unit.Close()
-	fmt.Fprintf(j.Output, "Unit in place %s ... \n", j.ContainerId)
+
+	fmt.Fprintf(j.Output, "Unit in place %s ... \n", j.GearId)
 	if _, _, err := SystemdConnection().EnableUnitFiles([]string{unitPath}, false, false); err != nil {
 		log.Printf("job_create_container: Failed enabling %s: %s", unitPath, err.Error())
-		fmt.Fprintf(j.Output, "Unable to create a gear for this container due to %s", err.Error())
+		fmt.Fprintf(j.Output, "Unable to create a gear for this container due to %s\n", err.Error())
 		return
 	}
 
-	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-f", "--unit", unitName)
-	stdout, err := cmd.StdoutPipe()
+	stdout, err := ProcessLogsForGear(j.GearId)
 	if err != nil {
 		stdout = emptyReader
-		fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s", err.Error())
+		fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s\n", err.Error())
 	}
 	defer stdout.Close()
-	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(j.Output, "Unable to start journal logging: %s", err.Error())
-	} else if stdout != nil {
-		go io.Copy(j.Output, stdout)
-	}
+	go io.Copy(j.Output, stdout)
 
+	unitName := UnitNameForGear(j.GearId)
 	status, err := SystemdConnection().StartUnit(unitName, "fail")
 	if err != nil {
-		fmt.Fprintf(j.Output, "Could not start gear %s", err.Error())
+		fmt.Fprintf(j.Output, "Could not start gear %s\n", err.Error())
 	} else if status != "done" {
-		fmt.Fprintf(j.Output, "Gear did not start successfully: %s", err.Error())
+		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
+	} else {
+		fmt.Fprintf(j.Output, "\nGear %s is started\n", j.GearId)
 	}
-	fmt.Fprintf(j.Output, "\nGear %s is started", j.ContainerId)
+
 	stdout.Close()
 }
 

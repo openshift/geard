@@ -3,73 +3,97 @@ package geard
 import (
 	"errors"
 	//"fmt"
+	"encoding/json"
+	"github.com/ant0ine/go-json-rest"
+	"io"
 	"log"
 	"net/http"
 )
 
-func ServeApi(dispatcher *Dispatcher, w http.ResponseWriter, r *http.Request) {
-	path, has := TakePrefix(r.URL.Path, "/token/")
-	if !has {
-		http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
-		return
+var ErrHandledResponse = errors.New("Request handled")
+
+func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
+	handler := rest.ResourceHandler{
+		EnableRelaxedContentType: true,
+		EnableResponseStackTrace: true,
 	}
-
-	token, id, path, errt := extractToken(path, r)
-	if errt != nil {
-		log.Println(errt)
-		http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
-		return
-	}
-
-	var job Job
-	if subpath, has := TakePrefix(path, "content/"); has || path == "content" {
-		j, err := NewContentJob(id, token.ResourceType(), token.ResourceLocator(), subpath, w)
-		if err != nil {
-			serveRequestError(w, apiRequestError{err, "Content request is not properly formed: " + err.Error(), http.StatusBadRequest})
-			return
-		}
-		job = j
-
-	} else {
-		switch path {
-
-		case "container":
-			if r.Method != "PUT" {
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-
-			j, err := NewCreateContainerJob(id, token.ResourceLocator(), token.U, token.ResourceType(), r.Body, w)
-			if err != nil {
-				serveRequestError(w, apiRequestError{err, "Create container request is not properly formed: " + err.Error(), http.StatusBadRequest})
-				return
-			}
-			job = j
-		}
-	}
-
-	if job == nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	wait, errd := dispatcher.Dispatch(job)
-	if errd == ErrRanToCompletion {
-		http.Error(w, errd.Error(), http.StatusNoContent)
-		return
-	} else if errd != nil {
-		serveRequestError(w, apiRequestError{errd, errd.Error(), http.StatusServiceUnavailable})
-		return
-	}
-	<-wait
+	handler.SetRoutes(
+		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dispatcher, ApiPutContainer)},
+		rest.Route{"GET", "/token/:token/content/*", JobRestHandler(dispatcher, ApiGetContent)},
+	)
+	return &handler
 }
 
-func extractToken(path string, r *http.Request) (token *TokenData, id RequestIdentifier, subpath string, rerr *apiRequestError) {
-	segment, subpath, has := TakeSegment(path)
-	if !has {
-		rerr = &apiRequestError{errors.New("No matching token path"), "Invalid authorization token", http.StatusForbidden}
+type JobHandler func(RequestIdentifier, *TokenData, *rest.ResponseWriter, *rest.Request) (Job, error)
+
+func JobRestHandler(dispatcher *Dispatcher, handler JobHandler) func(*rest.ResponseWriter, *rest.Request) {
+	return func(w *rest.ResponseWriter, r *rest.Request) {
+		token, id, errt := extractToken(r.PathParam("token"), r.Request)
+		if errt != nil {
+			log.Println(errt)
+			http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
+			return
+		}
+
+		if token.U == "" {
+			http.Error(w, "All requests must be associated with a user", http.StatusBadRequest)
+			return
+		}
+
+		job, errh := handler(id, token, w, r)
+		if errh != nil {
+			if errh != ErrHandledResponse {
+				http.Error(w, "Invalid request: "+errh.Error()+"\n", http.StatusBadRequest)
+			}
+			return
+		}
+
+		wait, errd := dispatcher.Dispatch(job)
+		if errd == ErrRanToCompletion {
+			http.Error(w, errd.Error(), http.StatusNoContent)
+			return
+		} else if errd != nil {
+			serveRequestError(w, apiRequestError{errd, errd.Error(), http.StatusServiceUnavailable})
+			return
+		}
+		<-wait
+	}
+}
+
+func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	if token.ResourceLocator() == "" {
+		return nil, errors.New("A container must have an identifier")
+	}
+	if token.ResourceType() == "" {
+		return nil, errors.New("A container must have an image identifier")
 	}
 
+	data := extendedCreateContainerData{}
+	if r.Body != nil {
+		dec := json.NewDecoder(r.Body)
+		if err := dec.Decode(&data); err != nil && err != io.EOF {
+			return nil, err
+		}
+	}
+	if data.Ports == nil {
+		data.Ports = make([]PortPair, 0)
+	}
+
+	return &createContainerJobRequest{jobRequest{reqid}, token.ResourceLocator(), token.U, token.ResourceType(), w, &data}, nil
+}
+
+func ApiGetContent(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	if token.ResourceLocator() == "" {
+		return nil, errors.New("You must specify the location of the content you want to access")
+	}
+	if token.ResourceType() == "" {
+		return nil, errors.New("You must specify the type of the content you want to access")
+	}
+
+	return &contentJobRequest{jobRequest{reqid}, token.ResourceType(), token.ResourceLocator(), r.PathParam("*"), w}, nil
+}
+
+func extractToken(segment string, r *http.Request) (token *TokenData, id RequestIdentifier, rerr *apiRequestError) {
 	if segment == "__test__" {
 		t, err := NewTokenFromMap(r.URL.Query())
 		if err != nil {
