@@ -16,7 +16,7 @@ type startedContainerStateJobRequest struct {
 func (j *startedContainerStateJobRequest) Execute() {
 	fmt.Fprintf(j.Output, "Ensuring gear %s is started ... \n", j.GearId)
 
-	unitName := UnitNameForGear(j.GearId)
+	unitName := j.GearId.UnitNameFor()
 	status, err := SystemdConnection().StartUnit(unitName, "fail")
 
 	switch {
@@ -27,7 +27,7 @@ func (j *startedContainerStateJobRequest) Execute() {
 	case status != "done":
 		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
 	default:
-		stdout, err := ProcessLogsForGear(j.GearId)
+		stdout, err := ProcessLogsFor(j.GearId)
 		if err != nil {
 			stdout = emptyReader
 			fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s\n", err.Error())
@@ -53,7 +53,7 @@ func (j *stoppedContainerStateJobRequest) Execute() {
 	fmt.Fprintf(j.Output, "Ensuring gear %s is stopped ... \n", j.GearId)
 
 	// stop is a blocking operation
-	stdout, err := ProcessLogsForGear(j.GearId)
+	stdout, err := ProcessLogsFor(j.GearId)
 	if err != nil {
 		stdout = emptyReader
 		//fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s\n", err.Error())
@@ -61,7 +61,7 @@ func (j *stoppedContainerStateJobRequest) Execute() {
 	defer stdout.Close()
 	go io.Copy(j.Output, stdout)
 
-	unitName := UnitNameForGear(j.GearId)
+	unitName := j.GearId.UnitNameFor()
 	status, err := SystemdConnection().StopUnit(unitName, "fail")
 	stdout.Close()
 	switch {

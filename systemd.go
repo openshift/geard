@@ -1,8 +1,11 @@
 package geard
 
 import (
+	"fmt"
 	db "github.com/guelfey/go.dbus"
 	"github.com/smarterclayton/go-systemd/dbus"
+	"reflect"
+	"time"
 )
 
 type Systemd interface {
@@ -18,14 +21,30 @@ type Systemd interface {
 	GetUnitProperties(unit string) (map[string]interface{}, error)
 	ListUnits() ([]dbus.UnitStatus, error)
 	EnableUnitFiles(files []string, runtime bool, force bool) (bool, []dbus.EnableUnitFileChange, error)
+
+	Subscribe() error
+	Unsubscribe() error
+	SubscribeUnits(time.Duration) (<-chan map[string]*dbus.UnitStatus, <-chan error)
+	SubscribeUnitsCustom(time.Duration, int, func(*dbus.UnitStatus, *dbus.UnitStatus) bool, func(string) bool) (<-chan map[string]*dbus.UnitStatus, <-chan error)
+}
+
+type ProvidesUnitName interface {
+	UnitNameFor() string
 }
 
 var connection Systemd
 
-func StartSystemdConnection() error {
+func NewSystemdConnection() (Systemd, error) {
 	conn, err := dbus.New()
 	if err != nil {
-		connection = NewStubSystemd()
+		return NewStubSystemd(), err
+	}
+	return conn, nil
+}
+
+func StartSystemdConnection() error {
+	conn, err := NewSystemdConnection()
+	if err != nil {
 		return err
 	}
 	connection = conn
@@ -41,6 +60,13 @@ func SystemdError(err error, name string) bool {
 		return errd.Name == name
 	}
 	return false
+}
+
+func SprintSystemdError(err error) string {
+	if errd, ok := err.(db.Error); ok {
+		return fmt.Sprintf("%s %s", reflect.TypeOf(errd), errd.Name)
+	}
+	return ""
 }
 
 func ErrNoSuchUnit(err error) bool {

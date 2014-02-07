@@ -34,12 +34,20 @@ func VerifyDataPaths() error {
 	return nil
 }
 
-func UnitPathForGear(id GearIdentifier) string {
-	return filepath.Join(basePath, "units", UnitNameForGear(id))
+func (g GearIdentifier) UnitPathFor() string {
+	return filepath.Join(basePath, "units", g.UnitNameFor())
 }
 
-func UnitNameForGear(id GearIdentifier) string {
-	return fmt.Sprintf("gear-%s.service", id)
+func (g GearIdentifier) UnitNameFor() string {
+	return fmt.Sprintf("gear-%s.service", g)
+}
+
+func (g GearIdentifier) UnitNameForJob() string {
+	return fmt.Sprintf("job-%s.service", g)
+}
+
+func (g GearIdentifier) RepositoryPathFor() string {
+	return filepath.Join(basePath, "git", string(g))
 }
 
 func checkPath(path string, dir bool) error {

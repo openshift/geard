@@ -33,7 +33,7 @@ type extendedCreateContainerData struct {
 func (j *createContainerJobRequest) Execute() {
 	fmt.Fprintf(j.Output, "Creating gear %s ... \n", j.GearId)
 
-	unitPath := UnitPathForGear(j.GearId)
+	unitPath := j.GearId.UnitNameFor()
 
 	unit, err := os.OpenFile(unitPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 	if err == os.ErrExist {
@@ -64,7 +64,7 @@ func (j *createContainerJobRequest) Execute() {
 		return
 	}
 
-	stdout, err := ProcessLogsForGear(j.GearId)
+	stdout, err := ProcessLogsFor(j.GearId)
 	if err != nil {
 		stdout = emptyReader
 		fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s\n", err.Error())
@@ -72,7 +72,7 @@ func (j *createContainerJobRequest) Execute() {
 	defer stdout.Close()
 	go io.Copy(j.Output, stdout)
 
-	unitName := UnitNameForGear(j.GearId)
+	unitName := j.GearId.UnitNameFor()
 	status, err := SystemdConnection().StartUnit(unitName, "fail")
 	if err != nil {
 		fmt.Fprintf(j.Output, "Could not start gear %s\n", err.Error())

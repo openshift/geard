@@ -12,9 +12,14 @@ if [ -d "$GIT_DIR/objects" ]; then
   exit 0
 fi
 
+if [ ! -x "$GIT_DIR" ] || [ ! -w "$GIT_DIR" ]; then
+  echo "ERROR: Cannot write to $GIT_DIR"
+  exit 1
+fi
+
 git --version
 
-pushd $GIT_DIR > /dev/null 2>&1
+pushd $GIT_DIR > /dev/null
 if [ "$url" != "" ] && [ "$url" != "empty" ]; then
   echo "Using $url"
   git clone --bare --no-hardlinks "$url" .

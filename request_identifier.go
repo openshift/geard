@@ -3,6 +3,7 @@ package geard
 import (
 	"container/list"
 	"encoding/hex"
+	"fmt"
 	"sync"
 )
 
@@ -10,6 +11,10 @@ type RequestIdentifier []byte
 
 func (r RequestIdentifier) ToHex() string {
 	return hex.EncodeToString(r)
+}
+
+func (r RequestIdentifier) UnitNameFor() string {
+	return fmt.Sprintf("job-%s.service", r.ToHex())
 }
 
 type RequestIdentifierMap struct {

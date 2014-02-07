@@ -20,6 +20,7 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 	handler.SetRoutes(
 		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dispatcher, ApiPutContainer)},
 		rest.Route{"PUT", "/token/:token/container/:action", JobRestHandler(dispatcher, ApiPutContainerAction)},
+		rest.Route{"PUT", "/token/:token/repository", JobRestHandler(dispatcher, ApiPutRepository)},
 		rest.Route{"GET", "/token/:token/content/*", JobRestHandler(dispatcher, ApiGetContent)},
 	)
 	return &handler
@@ -82,6 +83,14 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 	}
 
 	return &createContainerJobRequest{jobRequest{reqid}, gearId, token.U, token.ResourceType(), w, &data}, nil
+}
+
+func ApiPutRepository(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	repositoryId, errg := NewGearIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
+	}
+	return &createRepositoryJobRequest{jobRequest{reqid}, repositoryId, token.U, "ccoleman/githost", w}, nil
 }
 
 func ApiPutContainerAction(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
