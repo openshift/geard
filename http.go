@@ -62,8 +62,9 @@ func JobRestHandler(dispatcher *Dispatcher, handler JobHandler) func(*rest.Respo
 }
 
 func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
-	if token.ResourceLocator() == "" {
-		return nil, errors.New("A container must have an identifier")
+	gearId, errg := NewGearIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
 	}
 	if token.ResourceType() == "" {
 		return nil, errors.New("A container must have an image identifier")
@@ -80,19 +81,20 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 		data.Ports = make([]PortPair, 0)
 	}
 
-	return &createContainerJobRequest{jobRequest{reqid}, token.ResourceLocator(), token.U, token.ResourceType(), w, &data}, nil
+	return &createContainerJobRequest{jobRequest{reqid}, gearId, token.U, token.ResourceType(), w, &data}, nil
 }
 
 func ApiPutContainerAction(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
 	action := r.PathParam("action")
-	if token.ResourceLocator() == "" {
-		return nil, errors.New("You must provide the identifier of the container")
+	gearId, errg := NewGearIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
 	}
 	switch action {
 	case "started":
-		return &startedContainerStateJobRequest{jobRequest{reqid}, token.ResourceLocator(), token.U, w}, nil
+		return &startedContainerStateJobRequest{jobRequest{reqid}, gearId, token.U, w}, nil
 	case "stopped":
-		return &stoppedContainerStateJobRequest{jobRequest{reqid}, token.ResourceLocator(), token.U, w}, nil
+		return &stoppedContainerStateJobRequest{jobRequest{reqid}, gearId, token.U, w}, nil
 	default:
 		return nil, errors.New("You must provide a valid action for this container to take")
 	}

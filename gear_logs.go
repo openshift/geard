@@ -5,7 +5,7 @@ import (
 	"os/exec"
 )
 
-func ProcessLogsForGear(id string) (io.ReadCloser, error) {
+func ProcessLogsForGear(id GearIdentifier) (io.ReadCloser, error) {
 	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-f", "--unit", UnitNameForGear(id))
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

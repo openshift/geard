@@ -1,6 +1,7 @@
 package geard
 
 import (
+	db "github.com/guelfey/go.dbus"
 	"github.com/smarterclayton/go-systemd/dbus"
 )
 
@@ -33,4 +34,15 @@ func StartSystemdConnection() error {
 
 func SystemdConnection() Systemd {
 	return connection
+}
+
+func SystemdError(err error, name string) bool {
+	if errd, ok := err.(db.Error); ok {
+		return errd.Name == name
+	}
+	return false
+}
+
+func ErrNoSuchUnit(err error) bool {
+	return SystemdError(err, "org.freedesktop.systemd1.NoSuchUnit")
 }

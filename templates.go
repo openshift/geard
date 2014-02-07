@@ -5,7 +5,7 @@ import (
 )
 
 type containerUnit struct {
-	Gear     string
+	Gear     GearIdentifier
 	Image    string
 	PortSpec string
 }

@@ -8,7 +8,7 @@ import (
 
 type startedContainerStateJobRequest struct {
 	jobRequest
-	GearId string
+	GearId GearIdentifier
 	UserId string
 	Output io.Writer
 }
@@ -19,11 +19,14 @@ func (j *startedContainerStateJobRequest) Execute() {
 	unitName := UnitNameForGear(j.GearId)
 	status, err := SystemdConnection().StartUnit(unitName, "fail")
 
-	if err != nil {
+	switch {
+	case ErrNoSuchUnit(err):
+		fmt.Fprintf(j.Output, "No such gear %s\n", j.GearId)
+	case err != nil:
 		fmt.Fprintf(j.Output, "Could not start gear %s\n", err.Error())
-	} else if status != "done" {
+	case status != "done":
 		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
-	} else {
+	default:
 		stdout, err := ProcessLogsForGear(j.GearId)
 		if err != nil {
 			stdout = emptyReader
@@ -41,14 +44,15 @@ func (j *startedContainerStateJobRequest) Execute() {
 
 type stoppedContainerStateJobRequest struct {
 	jobRequest
-	GearId string
+	GearId GearIdentifier
 	UserId string
 	Output io.Writer
 }
 
 func (j *stoppedContainerStateJobRequest) Execute() {
-	fmt.Fprintf(j.Output, "Ensuring gear %s is started ... \n", j.GearId)
+	fmt.Fprintf(j.Output, "Ensuring gear %s is stopped ... \n", j.GearId)
 
+	// stop is a blocking operation
 	stdout, err := ProcessLogsForGear(j.GearId)
 	if err != nil {
 		stdout = emptyReader
@@ -60,11 +64,14 @@ func (j *stoppedContainerStateJobRequest) Execute() {
 	unitName := UnitNameForGear(j.GearId)
 	status, err := SystemdConnection().StopUnit(unitName, "fail")
 	stdout.Close()
-	if err != nil {
-		fmt.Fprintf(j.Output, "Could not start gear %s\n", err.Error())
-	} else if status != "done" {
+	switch {
+	case ErrNoSuchUnit(err):
+		fmt.Fprintf(j.Output, "No such gear %s\n", j.GearId)
+	case err != nil:
+		fmt.Fprintf(j.Output, "Could not start gear: %s\n", err.Error())
+	case status != "done":
 		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
-	} else {
+	default:
 		fmt.Fprintf(j.Output, "\nGear %s is stopped\n", j.GearId)
 	}
 }

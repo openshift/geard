@@ -14,7 +14,7 @@ import (
 
 type createContainerJobRequest struct {
 	jobRequest
-	GearId string
+	GearId GearIdentifier
 	UserId string
 	Image  string
 	Output io.Writer
