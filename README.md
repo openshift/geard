@@ -11,7 +11,7 @@ stopped docker container and use that.
 
 ```json
 {
-    "id": "haomes2",
+    "id": "koye",
     "namespace_pid": 12265,
     "command": {
         "args": [
@@ -55,9 +55,9 @@ stopped docker container and use that.
 ```
 
 After you have a json file and a rootfs path to use just run:
-`./cli exec container.js`
+`./cli exec container.json`
 
 
 If you want to attach to an existing namespace just use the same json
 file with the container still running and do:
-`./cli execin container.js`
+`./cli execin container.json`
