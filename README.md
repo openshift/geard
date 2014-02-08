@@ -30,7 +30,15 @@ To start that gear, run:
 
 and to stop run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?u=0&d=1&r=1&i=2"
+    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?u=0&d=1&r=1&i=3"
+
+To create a new repository, ensure the /var/lib/gears/git directory is created and then run:
+
+    curl -X PUT "http://localhost:2223/token/__test__/repository?u=0&d=1&r=git1&i=4"
+
+First creation will be slow while the ccoleman/githost image is pulled down.  Repository creation will use a systemd transient unit named <code>job-<r></r> - to see status run:
+
+    systemctl status job-git1
 
 NOTE: the <code>i</code> parameter is a unique request ID - geard will filter duplicate requests, so if you change the request parameters be sure to increment <code>i</code> to a higher hexadecimal number (2, a, 2a, etc).
 

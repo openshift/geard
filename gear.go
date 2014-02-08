@@ -26,7 +26,7 @@ func NewGearIdentifier(s string) (GearIdentifier, error) {
 var basePath = "/var/lib/gears"
 
 func VerifyDataPaths() error {
-	for _, path := range []string{basePath, filepath.Join(basePath, "units")} {
+	for _, path := range []string{basePath, filepath.Join(basePath, "units"), filepath.Join(basePath, "git")} {
 		if err := checkPath(path, true); err != nil {
 			return err
 		}
