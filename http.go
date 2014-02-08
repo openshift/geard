@@ -21,6 +21,7 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dispatcher, ApiPutContainer)},
 		rest.Route{"PUT", "/token/:token/container/:action", JobRestHandler(dispatcher, ApiPutContainerAction)},
 		rest.Route{"PUT", "/token/:token/repository", JobRestHandler(dispatcher, ApiPutRepository)},
+		rest.Route{"GET", "/token/:token/content", JobRestHandler(dispatcher, ApiGetContent)},
 		rest.Route{"GET", "/token/:token/content/*", JobRestHandler(dispatcher, ApiGetContent)},
 	)
 	return &handler
@@ -90,7 +91,8 @@ func ApiPutRepository(reqid RequestIdentifier, token *TokenData, w *rest.Respons
 	if errg != nil {
 		return nil, errg
 	}
-	return &createRepositoryJobRequest{jobRequest{reqid}, repositoryId, token.U, "ccoleman/githost", w}, nil
+	// TODO: convert token into a safe clone spec and commit hash
+	return &createRepositoryJobRequest{jobRequest{reqid}, repositoryId, token.U, "ccoleman/githost", token.ResourceType(), w}, nil
 }
 
 func ApiPutContainerAction(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {

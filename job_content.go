@@ -2,9 +2,12 @@ package geard
 
 import (
 	//"errors"
+	streams "./streams"
 	"fmt"
 	"io"
 )
+
+const ContentTypeGitArchive = "gitarchive"
 
 type contentJobRequest struct {
 	jobRequest
@@ -15,11 +18,27 @@ type contentJobRequest struct {
 }
 
 func (j *contentJobRequest) Fast() bool {
-	return true
+	return j.Type != ContentTypeGitArchive
 }
 
 func (j *contentJobRequest) Execute() {
-	fmt.Fprintf(j.Output, "Yo, I did your content job %+v\n", j)
+	switch j.Type {
+	case ContentTypeGitArchive:
+		repoId, errr := NewGearIdentifier(j.Locator)
+		if errr != nil {
+			fmt.Fprintf(j.Output, "Invalid repository identifier: %s", errr.Error())
+			return
+		}
+		ref, errc := streams.NewGitCommitRef(j.Subpath)
+		if errc != nil {
+			fmt.Fprintf(j.Output, "Invalid commit ref: %s", errc.Error())
+			return
+		}
+		if err := streams.WriteGitRepositoryArchive(j.Output, repoId.RepositoryPathFor(), ref); err != nil {
+			fmt.Fprintf(j.Output, "Invalid git repository stream: %s", err.Error())
+			return
+		}
+	}
 }
 
 //

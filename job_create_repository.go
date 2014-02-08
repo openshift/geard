@@ -16,6 +16,7 @@ type createRepositoryJobRequest struct {
 	RepositoryId GearIdentifier
 	UserId       string
 	Image        string
+	CloneUrl     string
 	Output       io.Writer
 }
 
@@ -27,6 +28,7 @@ func (j *createRepositoryJobRequest) Execute() {
 
 	repositoryPath := j.RepositoryId.RepositoryPathFor()
 	unitName := j.RepositoryId.UnitNameForJob()
+	cloneUrl := j.CloneUrl
 
 	if err := os.Mkdir(repositoryPath, 0770); err != nil {
 		fmt.Fprintf(j.Output, "Unable to create %s: %s", repositoryPath, err.Error())
@@ -78,6 +80,7 @@ func (j *createRepositoryJobRequest) Execute() {
 			"-a", "stderr", "-a", "stdout",
 			"-u", "\"" + strconv.Itoa(repositoryOwnerUid) + "\"", "-v", repositoryPath + ":" + "/home/git/repo:rw",
 			j.Image,
+			cloneUrl,
 		}, true),
 		dbus.PropRemainAfterExit(true),
 	)
