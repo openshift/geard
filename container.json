@@ -1,6 +1,6 @@
 {
     "id": "koye",
-    "namespace_pid": 13411,
+    "namespace_pid": 13690,
     "command": {
         "args": [
             "/bin/bash"
@@ -13,6 +13,7 @@
         ]
     },
     "rootfs": "/var/lib/docker/btrfs/subvolumes/c274ff759f7db7a5ad4a4bd53122daa629cd6e54db45148652fa537fc0b12073",
+    "readonly_fs": true,
     "network": null,
     "user": "",
     "working_dir": "",
@@ -38,5 +39,7 @@
         "AUDIT_CONTROL",
         "MAC_OVERRIDE",
         "MAC_ADMIN"
+    ]
+}       "MAC_ADMIN"
     ]
 }

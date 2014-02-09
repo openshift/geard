@@ -9,6 +9,7 @@ type Container struct {
 	NsPid        int          `json:"namespace_pid"`
 	Command      *Command     `json:"command"`
 	RootFs       string       `json:"rootfs"`
+	ReadonlyFs   bool         `json:"readonly_fs"`
 	Network      *Network     `json:"network"`
 	User         string       `json:"user"`
 	WorkingDir   string       `json:"working_dir"`

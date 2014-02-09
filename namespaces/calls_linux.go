@@ -146,3 +146,7 @@ func closefd(fd uintptr) error {
 func dup2(fd1, fd2 uintptr) error {
 	return syscall.Dup2(int(fd1), int(fd2))
 }
+
+func mknod(path string, mode uint32, dev int) error {
+	return syscall.Mknod(path, mode, dev)
+}

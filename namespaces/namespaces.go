@@ -70,6 +70,12 @@ func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 			writeError("mouting %s as bind %s", rootfs, err)
 		}
 
+		if container.ReadonlyFs {
+			if err := mount(rootfs, rootfs, "bind", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_REC, ""); err != nil {
+				writeError("mounting %s as readonly %s", rootfs, err)
+			}
+		}
+
 		if err := b.mountSystem(rootfs); err != nil {
 			writeError("mount system %s", err)
 		}
@@ -293,6 +299,7 @@ func (b *backend) setupNetwork(container *libcontainer.Container, mtu int) error
 		return nil
 	}
 
+	// TODO: get mtu from container
 	if err := network.SetMtu("lo", mtu); err != nil {
 		return err
 	}
