@@ -12,10 +12,12 @@ import (
 
 var (
 	displayPid bool
+	newCommand string
 )
 
 func init() {
 	flag.BoolVar(&displayPid, "pid", false, "display the pid before waiting")
+	flag.StringVar(&newCommand, "cmd", "/bin/bash", "command to run in the existing namespace")
 	flag.Parse()
 }
 
@@ -61,7 +63,7 @@ func execIn(container *libcontainer.Container) error {
 	pid, err := driver.ExecIn(container, &libcontainer.Command{
 		Env: container.Command.Env,
 		Args: []string{
-			"/bin/bash",
+			newCommand,
 		},
 	})
 	if err != nil {
