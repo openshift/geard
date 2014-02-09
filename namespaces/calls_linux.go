@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	SYS_SETNS      = 308 // look here for different arch http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/?id=7b21fddd087678a70ad64afc0f632e0f1071b092
-	sys_TIOCGPTN   = 0x80045430
-	sys_TIOCSPTLCK = 0x40045431
+	SYS_SETNS  = 308 // look here for different arch http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/?id=7b21fddd087678a70ad64afc0f632e0f1071b092
+	TIOCGPTN   = 0x80045430
+	TIOCSPTLCK = 0x40045431
 )
 
 func chroot(dir string) error {
@@ -99,9 +99,6 @@ func setresuid(ruid, euid, suid int) error {
 }
 
 func sethostname(name string) error {
-	if len(name) > 12 {
-		name = name[:12]
-	}
 	return syscall.Sethostname([]byte(name))
 }
 
@@ -109,15 +106,9 @@ func setsid() (int, error) {
 	return syscall.Setsid()
 }
 
-func ioctl(fd uintptr, cmd uintptr, data *int) error {
-	_, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		fd,
-		cmd,
-		uintptr(unsafe.Pointer(data)),
-	)
-	if err != 0 {
-		return syscall.ENOTTY
+func ioctl(fd uintptr, flag, data uintptr) error {
+	if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, fd, flag, data); err != 0 {
+		return err
 	}
 	return nil
 }
@@ -128,12 +119,12 @@ func openpmtx() (*os.File, error) {
 
 func unlockpt(f *os.File) error {
 	var u int
-	return ioctl(f.Fd(), sys_TIOCSPTLCK, &u)
+	return ioctl(f.Fd(), TIOCSPTLCK, uintptr(unsafe.Pointer(&u)))
 }
 
 func ptsname(f *os.File) (string, error) {
 	var n int
-	if err := ioctl(f.Fd(), sys_TIOCGPTN, &n); err != nil {
+	if err := ioctl(f.Fd(), TIOCGPTN, uintptr(unsafe.Pointer(&n))); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("/dev/pts/%d", n), nil
