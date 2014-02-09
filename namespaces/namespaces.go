@@ -11,6 +11,7 @@ package namespaces
 import (
 	"fmt"
 	"github.com/crosbymichael/libcontainer"
+	"github.com/crosbymichael/libcontainer/network"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -30,6 +31,10 @@ type backend struct {
 
 func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 	rootfs, err := filepath.Abs(container.RootFs)
+	if err != nil {
+		return -1, err
+	}
+	mtu, err := network.GetDefaultMtu()
 	if err != nil {
 		return -1, err
 	}
@@ -87,6 +92,10 @@ func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 
 		if err := sethostname(container.ID); err != nil {
 			writeError("sethostname %s", err)
+		}
+
+		if err := b.setupNetwork(container, mtu); err != nil {
+			writeError("setup networking %s", err)
 		}
 
 		if err := libcontainer.DropCapabilities(container); err != nil {
@@ -276,4 +285,19 @@ func (b *backend) getMasterAndConsole(container *libcontainer.Container) (string
 		return "", nil, err
 	}
 	return console, master, nil
+}
+
+func (b *backend) setupNetwork(container *libcontainer.Container, mtu int) error {
+	// do not setup networking if the NEWNET namespace is not provided
+	if !container.Namespaces.Contains(libcontainer.CLONE_NEWNET) {
+		return nil
+	}
+
+	if err := network.SetMtu("lo", mtu); err != nil {
+		return err
+	}
+	if err := network.InterfaceUp("lo"); err != nil {
+		return err
+	}
+	return nil
 }

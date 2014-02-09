@@ -12,8 +12,8 @@ type Container struct {
 	Network      *Network     `json:"network"`
 	User         string       `json:"user"`
 	WorkingDir   string       `json:"working_dir"`
-	Namespaces   []Namespace  `json:"namespaces"`
-	Capabilities []Capability `json:"capabilities"`
+	Namespaces   Namespaces   `json:"namespaces"`
+	Capabilities Capabilities `json:"capabilities"`
 }
 
 type Command struct {
