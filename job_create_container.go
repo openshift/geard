@@ -33,10 +33,10 @@ type extendedCreateContainerData struct {
 func (j *createContainerJobRequest) Execute() {
 	fmt.Fprintf(j.Output, "Creating gear %s ... \n", j.GearId)
 
-	unitPath := j.GearId.UnitNameFor()
+	unitPath := j.GearId.UnitPathFor()
 
 	unit, err := os.OpenFile(unitPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
-	if err == os.ErrExist {
+	if os.IsExist(err) {
 		fmt.Fprintf(j.Output, "A container already exists for this gear")
 		return
 	} else if err != nil {
@@ -54,13 +54,13 @@ func (j *createContainerJobRequest) Execute() {
 	}
 
 	containerUnitTemplate.Execute(unit, containerUnit{j.GearId, j.Image, portSpec.String()})
-	fmt.Fprintf(unit, "\n\n[Gear]\nx-GearId=%s\nx-ContainerImage=%s\nx-ContainerUserId=%s\nx-ContainerRequestId=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToHex())
+	fmt.Fprintf(unit, "\n\n# Gear information\nX-GearId=%s\nX-ContainerImage=%s\nX-ContainerUserId=%s\nX-ContainerRequestId=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToHex())
 	unit.Close()
 
 	fmt.Fprintf(j.Output, "Unit in place %s ... \n", j.GearId)
 	if _, _, err := SystemdConnection().EnableUnitFiles([]string{unitPath}, false, false); err != nil {
 		log.Printf("job_create_container: Failed enabling %s: %s", unitPath, err.Error())
-		fmt.Fprintf(j.Output, "Unable to create a gear for this container due to %s\n", err.Error())
+		fmt.Fprintf(j.Output, "Unable to enable gear for this container due to %s\n", err.Error())
 		return
 	}
 
@@ -79,7 +79,7 @@ func (j *createContainerJobRequest) Execute() {
 	} else if status != "done" {
 		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
 	} else {
-		fmt.Fprintf(j.Output, "\nGear %s is started\n", j.GearId)
+		fmt.Fprintf(j.Output, "Gear %s is starting\n", j.GearId)
 	}
 
 	stdout.Close()

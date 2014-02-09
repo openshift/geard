@@ -69,6 +69,11 @@ func SprintSystemdError(err error) string {
 	return ""
 }
 
-func ErrNoSuchUnit(err error) bool {
+var ErrNoSuchUnit = db.Error{Name: "org.freedesktop.systemd1.NoSuchUnit"}
+
+func IsNoSuchUnit(err error) bool {
 	return SystemdError(err, "org.freedesktop.systemd1.NoSuchUnit")
+}
+func IsLoadFailed(err error) bool {
+	return SystemdError(err, "org.freedesktop.systemd1.LoadFailed")
 }

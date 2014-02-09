@@ -3,6 +3,7 @@ package geard
 import (
 	"fmt"
 	"io"
+	"os"
 	"time"
 )
 
@@ -16,14 +17,13 @@ type startedContainerStateJobRequest struct {
 func (j *startedContainerStateJobRequest) Execute() {
 	fmt.Fprintf(j.Output, "Ensuring gear %s is started ... \n", j.GearId)
 
-	unitName := j.GearId.UnitNameFor()
-	status, err := SystemdConnection().StartUnit(unitName, "fail")
+	status, err := StartAndEnableUnit(j.GearId.UnitNameFor(), j.GearId.UnitPathFor())
 
 	switch {
-	case ErrNoSuchUnit(err):
+	case IsNoSuchUnit(err):
 		fmt.Fprintf(j.Output, "No such gear %s\n", j.GearId)
 	case err != nil:
-		fmt.Fprintf(j.Output, "Could not start gear %s\n", err.Error())
+		fmt.Fprintf(j.Output, "Could not start gear %+v\n", err)
 	case status != "done":
 		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
 	default:
@@ -38,8 +38,26 @@ func (j *startedContainerStateJobRequest) Execute() {
 		time.Sleep(3 * time.Second)
 		stdout.Close()
 
-		fmt.Fprintf(j.Output, "\nGear %s is started\n", j.GearId)
+		fmt.Fprintf(j.Output, "Gear %s is started\n", j.GearId)
 	}
+}
+
+func StartAndEnableUnit(name string, path string) (string, error) {
+	status, err := SystemdConnection().StartUnit(name, "fail")
+	switch {
+	case IsNoSuchUnit(err), IsLoadFailed(err):
+		if _, err := os.Stat(path); err == nil {
+			_, _, err := SystemdConnection().EnableUnitFiles([]string{path}, false, false)
+			if err == nil {
+				return SystemdConnection().StartUnit(name, "fail")
+			} else {
+				return "", err
+			}
+		} else {
+			return "", ErrNoSuchUnit
+		}
+	}
+	return status, err
 }
 
 type stoppedContainerStateJobRequest struct {
@@ -65,13 +83,17 @@ func (j *stoppedContainerStateJobRequest) Execute() {
 	status, err := SystemdConnection().StopUnit(unitName, "fail")
 	stdout.Close()
 	switch {
-	case ErrNoSuchUnit(err):
-		fmt.Fprintf(j.Output, "No such gear %s\n", j.GearId)
+	case IsNoSuchUnit(err):
+		if _, err := os.Stat(j.GearId.UnitPathFor()); err == nil {
+			fmt.Fprintf(j.Output, "Gear %s is stopped\n", j.GearId)
+		} else {
+			fmt.Fprintf(j.Output, "No such gear %s\n", j.GearId)
+		}
 	case err != nil:
 		fmt.Fprintf(j.Output, "Could not start gear: %s\n", err.Error())
 	case status != "done":
 		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
 	default:
-		fmt.Fprintf(j.Output, "\nGear %s is stopped\n", j.GearId)
+		fmt.Fprintf(j.Output, "Gear %s is stopped\n", j.GearId)
 	}
 }
