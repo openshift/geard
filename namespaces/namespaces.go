@@ -263,3 +263,17 @@ func (b *backend) setupUser(container *libcontainer.Container) error {
 	}
 	return nil
 }
+
+func (b *backend) getMasterAndConsole(container *libcontainer.Container) (string, *os.File, error) {
+	master, err := openpmtx()
+	if err != nil {
+		return "", nil, err
+	}
+
+	console, err := ptsname(master)
+	if err != nil {
+		master.Close()
+		return "", nil, err
+	}
+	return console, master, nil
+}

@@ -1,11 +1,16 @@
 package namespaces
 
 import (
+	"fmt"
+	"os"
 	"syscall"
+	"unsafe"
 )
 
 const (
-	SYS_SETNS = 308 // look here for different arch http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/?id=7b21fddd087678a70ad64afc0f632e0f1071b092
+	SYS_SETNS      = 308 // look here for different arch http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/?id=7b21fddd087678a70ad64afc0f632e0f1071b092
+	sys_TIOCGPTN   = 0x80045430
+	sys_TIOCSPTLCK = 0x40045431
 )
 
 func chroot(dir string) error {
@@ -102,4 +107,42 @@ func sethostname(name string) error {
 
 func setsid() (int, error) {
 	return syscall.Setsid()
+}
+
+func ioctl(fd uintptr, cmd uintptr, data *int) error {
+	_, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		fd,
+		cmd,
+		uintptr(unsafe.Pointer(data)),
+	)
+	if err != 0 {
+		return syscall.ENOTTY
+	}
+	return nil
+}
+
+func openpmtx() (*os.File, error) {
+	return os.OpenFile("/dev/ptmx", syscall.O_RDONLY|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
+}
+
+func unlockpt(f *os.File) error {
+	var u int
+	return ioctl(f.Fd(), sys_TIOCSPTLCK, &u)
+}
+
+func ptsname(f *os.File) (string, error) {
+	var n int
+	if err := ioctl(f.Fd(), sys_TIOCGPTN, &n); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("/dev/pts/%d", n), nil
+}
+
+func closefd(fd uintptr) error {
+	return syscall.Close(int(fd))
+}
+
+func dup2(fd1, fd2 uintptr) error {
+	return syscall.Dup2(int(fd1), int(fd2))
 }
