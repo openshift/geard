@@ -8,7 +8,7 @@ RUN mkdir -p $GOPATH && echo $GOPATH >> ~/.bash_profile
 ADD . /geard
 WORKDIR /geard
 RUN go get -d
-RUN go build -o geard.local
+RUN go build -o geard.local geard/main.go
 
 CMD /geard/geard.local
 EXPOSE 8080
