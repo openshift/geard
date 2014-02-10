@@ -25,6 +25,7 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 		rest.Route{"PUT", "/token/:token/keys", JobRestHandler(dispatcher, ApiPutKeys)},
 		rest.Route{"GET", "/token/:token/content", JobRestHandler(dispatcher, ApiGetContent)},
 		rest.Route{"GET", "/token/:token/content/*", JobRestHandler(dispatcher, ApiGetContent)},
+		rest.Route{"PUT", "/token/:token/build-image", JobRestHandler(dispatcher, ApiPutBuildImageAction)},
 	)
 	return &handler
 }
@@ -133,6 +134,21 @@ func ApiPutContainerAction(reqid RequestIdentifier, token *TokenData, w *rest.Re
 	default:
 		return nil, errors.New("You must provide a valid action for this container to take")
 	}
+}
+
+func ApiPutBuildImageAction(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	if token.ResourceLocator() == "" {
+		return nil, errors.New("You must specifiy the application source to build")
+	}
+	if token.ResourceType() == "" {
+		return nil, errors.New("You must specify a base image")
+	}
+
+	source := token.ResourceLocator() // token.R
+	baseImage := token.ResourceType() // token.T
+	tag := token.U
+
+	return &buildImageJobRequest{jobRequest{reqid}, source, baseImage, tag, w}, nil
 }
 
 func ApiGetContent(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
