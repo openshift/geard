@@ -1,9 +1,8 @@
 package geard
 
 import (
-	"errors"
-	//"fmt"
 	"encoding/json"
+	"errors"
 	"github.com/ant0ine/go-json-rest"
 	"io"
 	"log"
@@ -21,6 +20,7 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dispatcher, ApiPutContainer)},
 		rest.Route{"PUT", "/token/:token/container/:action", JobRestHandler(dispatcher, ApiPutContainerAction)},
 		rest.Route{"PUT", "/token/:token/repository", JobRestHandler(dispatcher, ApiPutRepository)},
+		rest.Route{"PUT", "/token/:token/keys", JobRestHandler(dispatcher, ApiPutKeys)},
 		rest.Route{"GET", "/token/:token/content", JobRestHandler(dispatcher, ApiGetContent)},
 		rest.Route{"GET", "/token/:token/content/*", JobRestHandler(dispatcher, ApiGetContent)},
 	)
@@ -64,7 +64,7 @@ func JobRestHandler(dispatcher *Dispatcher, handler JobHandler) func(*rest.Respo
 }
 
 func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
-	gearId, errg := NewGearIdentifier(token.ResourceLocator())
+	gearId, errg := NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}
@@ -86,8 +86,22 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 	return &createContainerJobRequest{jobRequest{reqid}, gearId, token.U, token.ResourceType(), w, &data}, nil
 }
 
+func ApiPutKeys(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	data := extendedCreateKeysData{}
+	if r.Body != nil {
+		dec := json.NewDecoder(io.LimitReader(r.Body, 100*1024))
+		if err := dec.Decode(&data); err != nil && err != io.EOF {
+			return nil, err
+		}
+	}
+	if err := data.Check(); err != nil {
+		return nil, err
+	}
+	return &createKeysJobRequest{jobRequest{reqid}, token.U, w, &data}, nil
+}
+
 func ApiPutRepository(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
-	repositoryId, errg := NewGearIdentifier(token.ResourceLocator())
+	repositoryId, errg := NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}
@@ -97,7 +111,7 @@ func ApiPutRepository(reqid RequestIdentifier, token *TokenData, w *rest.Respons
 
 func ApiPutContainerAction(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
 	action := r.PathParam("action")
-	gearId, errg := NewGearIdentifier(token.ResourceLocator())
+	gearId, errg := NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}

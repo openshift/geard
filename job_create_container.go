@@ -14,7 +14,7 @@ import (
 
 type createContainerJobRequest struct {
 	jobRequest
-	GearId GearIdentifier
+	GearId Identifier
 	UserId string
 	Image  string
 	Output io.Writer
@@ -54,7 +54,7 @@ func (j *createContainerJobRequest) Execute() {
 	}
 
 	containerUnitTemplate.Execute(unit, containerUnit{j.GearId, j.Image, portSpec.String()})
-	fmt.Fprintf(unit, "\n\n# Gear information\nX-GearId=%s\nX-ContainerImage=%s\nX-ContainerUserId=%s\nX-ContainerRequestId=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToHex())
+	fmt.Fprintf(unit, "\n\n# Gear information\nX-GearId=%s\nX-ContainerImage=%s\nX-ContainerUserId=%s\nX-ContainerRequestId=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToShortName())
 	unit.Close()
 
 	fmt.Fprintf(j.Output, "Unit in place %s ... \n", j.GearId)

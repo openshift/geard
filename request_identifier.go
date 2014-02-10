@@ -2,19 +2,19 @@ package geard
 
 import (
 	"container/list"
-	"encoding/hex"
+	"encoding/base64"
 	"fmt"
 	"sync"
 )
 
 type RequestIdentifier []byte
 
-func (r RequestIdentifier) ToHex() string {
-	return hex.EncodeToString(r)
+func (r RequestIdentifier) ToShortName() string {
+	return base64.URLEncoding.EncodeToString(r)
 }
 
 func (r RequestIdentifier) UnitNameFor() string {
-	return fmt.Sprintf("job-%s.service", r.ToHex())
+	return fmt.Sprintf("job-%s.service", r.ToShortName())
 }
 
 type RequestIdentifierMap struct {

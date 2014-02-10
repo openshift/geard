@@ -13,7 +13,7 @@ import (
 
 type createRepositoryJobRequest struct {
 	jobRequest
-	RepositoryId GearIdentifier
+	RepositoryId Identifier
 	UserId       string
 	Image        string
 	CloneUrl     string

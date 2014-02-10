@@ -24,7 +24,7 @@ func (j *contentJobRequest) Fast() bool {
 func (j *contentJobRequest) Execute() {
 	switch j.Type {
 	case ContentTypeGitArchive:
-		repoId, errr := NewGearIdentifier(j.Locator)
+		repoId, errr := NewIdentifier(j.Locator)
 		if errr != nil {
 			fmt.Fprintf(j.Output, "Invalid repository identifier: %s", errr.Error())
 			return

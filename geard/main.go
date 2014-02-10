@@ -2,10 +2,10 @@ package main
 
 import (
 	geard ".."
-	//"errors"
+	"code.google.com/p/go.crypto/ssh"
 	"log"
 	"net/http"
-	//"strings"
+	"sync"
 )
 
 var dispatcher = geard.Dispatcher{
@@ -23,11 +23,31 @@ func main() {
 		log.Fatal(err)
 	}
 	dispatcher.Start()
-	listenHttp()
+	wg := &sync.WaitGroup{}
+	//listenSsh(wg)
+	listenHttp(wg)
+	wg.Wait()
+	log.Print("Exiting ...")
 }
 
-func listenHttp() {
-	connect := ":8080"
-	log.Printf("Starting HTTP on %s ... ", connect)
-	log.Fatal(http.ListenAndServe(connect, geard.NewHttpApiHandler(&dispatcher)))
+func listenSsh(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		connect := ":2022"
+		server := &geard.SshServer{}
+		log.Printf("Starting SSHD on %s ... ", connect)
+		log.Fatal(server.ListenAndServe(connect, &ssh.ServerConfig{}))
+	}()
+}
+
+func listenHttp(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		connect := ":8080"
+		log.Printf("Starting HTTP on %s ... ", connect)
+		log.Fatal(http.ListenAndServe(connect, geard.NewHttpApiHandler(&dispatcher)))
+	}()
 }

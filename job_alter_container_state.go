@@ -9,7 +9,7 @@ import (
 
 type startedContainerStateJobRequest struct {
 	jobRequest
-	GearId GearIdentifier
+	GearId Identifier
 	UserId string
 	Output io.Writer
 }
@@ -62,7 +62,7 @@ func StartAndEnableUnit(name string, path string) (string, error) {
 
 type stoppedContainerStateJobRequest struct {
 	jobRequest
-	GearId GearIdentifier
+	GearId Identifier
 	UserId string
 	Output io.Writer
 }
