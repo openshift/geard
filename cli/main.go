@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/crosbymichael/libcontainer"
 	"github.com/crosbymichael/libcontainer/namespaces"
+	"github.com/crosbymichael/libcontainer/network"
 	"os"
 )
 
@@ -24,6 +25,12 @@ func init() {
 func exec(contianer *libcontainer.Container, name string) error {
 	driver := namespaces.New()
 
+	f, err := os.Open("/root/nsroot/test")
+	if err != nil {
+		return err
+	}
+	contianer.NetworkNamespace = f.Fd()
+
 	pid, err := driver.Exec(contianer)
 	if err != nil {
 		return fmt.Errorf("error exec container %s", err)
@@ -40,7 +47,7 @@ func exec(contianer *libcontainer.Container, name string) error {
 		return err
 	}
 
-	f, err := os.OpenFile(name, os.O_RDWR, 0755)
+	f, err = os.OpenFile(name, os.O_RDWR, 0755)
 	if err != nil {
 		return err
 	}
@@ -79,6 +86,58 @@ func execIn(container *libcontainer.Container) error {
 	return nil
 }
 
+func createNet(config *libcontainer.Network) error {
+	root := "/root/nsroot"
+	if err := namespaces.SetupNamespaceMountDir(root); err != nil {
+		return err
+	}
+
+	nspath := root + "/test"
+	pid, err := namespaces.CreateNetworkNamespace(nspath)
+	if err != nil {
+		return nil
+	}
+	exit, err := libcontainer.WaitOnPid(pid)
+	if err != nil {
+		return err
+	}
+	if exit != 0 {
+		return fmt.Errorf("exit code not 0")
+	}
+
+	if err := network.CreateVethPair("veth0", config.TempVethName); err != nil {
+		return err
+	}
+
+	if err := network.SetInterfaceMaster("veth0", config.Bridge); err != nil {
+		return err
+	}
+	if err := network.InterfaceUp("veth0"); err != nil {
+		return err
+	}
+
+	f, err := os.Open(nspath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := network.SetInterfaceInNamespaceFd("veth1", int(f.Fd())); err != nil {
+		return err
+	}
+
+	if pid, err = namespaces.SetupNetworkNamespace(f.Fd(), config); err != nil {
+		return err
+	}
+	exit, err = libcontainer.WaitOnPid(pid)
+	if err != nil {
+		return err
+	}
+	if exit != 0 {
+		return fmt.Errorf("exit code not 0")
+	}
+	return nil
+}
+
 func printErr(err error) {
 	fmt.Fprintln(os.Stderr, err)
 	os.Exit(1)
@@ -108,6 +167,14 @@ func main() {
 		err = exec(container, config)
 	case "execin":
 		err = execIn(container)
+	case "net":
+		err = createNet(&libcontainer.Network{
+			TempVethName: "veth1",
+			IP:           "172.17.0.100/16",
+			Gateway:      "172.17.42.1",
+			Mtu:          1500,
+			Bridge:       "docker0",
+		})
 	default:
 		err = fmt.Errorf("command not supported: %s", cliCmd)
 	}

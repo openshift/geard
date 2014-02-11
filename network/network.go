@@ -18,6 +18,14 @@ func InterfaceUp(name string) error {
 	return netlink.NetworkLinkUp(iface)
 }
 
+func InterfaceDown(name string) error {
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		return err
+	}
+	return netlink.NetworkLinkDown(iface)
+}
+
 func ChangeInterfaceName(old, newName string) error {
 	iface, err := net.InterfaceByName(old)
 	if err != nil {
@@ -30,12 +38,20 @@ func CreateVethPair(name1, name2 string) error {
 	return netlink.NetworkCreateVethPair(name1, name2)
 }
 
-func SetInterfaceInNamespace(name string, nsPid int) error {
+func SetInterfaceInNamespacePid(name string, nsPid int) error {
 	iface, err := net.InterfaceByName(name)
 	if err != nil {
 		return err
 	}
 	return netlink.NetworkSetNsPid(iface, nsPid)
+}
+
+func SetInterfaceInNamespaceFd(name string, fd int) error {
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		return err
+	}
+	return netlink.NetworkSetNsFd(iface, fd)
 }
 
 func SetInterfaceMaster(name, master string) error {
