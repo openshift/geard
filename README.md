@@ -7,6 +7,13 @@ Exploration of a Docker+systemd gear daemon (geard) in Go.  The daemon runs at a
 Try it out
 ----------
 
+The geard code depends on:
+
+* systemd 207 (Fedora 20 or newer)
+* Docker 0.7 or newer
+
+You can get a vagrant F20 box from http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_fedora-20_chef-provisionerless.box
+
 Take the systemd unit file in <code>contrib/geard.service</code> and enable it on your system (assumes Docker is installed) with: 
 
     curl https://raw.github.com/smarterclayton/geard/master/contrib/geard.service > /usr/lib/systemd/service/geard.service
