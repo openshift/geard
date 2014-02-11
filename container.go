@@ -6,7 +6,7 @@ type Container struct {
 	Command          *Command     `json:"command,omitempty"`
 	RootFs           string       `json:"rootfs,omitempty"`
 	ReadonlyFs       bool         `json:"readonly_fs,omitempty"`
-	NetworkNamespace uintptr      `json:"network_namespace,omitempty"`
+	NetworkNamespace string       `json:"network_namespace,omitempty"`
 	User             string       `json:"user,omitempty"`
 	WorkingDir       string       `json:"working_dir,omitempty"`
 	Namespaces       Namespaces   `json:"namespaces,omitempty"`

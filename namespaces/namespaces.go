@@ -35,7 +35,7 @@ type backend struct {
 }
 
 func (b *backend) Exec(container *libcontainer.Container) (int, error) {
-	if container.NetworkNamespace > 0 && container.Namespaces.Contains(libcontainer.CLONE_NEWNET) {
+	if container.NetworkNamespace != "" && container.Namespaces.Contains(libcontainer.CLONE_NEWNET) {
 		return -1, ErrExistingNetworkNamespace
 	}
 	rootfs, err := filepath.Abs(container.RootFs)
@@ -83,6 +83,16 @@ func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 			writeError("mount move %s into / %s", rootfs, err)
 		}
 
+		if container.NetworkNamespace != "" {
+			if err := b.joinExistingNetworkNamespace(container); err != nil {
+				writeError("join existing network namespace %s", err)
+			}
+		} else if container.Namespaces.Contains(libcontainer.CLONE_NEWNET) {
+			if err := b.setupNetwork(container); err != nil {
+				writeError("setup networking %s", err)
+			}
+		}
+
 		if err := chroot("."); err != nil {
 			writeError("chroot . %s", err)
 		}
@@ -93,16 +103,6 @@ func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 
 		if err := sethostname(container.ID); err != nil {
 			writeError("sethostname %s", err)
-		}
-
-		if container.NetworkNamespace > 0 {
-			if err := b.joinExistingNetworkNamespace(container); err != nil {
-				writeError("join existing network namespace %s", err)
-			}
-		} else if container.Namespaces.Contains(libcontainer.CLONE_NEWNET) {
-			if err := b.setupNetwork(container); err != nil {
-				writeError("setup networking %s", err)
-			}
 		}
 
 		if err := libcontainer.DropCapabilities(container); err != nil {
@@ -294,13 +294,18 @@ func (b *backend) getMasterAndConsole(container *libcontainer.Container) (string
 }
 
 func (b *backend) joinExistingNetworkNamespace(container *libcontainer.Container) error {
+	f, err := os.Open(container.NetworkNamespace)
+	if err != nil {
+		return err
+	}
+
 	// leave our parent's networking namespace
 	if err := unshare(CLONE_NEWNET); err != nil {
 		return err
 	}
 
 	// join the new namespace specified by the fd
-	if err := setns(container.NetworkNamespace, CLONE_NEWNET); err != nil {
+	if err := setns(f.Fd(), CLONE_NEWNET); err != nil {
 		return err
 	}
 	return nil

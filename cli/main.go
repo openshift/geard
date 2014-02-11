@@ -25,12 +25,7 @@ func init() {
 func exec(contianer *libcontainer.Container, name string) error {
 	driver := namespaces.New()
 
-	f, err := os.Open("/root/nsroot/test")
-	if err != nil {
-		return err
-	}
-	contianer.NetworkNamespace = f.Fd()
-
+	contianer.NetworkNamespace = "/root/nsroot/test"
 	pid, err := driver.Exec(contianer)
 	if err != nil {
 		return fmt.Errorf("error exec container %s", err)
@@ -47,7 +42,7 @@ func exec(contianer *libcontainer.Container, name string) error {
 		return err
 	}
 
-	f, err = os.OpenFile(name, os.O_RDWR, 0755)
+	f, err := os.OpenFile(name, os.O_RDWR, 0755)
 	if err != nil {
 		return err
 	}
@@ -60,6 +55,9 @@ func exec(contianer *libcontainer.Container, name string) error {
 	exitcode, err := libcontainer.WaitOnPid(pid)
 	if err != nil {
 		return fmt.Errorf("error waiting on child %s", err)
+	}
+	if err := namespaces.DeleteNetworkNamespace("/root/nsroot/test"); err != nil {
+		return err
 	}
 	os.Exit(exitcode)
 	return nil
