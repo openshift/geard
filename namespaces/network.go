@@ -7,6 +7,8 @@ import (
 	"syscall"
 )
 
+// SetupNamespaceMountDir prepares a new root for use as a mount
+// source for bind mounting namespace fd to an outside path
 func SetupNamespaceMountDir(root string) error {
 	if err := os.MkdirAll(root, 0666); err != nil {
 		return err
@@ -21,7 +23,7 @@ func SetupNamespaceMountDir(root string) error {
 	return nil
 }
 
-// creates a new network namespace and binds it to the fd
+// CreateNetworkNamespace creates a new network namespace and binds it's fd
 // at the binding path
 func CreateNetworkNamespace(bindingPath string) (int, error) {
 	f, err := os.OpenFile(bindingPath, os.O_RDONLY|os.O_CREATE|os.O_EXCL, 0)
@@ -46,6 +48,8 @@ func CreateNetworkNamespace(bindingPath string) (int, error) {
 	return pid, nil
 }
 
+// SetupNetworkNamespace sets up an existing network namespace with the specified
+// network configuration.
 func SetupNetworkNamespace(fd uintptr, config *libcontainer.Network) (int, error) {
 	pid, err := fork()
 	if err != nil {
@@ -83,6 +87,9 @@ func SetupNetworkNamespace(fd uintptr, config *libcontainer.Network) (int, error
 	return pid, nil
 }
 
+// DeleteNetworkNamespace unmounts the binding path and removes the
+// file so that no references to the fd are present and the network
+// namespace is automatically cleaned up
 func DeleteNetworkNamespace(bindingPath string) error {
 	if err := unmount(bindingPath, 0); err != nil {
 		return err
