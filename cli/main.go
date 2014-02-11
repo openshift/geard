@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/crosbymichael/libcontainer"
 	"github.com/crosbymichael/libcontainer/namespaces"
+	"github.com/crosbymichael/libcontainer/network"
 	"os"
 )
 
@@ -24,6 +25,7 @@ func init() {
 func exec(contianer *libcontainer.Container, name string) error {
 	driver := namespaces.New()
 
+	contianer.NetworkNamespace = "/root/nsroot/test"
 	pid, err := driver.Exec(contianer)
 	if err != nil {
 		return fmt.Errorf("error exec container %s", err)
@@ -54,6 +56,9 @@ func exec(contianer *libcontainer.Container, name string) error {
 	if err != nil {
 		return fmt.Errorf("error waiting on child %s", err)
 	}
+	if err := namespaces.DeleteNetworkNamespace("/root/nsroot/test"); err != nil {
+		return err
+	}
 	os.Exit(exitcode)
 	return nil
 }
@@ -69,12 +74,62 @@ func execIn(container *libcontainer.Container) error {
 	if err != nil {
 		return fmt.Errorf("error exexin container %s", err)
 	}
-	if pid != 0 { // fix exec in returning pid of 0, we do two forks :(
-		exitcode, err := libcontainer.WaitOnPid(pid)
-		if err != nil {
-			return fmt.Errorf("error waiting on child %s", err)
-		}
-		os.Exit(exitcode)
+	exitcode, err := libcontainer.WaitOnPid(pid)
+	if err != nil {
+		return fmt.Errorf("error waiting on child %s", err)
+	}
+	os.Exit(exitcode)
+	return nil
+}
+
+func createNet(config *libcontainer.Network) error {
+	root := "/root/nsroot"
+	if err := namespaces.SetupNamespaceMountDir(root); err != nil {
+		return err
+	}
+
+	nspath := root + "/test"
+	pid, err := namespaces.CreateNetworkNamespace(nspath)
+	if err != nil {
+		return nil
+	}
+	exit, err := libcontainer.WaitOnPid(pid)
+	if err != nil {
+		return err
+	}
+	if exit != 0 {
+		return fmt.Errorf("exit code not 0")
+	}
+
+	if err := network.CreateVethPair("veth0", config.TempVethName); err != nil {
+		return err
+	}
+
+	if err := network.SetInterfaceMaster("veth0", config.Bridge); err != nil {
+		return err
+	}
+	if err := network.InterfaceUp("veth0"); err != nil {
+		return err
+	}
+
+	f, err := os.Open(nspath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := network.SetInterfaceInNamespaceFd("veth1", int(f.Fd())); err != nil {
+		return err
+	}
+
+	if pid, err = namespaces.SetupNetworkNamespace(f.Fd(), config); err != nil {
+		return err
+	}
+	exit, err = libcontainer.WaitOnPid(pid)
+	if err != nil {
+		return err
+	}
+	if exit != 0 {
+		return fmt.Errorf("exit code not 0")
 	}
 	return nil
 }
@@ -108,6 +163,14 @@ func main() {
 		err = exec(container, config)
 	case "execin":
 		err = execIn(container)
+	case "net":
+		err = createNet(&libcontainer.Network{
+			TempVethName: "veth1",
+			IP:           "172.17.0.100/16",
+			Gateway:      "172.17.42.1",
+			Mtu:          1500,
+			Bridge:       "docker0",
+		})
 	default:
 		err = fmt.Errorf("command not supported: %s", cliCmd)
 	}

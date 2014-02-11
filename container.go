@@ -1,31 +1,27 @@
 package libcontainer
 
-import (
-	"net"
-)
-
 type Container struct {
-	ID           string       `json:"id"`
-	NsPid        int          `json:"namespace_pid"`
-	Command      *Command     `json:"command"`
-	RootFs       string       `json:"rootfs"`
-	ReadonlyFs   bool         `json:"readonly_fs"`
-	Network      *Network     `json:"network"`
-	User         string       `json:"user"`
-	WorkingDir   string       `json:"working_dir"`
-	Namespaces   Namespaces   `json:"namespaces"`
-	Capabilities Capabilities `json:"capabilities"`
+	ID               string       `json:"id,omitempty"`
+	NsPid            int          `json:"namespace_pid,omitempty"`
+	Command          *Command     `json:"command,omitempty"`
+	RootFs           string       `json:"rootfs,omitempty"`
+	ReadonlyFs       bool         `json:"readonly_fs,omitempty"`
+	NetworkNamespace string       `json:"network_namespace,omitempty"`
+	User             string       `json:"user,omitempty"`
+	WorkingDir       string       `json:"working_dir,omitempty"`
+	Namespaces       Namespaces   `json:"namespaces,omitempty"`
+	Capabilities     Capabilities `json:"capabilities,omitempty"`
 }
 
 type Command struct {
-	Args []string `json:"args"`
-	Env  []string `json:"environment"`
+	Args []string `json:"args,omitempty"`
+	Env  []string `json:"environment,omitempty"`
 }
 
 type Network struct {
-	IP          net.IP `json:"id"`
-	IPPrefixLen int    `json:"ip_prefix_len"`
-	Gateway     net.IP `json:"gateway"`
-	Bridge      string `json:"bridge"`
-	Mtu         int    `json:"mtu"`
+	TempVethName string `json:"temp_veth,omitempty"`
+	IP           string `json:"ip,omitempty"`
+	Gateway      string `json:"gateway,omitempty"`
+	Bridge       string `json:"bridge,omitempty"`
+	Mtu          int    `json:"mtu,omitempty"`
 }
