@@ -8,6 +8,7 @@ import (
 	"github.com/crosbymichael/libcontainer"
 	"github.com/crosbymichael/libcontainer/namespaces"
 	"github.com/crosbymichael/libcontainer/network"
+	"github.com/crosbymichael/libcontainer/utils"
 	"os"
 )
 
@@ -52,7 +53,7 @@ func exec(contianer *libcontainer.Container, name string) error {
 	}
 	f.Close()
 
-	exitcode, err := libcontainer.WaitOnPid(pid)
+	exitcode, err := utils.WaitOnPid(pid)
 	if err != nil {
 		return fmt.Errorf("error waiting on child %s", err)
 	}
@@ -74,7 +75,7 @@ func execIn(container *libcontainer.Container) error {
 	if err != nil {
 		return fmt.Errorf("error exexin container %s", err)
 	}
-	exitcode, err := libcontainer.WaitOnPid(pid)
+	exitcode, err := utils.WaitOnPid(pid)
 	if err != nil {
 		return fmt.Errorf("error waiting on child %s", err)
 	}
@@ -93,7 +94,7 @@ func createNet(config *libcontainer.Network) error {
 	if err != nil {
 		return nil
 	}
-	exit, err := libcontainer.WaitOnPid(pid)
+	exit, err := utils.WaitOnPid(pid)
 	if err != nil {
 		return err
 	}
@@ -124,7 +125,7 @@ func createNet(config *libcontainer.Network) error {
 	if pid, err = namespaces.SetupNetworkNamespace(f.Fd(), config); err != nil {
 		return err
 	}
-	exit, err = libcontainer.WaitOnPid(pid)
+	exit, err = utils.WaitOnPid(pid)
 	if err != nil {
 		return err
 	}

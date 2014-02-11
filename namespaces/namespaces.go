@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/crosbymichael/libcontainer"
+	"github.com/crosbymichael/libcontainer/capabilities"
+	"github.com/crosbymichael/libcontainer/utils"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -112,7 +114,7 @@ func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 			writeError("sethostname %s", err)
 		}
 
-		if err := libcontainer.DropCapabilities(container); err != nil {
+		if err := capabilities.DropCapabilities(container); err != nil {
 			writeError("drop capabilities %s", err)
 		}
 
@@ -198,14 +200,14 @@ func (b *backend) ExecIn(container *libcontainer.Container, cmd *libcontainer.Co
 			if err := b.remountSys(); err != nil {
 				writeError("remount sys %s", err)
 			}
-			if err := libcontainer.DropCapabilities(container); err != nil {
+			if err := capabilities.DropCapabilities(container); err != nil {
 				writeError("drop caps %s", err)
 			}
 
 			err = exec(cmd.Args[0], cmd.Args[0:], cmd.Env)
 			panic(err)
 		}
-		libcontainer.WaitOnPid(child)
+		utils.WaitOnPid(child)
 		os.Exit(0)
 	}
 	return pid, err
