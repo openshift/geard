@@ -16,6 +16,7 @@ const (
 )
 
 var namespaceMap = map[libcontainer.Namespace]int{
+	"": 0,
 	libcontainer.CLONE_NEWNS:   CLONE_NEWNS,
 	libcontainer.CLONE_NEWUTS:  CLONE_NEWUTS,
 	libcontainer.CLONE_NEWIPC:  CLONE_NEWIPC,

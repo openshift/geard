@@ -1,16 +1,16 @@
 package libcontainer
 
 type Container struct {
-	ID               string       `json:"id,omitempty"`
-	NsPid            int          `json:"namespace_pid,omitempty"`
-	Command          *Command     `json:"command,omitempty"`
-	RootFs           string       `json:"rootfs,omitempty"`
-	ReadonlyFs       bool         `json:"readonly_fs,omitempty"`
-	NetworkNamespace string       `json:"network_namespace,omitempty"`
-	User             string       `json:"user,omitempty"`
-	WorkingDir       string       `json:"working_dir,omitempty"`
-	Namespaces       Namespaces   `json:"namespaces,omitempty"`
-	Capabilities     Capabilities `json:"capabilities,omitempty"`
+	ID           string       `json:"id,omitempty"`
+	NsPid        int          `json:"namespace_pid,omitempty"`
+	Command      *Command     `json:"command,omitempty"`
+	RootFs       string       `json:"rootfs,omitempty"`
+	ReadonlyFs   bool         `json:"readonly_fs,omitempty"`
+	NetNsFd      uintptr      `json:"network_namespace_fd,omitempty"`
+	User         string       `json:"user,omitempty"`
+	WorkingDir   string       `json:"working_dir,omitempty"`
+	Namespaces   Namespaces   `json:"namespaces,omitempty"`
+	Capabilities Capabilities `json:"capabilities,omitempty"`
 }
 
 type Command struct {
