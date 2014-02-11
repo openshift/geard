@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"reflect"
 )
 
 var ErrHandledResponse = errors.New("Request handled")

@@ -4,13 +4,14 @@ import (
 	"container/list"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"sync"
 )
 
 type RequestIdentifier []byte
 
 func (r RequestIdentifier) ToShortName() string {
-	return base64.URLEncoding.EncodeToString(r)
+	return strings.Trim(base64.URLEncoding.EncodeToString(r), "=")
 }
 
 func (r RequestIdentifier) UnitNameFor() string {

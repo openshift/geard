@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 type Identifier string
@@ -43,7 +44,7 @@ func (g Identifier) RepositoryPathFor() string {
 type Fingerprint []byte
 
 func (f Fingerprint) ToShortName() string {
-	return base64.URLEncoding.EncodeToString(f)
+	return strings.Trim(base64.URLEncoding.EncodeToString(f), "=")
 }
 
 func (f Fingerprint) PublicKeyPathFor() string {
