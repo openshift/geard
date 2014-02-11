@@ -9,6 +9,7 @@
 package namespaces
 
 import (
+	"errors"
 	"fmt"
 	"github.com/crosbymichael/libcontainer"
 	"github.com/crosbymichael/libcontainer/network"
@@ -22,6 +23,10 @@ var (
 	defaults = syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_NODEV
 )
 
+var (
+	ErrExistingNetworkNamespace = errors.New("specified both CLONE_NEWNET and an existing network namespace")
+)
+
 func New() libcontainer.Backend {
 	return &backend{}
 }
@@ -30,24 +35,16 @@ type backend struct {
 }
 
 func (b *backend) Exec(container *libcontainer.Container) (int, error) {
-	rootfs, err := filepath.Abs(container.RootFs)
-	if err != nil {
-		return -1, err
+	if container.NetworkNamespace > 0 && container.Namespaces.Contains(libcontainer.CLONE_NEWNET) {
+		return -1, ErrExistingNetworkNamespace
 	}
-	mtu, err := network.GetDefaultMtu()
+	rootfs, err := filepath.Abs(container.RootFs)
 	if err != nil {
 		return -1, err
 	}
 
 	// we need CLONE_VFORK so we can wait on the child
 	flag := b.getNamespaceFlags(container) | CLONE_VFORK
-
-	// setup pipes to sync parent and child
-	childR, parentW, err := os.Pipe()
-	if err != nil {
-		return -1, err
-	}
-	usetCloseOnExec(childR.Fd())
 
 	pid, err := clone(uintptr(flag | SIGCHLD))
 	if err != nil {
@@ -56,8 +53,6 @@ func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 
 	if pid == 0 {
 		// welcome to your new namespace ;)
-		parentW.Close()
-
 		if _, err := setsid(); err != nil {
 			writeError("setsid %s", err)
 		}
@@ -100,8 +95,14 @@ func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 			writeError("sethostname %s", err)
 		}
 
-		if err := b.setupNetwork(container, mtu); err != nil {
-			writeError("setup networking %s", err)
+		if container.NetworkNamespace > 0 {
+			if err := b.joinExistingNetworkNamespace(container); err != nil {
+				writeError("join existing network namespace %s", err)
+			}
+		} else if container.Namespaces.Contains(libcontainer.CLONE_NEWNET) {
+			if err := b.setupNetwork(container); err != nil {
+				writeError("setup networking %s", err)
+			}
 		}
 
 		if err := libcontainer.DropCapabilities(container); err != nil {
@@ -123,7 +124,6 @@ func (b *backend) Exec(container *libcontainer.Container) (int, error) {
 		panic(err)
 	}
 
-	childR.Close()
 	container.NsPid = pid
 
 	return pid, nil
@@ -293,14 +293,22 @@ func (b *backend) getMasterAndConsole(container *libcontainer.Container) (string
 	return console, master, nil
 }
 
-func (b *backend) setupNetwork(container *libcontainer.Container, mtu int) error {
-	// do not setup networking if the NEWNET namespace is not provided
-	if !container.Namespaces.Contains(libcontainer.CLONE_NEWNET) {
-		return nil
+func (b *backend) joinExistingNetworkNamespace(container *libcontainer.Container) error {
+	// leave our parent's networking namespace
+	if err := unshare(CLONE_NEWNET); err != nil {
+		return err
 	}
 
+	// join the new namespace specified by the fd
+	if err := setns(container.NetworkNamespace, CLONE_NEWNET); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *backend) setupNetwork(container *libcontainer.Container) error {
 	// TODO: get mtu from container
-	if err := network.SetMtu("lo", mtu); err != nil {
+	if err := network.SetMtu("lo", 1500); err != nil {
 		return err
 	}
 	if err := network.InterfaceUp("lo"); err != nil {
