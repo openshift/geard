@@ -13,7 +13,7 @@
         ]
     },
     "rootfs": "/var/lib/docker/btrfs/subvolumes/f9c318c40e4e50b58823a2f3a12dca1b6e543e50d2599bbf7336170acf64b5e2",
-    "network_namespace": "/root/nsroot/test",
+    "network_namespace": 0,
     "namespaces": [
         "NEWIPC",
         "NEWNS",

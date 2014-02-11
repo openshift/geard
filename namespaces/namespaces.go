@@ -9,116 +9,107 @@
 package namespaces
 
 import (
+	"fmt"
 	"github.com/crosbymichael/libcontainer"
+	"github.com/crosbymichael/libcontainer/utils"
 	"os"
 	"path/filepath"
-	"strconv"
 	"syscall"
 )
 
-// getNsFds inspects the container's namespace configuration and opens the fds to
-// each of the namespaces.
-func getNsFds(container *libcontainer.Container) ([]uintptr, error) {
-	var (
-		namespaces = []string{}
-		fds        = []uintptr{}
-	)
+type Action func() error
 
-	for _, ns := range container.Namespaces {
-		namespaces = append(namespaces, namespaceFileMap[ns])
+func CloneIntoNamespace(namespaces libcontainer.Namespaces, action Action) (int, error) {
+	// we need CLONE_VFORK so we can wait on the child
+	flag := getNamespaceFlags(namespaces) | CLONE_VFORK
+
+	pid, err := clone(uintptr(flag | SIGCHLD))
+	if err != nil {
+		return -1, fmt.Errorf("error cloning process: %s", err)
 	}
 
-	for _, ns := range namespaces {
-		fd, err := getNsFd(container.NsPid, ns)
-		if err != nil {
-			for _, fd = range fds {
-				syscall.Close(int(fd))
-			}
-			return nil, err
+	if pid == 0 {
+		// welcome to your new namespace ;)
+		if err := action(); err != nil {
+			writeError("action %s", err)
 		}
-		fds = append(fds, fd)
+		os.Exit(0)
 	}
-	return fds, nil
+	return pid, err
 }
 
-// getNsFd returns the fd for a specific pid and namespace option
-func getNsFd(pid int, ns string) (uintptr, error) {
-	nspath := filepath.Join("/proc", strconv.Itoa(pid), "ns", ns)
-	// OpenFile adds closOnExec
-	f, err := os.OpenFile(nspath, os.O_RDONLY, 0666)
+// CreateNewNamespace creates a new namespace and binds it's fd to the specified path
+func CreateNewNamespace(namespace libcontainer.Namespace, bindTo string) error {
+	var (
+		flag   = namespaceMap[namespace]
+		name   = namespaceFileMap[namespace]
+		nspath = filepath.Join("/proc/self/ns", name)
+	)
+	// TODO: perform validation on name and flag
+
+	pid, err := fork()
 	if err != nil {
-		return 0, err
+		return err
 	}
-	return f.Fd(), nil
+
+	if pid == 0 {
+		if err := unshare(flag); err != nil {
+			writeError("unshare %s", err)
+		}
+		if err := mount(nspath, bindTo, "none", syscall.MS_BIND, ""); err != nil {
+			writeError("bind mount %s", err)
+		}
+		os.Exit(0)
+	}
+	exit, err := utils.WaitOnPid(pid)
+	if err != nil {
+		return err
+	}
+	if exit != 0 {
+		return fmt.Errorf("exit status %d", exit)
+	}
+	return err
+}
+
+// RunInNamespace executes the action in the namespace
+// specified by the fd passed
+func RunInNamespace(fd uintptr, action Action) error {
+	pid, err := fork()
+	if err != nil {
+		return err
+	}
+	if pid == 0 {
+		if err := setns(fd, 0); err != nil {
+			writeError("setns %s", err)
+		}
+		if err := action(); err != nil {
+			writeError("action %s", err)
+		}
+		os.Exit(0)
+	}
+	exit, err := utils.WaitOnPid(pid)
+	if err != nil {
+		return err
+	}
+	if exit != 0 {
+		fmt.Errorf("exit status %d", exit)
+	}
+	return nil
+}
+
+func JoinExistingNamespace(fd uintptr, ns libcontainer.Namespace) error {
+	flag := namespaceMap[ns]
+	if err := setns(fd, uintptr(flag)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // getNamespaceFlags parses the container's Namespaces options to set the correct
 // flags on clone, unshare, and setns
-func getNamespaceFlags(container *libcontainer.Container) (flag int) {
-	for _, ns := range container.Namespaces {
+func getNamespaceFlags(namespaces libcontainer.Namespaces) (flag int) {
+	for _, ns := range namespaces {
 		flag |= namespaceMap[ns]
 	}
 	return
-}
-
-// setupEnvironment adds additional environment variables to the container's
-// Command such as USER, LOGNAME, container, and TERM
-func setupEnvironment(container *libcontainer.Container) {
-	addEnvIfNotSet(container, "container", "docker")
-	// TODO: check if pty
-	addEnvIfNotSet(container, "TERM", "xterm")
-	// TODO: get username from container
-	addEnvIfNotSet(container, "USER", "root")
-	addEnvIfNotSet(container, "LOGNAME", "root")
-}
-
-func setupUser(container *libcontainer.Container) error {
-	// TODO: honor user passed on container
-	if err := setgroups(nil); err != nil {
-		return err
-	}
-	if err := setresgid(0, 0, 0); err != nil {
-		return err
-	}
-	if err := setresuid(0, 0, 0); err != nil {
-		return err
-	}
-	return nil
-}
-
-func getMasterAndConsole(container *libcontainer.Container) (string, *os.File, error) {
-	master, err := openpmtx()
-	if err != nil {
-		return "", nil, err
-	}
-
-	console, err := ptsname(master)
-	if err != nil {
-		master.Close()
-		return "", nil, err
-	}
-	return console, master, nil
-}
-
-// joinExistingNetworkNamespace uses the NetworkNamespace file path defined on the container
-// and joins the existing net namespace.
-func joinExistingNetworkNamespace(container *libcontainer.Container, needsUnshare bool) error {
-	f, err := os.Open(container.NetworkNamespace)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if needsUnshare {
-		// leave our parent's networking namespace
-		if err := unshare(CLONE_NEWNET); err != nil {
-			return err
-		}
-	}
-
-	// join the new namespace specified by the fd
-	if err := setns(f.Fd(), CLONE_NEWNET); err != nil {
-		return err
-	}
-	return nil
 }
