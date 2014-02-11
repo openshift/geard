@@ -94,10 +94,6 @@ func ApiGetContainerLog(reqid RequestIdentifier, token *TokenData, w *rest.Respo
 	if errg != nil {
 		return nil, errg
 	}
-	log.Printf("Type of writer %v", reflect.TypeOf(w.ResponseWriter))
-	if _, ok := w.ResponseWriter.(http.Flusher); !ok {
-		panic("not a flusher")
-	}
 	return &containerLogJobRequest{jobRequest{reqid}, gearId, token.U, w.ResponseWriter}, nil
 }
 
