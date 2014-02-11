@@ -74,13 +74,11 @@ func execIn(container *libcontainer.Container) error {
 	if err != nil {
 		return fmt.Errorf("error exexin container %s", err)
 	}
-	if pid != 0 { // fix exec in returning pid of 0, we do two forks :(
-		exitcode, err := libcontainer.WaitOnPid(pid)
-		if err != nil {
-			return fmt.Errorf("error waiting on child %s", err)
-		}
-		os.Exit(exitcode)
+	exitcode, err := libcontainer.WaitOnPid(pid)
+	if err != nil {
+		return fmt.Errorf("error waiting on child %s", err)
 	}
+	os.Exit(exitcode)
 	return nil
 }
 
