@@ -3,10 +3,11 @@ package geard
 import (
 	"encoding/json"
 	"errors"
-	"github.com/ant0ine/go-json-rest"
+	"github.com/smarterclayton/go-json-rest"
 	"io"
 	"log"
 	"net/http"
+	"reflect"
 )
 
 var ErrHandledResponse = errors.New("Request handled")
@@ -15,9 +16,11 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 	handler := rest.ResourceHandler{
 		EnableRelaxedContentType: true,
 		EnableResponseStackTrace: true,
+		EnableGzip:               false,
 	}
 	handler.SetRoutes(
 		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dispatcher, ApiPutContainer)},
+		rest.Route{"GET", "/token/:token/container/log", JobRestHandler(dispatcher, ApiGetContainerLog)},
 		rest.Route{"PUT", "/token/:token/container/:action", JobRestHandler(dispatcher, ApiPutContainerAction)},
 		rest.Route{"PUT", "/token/:token/repository", JobRestHandler(dispatcher, ApiPutRepository)},
 		rest.Route{"PUT", "/token/:token/keys", JobRestHandler(dispatcher, ApiPutKeys)},
@@ -84,6 +87,18 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 	}
 
 	return &createContainerJobRequest{jobRequest{reqid}, gearId, token.U, token.ResourceType(), w, &data}, nil
+}
+
+func ApiGetContainerLog(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	gearId, errg := NewIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
+	}
+	log.Printf("Type of writer %v", reflect.TypeOf(w.ResponseWriter))
+	if _, ok := w.ResponseWriter.(http.Flusher); !ok {
+		panic("not a flusher")
+	}
+	return &containerLogJobRequest{jobRequest{reqid}, gearId, token.U, w.ResponseWriter}, nil
 }
 
 func ApiPutKeys(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {

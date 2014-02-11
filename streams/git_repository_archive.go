@@ -41,12 +41,17 @@ type LimitedWriter struct {
 func (l *LimitedWriter) Write(p []byte) (n int, err error) {
 	incoming := int64(len(p))
 	left := l.N
-	if incoming <= left {
+	if left == 0 {
+		n = int(incoming)
+		return
+	} else if incoming <= left {
 		l.N = left - incoming
 		return l.W.Write(p)
 	}
 	l.N = 0
-	return l.W.Write(p[:left])
+	n = int(incoming)
+	_, err = l.W.Write(p[:left])
+	return
 }
 
 func WriteGitRepositoryArchive(w io.Writer, path string, ref GitCommitRef) error {

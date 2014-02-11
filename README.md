@@ -34,9 +34,15 @@ and to stop run:
 
     curl -X PUT "http://localhost:2223/token/__test__/container/stopped?u=0&d=1&r=1&i=3"
 
+To stream the logs from the gear over http, run:
+
+    curl -X PUT "http://localhost:2223/token/__test__/container/log?u=0&d=1&r=1&i=4"
+
+The logs will close after 30 seconds.
+
 To create a new repository, ensure the /var/lib/gears/git directory is created and then run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/repository?u=0&d=1&r=git1&i=4"
+    curl -X PUT "http://localhost:2223/token/__test__/repository?u=0&d=1&r=git1&i=5"
 
 First creation will be slow while the ccoleman/githost image is pulled down.  Repository creation will use a systemd transient unit named <code>job-&lt;r&gt;</code> - to see status run:
 
@@ -44,7 +50,7 @@ First creation will be slow while the ccoleman/githost image is pulled down.  Re
 
 If you want to create a repository based on a source URL, pass <code>t=&lt;url&gt;</code> to the PUT repository call.  Once you've created a repository with at least one commit, you can stream a git archive zip file of the contents with:
 
-    curl "http://localhost:2223/token/__test__/content?u=0&d=1&t=gitarchive&r=git2&i=6"
+    curl "http://localhost:2223/token/__test__/content?u=0&d=1&t=gitarchive&r=git2&i=7"
 
 NOTE: the <code>i</code> parameter is a unique request ID - geard will filter duplicate requests, so if you change the request parameters be sure to increment <code>i</code> to a higher hexadecimal number (2, a, 2a, etc).
 
