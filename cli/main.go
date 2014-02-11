@@ -23,18 +23,24 @@ func init() {
 	flag.Parse()
 }
 
-func exec(contianer *libcontainer.Container, name string) error {
-	driver := namespaces.New()
+func exec(container *libcontainer.Container, name string) error {
+	f, err := os.Open("/root/nsroot/test")
+	if err != nil {
+		return err
+	}
+	container.NetNsFd = f.Fd()
 
-	contianer.NetworkNamespace = "/root/nsroot/test"
-	pid, err := driver.Exec(contianer)
+	pid, err := namespaces.Exec(container)
 	if err != nil {
 		return fmt.Errorf("error exec container %s", err)
 	}
+
+	container.NsPid = pid
 	if displayPid {
 		fmt.Println(pid)
 	}
-	body, err := json.Marshal(contianer)
+
+	body, err := json.Marshal(container)
 	if err != nil {
 		return err
 	}
@@ -43,7 +49,7 @@ func exec(contianer *libcontainer.Container, name string) error {
 		return err
 	}
 
-	f, err := os.OpenFile(name, os.O_RDWR, 0755)
+	f, err = os.OpenFile(name, os.O_RDWR, 0755)
 	if err != nil {
 		return err
 	}
@@ -57,7 +63,7 @@ func exec(contianer *libcontainer.Container, name string) error {
 	if err != nil {
 		return fmt.Errorf("error waiting on child %s", err)
 	}
-	if err := namespaces.DeleteNetworkNamespace("/root/nsroot/test"); err != nil {
+	if err := network.DeleteNetworkNamespace("/root/nsroot/test"); err != nil {
 		return err
 	}
 	os.Exit(exitcode)
@@ -65,8 +71,12 @@ func exec(contianer *libcontainer.Container, name string) error {
 }
 
 func execIn(container *libcontainer.Container) error {
-	driver := namespaces.New()
-	pid, err := driver.ExecIn(container, &libcontainer.Command{
+	f, err := os.Open("/root/nsroot/test")
+	if err != nil {
+		return err
+	}
+	container.NetNsFd = f.Fd()
+	pid, err := namespaces.ExecIn(container, &libcontainer.Command{
 		Env: container.Command.Env,
 		Args: []string{
 			newCommand,
@@ -85,27 +95,17 @@ func execIn(container *libcontainer.Container) error {
 
 func createNet(config *libcontainer.Network) error {
 	root := "/root/nsroot"
-	if err := namespaces.SetupNamespaceMountDir(root); err != nil {
+	if err := network.SetupNamespaceMountDir(root); err != nil {
 		return err
 	}
 
 	nspath := root + "/test"
-	pid, err := namespaces.CreateNetworkNamespace(nspath)
-	if err != nil {
+	if err := network.CreateNetworkNamespace(nspath); err != nil {
 		return nil
 	}
-	exit, err := utils.WaitOnPid(pid)
-	if err != nil {
-		return err
-	}
-	if exit != 0 {
-		return fmt.Errorf("exit code not 0")
-	}
-
 	if err := network.CreateVethPair("veth0", config.TempVethName); err != nil {
 		return err
 	}
-
 	if err := network.SetInterfaceMaster("veth0", config.Bridge); err != nil {
 		return err
 	}
@@ -118,19 +118,13 @@ func createNet(config *libcontainer.Network) error {
 		return err
 	}
 	defer f.Close()
+
 	if err := network.SetInterfaceInNamespaceFd("veth1", int(f.Fd())); err != nil {
 		return err
 	}
 
-	if pid, err = namespaces.SetupNetworkNamespace(f.Fd(), config); err != nil {
+	if err := network.SetupVethInsideNamespace(f.Fd(), config); err != nil {
 		return err
-	}
-	exit, err = utils.WaitOnPid(pid)
-	if err != nil {
-		return err
-	}
-	if exit != 0 {
-		return fmt.Errorf("exit code not 0")
 	}
 	return nil
 }
