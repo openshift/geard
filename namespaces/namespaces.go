@@ -189,6 +189,18 @@ func (b *backend) ExecIn(container *libcontainer.Container, cmd *libcontainer.Co
 	}
 
 	if pid == 0 {
+		if container.NetworkNamespace != "" {
+			f, err := os.Open(container.NetworkNamespace)
+			if err != nil {
+				writeError("open netns %s %s", container.NetworkNamespace, err)
+			}
+			if err := setns(f.Fd(), CLONE_NEWNET); err != nil {
+				f.Close()
+				writeError("setns on netns %s", err)
+			}
+			f.Close()
+		}
+
 		for _, fd := range fds {
 			if fd > 0 {
 				if err := setns(fd, 0); err != nil {
