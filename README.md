@@ -69,9 +69,10 @@ The API is structured around fast and slow idempotent operations - all API respo
 
 The API takes into account the concept of "joining" - if two requests are made with the same request id, where possible the second request should attach to the first job's result and streams in order to provide an identical return value and logs.  This allows clients to design around retries or at-least-once delivery mechanisms safely.  The second job may check the invariants of the first as long as data races can be avoided.
 
-All jobs non content streaming jobs (which should be idempotent and repeatable anyway) will eventually be structured in two phases - execute, and report.  The execute phase attempts to assert that the state on the host is accurate (systemd unit created, symlinks on disk, data input correct) and to return a non 2xx response on success or an error body and 4xx or 5xx response on error as fast as possible.  API operations should *not* wait for asynchronous events like the stable start status of a process, the external ports being bound, or image specific data to be written to disk.  Instead, those are modelled with separate API calls.  The report phase is optional for all jobs, and is where additional data may be streamed to the consumer over HTTP or a message bus.
+All non-content-streaming jobs (which should already be idempotent and repeatable) will eventually be structured in two phases - execute and report.  The execute phase attempts to assert that the state on the host is accurate (systemd unit created, symlinks on disk, data input correct) and to return a 2xx response on success or an error body and 4xx or 5xx response on error as fast as possible.  API operations should *not* wait for asynchronous events like the stable start status of a process, the external ports being bound, or image specific data to be written to disk.  Instead, those are modelled with separate API calls.  The report phase is optional for all jobs, and is where additional data may be streamed to the consumer over HTTP or a message bus.
 
 In general, the philosophy of create/fail fast operations is based around the recognition that distributed systems may fail at any time, but those failures are rare.  If a failure does occur, the recovery path is for a client to retry the operation as originally submitted, or to delete the affected resources, or in rare cases for the system to autocorrect.  A service may take several minutes to start only to fail - since failure cannot be predicted, clients should be given tools to recognize and correct failures.
+
 
 ### Concrete example:
 
@@ -90,7 +91,7 @@ The API forces the client to provide the following info up front:
 
 The API records the effect of this call as a unit file on disk for systemd that can, with no extra input from a client, result in a started process.  The API then returns success and streams the logs to the client.  A client *may* disconnect at this point, without interrupting the operation.  A client may then begin wiring together this process with other processes in the system immediately with the explicit understanding that the endpoints being wired may not yet be available.
 
-In general, systems wired together this way already need to deal with uncertainty of network connectivity and potential startup races.  The API design formalizes that behavior - it is expected that the components "heal" by waiting for their dependencies to become available.  Where possible, the host system will attempt to offer blocking behavior on a per unit basis that allows the logic of the system to be distributed.  In some cases, like TCP and HTTP proxy load balancing, those systems already have mechanisms to tolerate components that are not yet available.
+In general, systems wired together this way already need to deal with uncertainty of network connectivity and potential startup races.  The API design formalizes that behavior - it is expected that the components "heal" by waiting for their dependencies to become available.  Where possible, the host system will attempt to offer blocking behavior on a per unit basis that allows the logic of the system to be distributed.  In some cases, like TCP and HTTP proxy load balancing, those systems already have mechanisms to tolerate components that may not be started.
 
 
 Disk Structure
@@ -104,8 +105,11 @@ Assumptions:
   which may fail if the port is taken.
 * Directories which hold ids are partitioned by integer blocks (ports) or the first two characters of the id (ids) to prevent
   gear sizes from growing excessively.
+* The structure of persistent state on disk should facilitate administrators recovering the state of their systems using
+  filesystem backups, and also be friendly to standard Linux toolchain introspection of their contents.
 
-The on disk structure of geard is exploratory at the moment.
+
+The on disk structure of geard is exploratory at the moment.  The major components are described below:
 
     /var/lib/gears/
       All content is located under this root
@@ -117,8 +121,8 @@ The on disk structure of geard is exploratory at the moment.
         to exclusively create this file and will fail otherwise.
 
         The unit file is "enabled" in systemd (symlinked to systemd's unit directory) upon creation, and "disabled"
-        (unsymlinked) on the stop operation.  Disabled gears won't be started on restart - this is equivalent to
-        "I don't want you to start this again".  Only a start operation will enable the gear again.
+        (unsymlinked) on the stop operation.  Disabled services are not automatically started on reboot.  The "start"
+        operation against a gear will reenable the service.
 
       data/
         TBD (reserved for gear unique volumes)
