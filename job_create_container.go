@@ -21,13 +21,8 @@ type createContainerJobRequest struct {
 	Data   *extendedCreateContainerData
 }
 
-type PortPair struct {
-	Internal int
-	External int
-}
-
 type extendedCreateContainerData struct {
-	Ports [](PortPair)
+	Ports []PortPair
 }
 
 func (j *createContainerJobRequest) Execute() {
@@ -48,8 +43,22 @@ func (j *createContainerJobRequest) Execute() {
 	var portSpec bytes.Buffer
 	if len(j.Data.Ports) > 0 {
 		portSpec.WriteString("-p ")
-		for _, ports := range j.Data.Ports {
+		for i := range j.Data.Ports {
+			ports := &j.Data.Ports[i]
+			if ports.External < 1 {
+				ports.External = AllocatePort()
+				if ports.External == 0 {
+					log.Print("job_create_container: Unable to allocate external port: ", err)
+					fmt.Fprintf(j.Output, "Unable to allocate an external port for %i\n", ports.Internal)
+					return
+				}
+			}
 			portSpec.WriteString(fmt.Sprintf(" %d:%d", ports.External, ports.Internal))
+		}
+
+		if erra := AtomicReserveExternalPorts(j.GearId.PortDescriptionPathFor(), j.Data.Ports); erra != nil {
+			fmt.Fprintf(j.Output, "Unable to reserve external ports: %v\n", erra)
+			return
 		}
 	}
 

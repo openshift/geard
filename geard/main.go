@@ -22,6 +22,7 @@ func main() {
 	if err := geard.VerifyDataPaths(); err != nil {
 		log.Fatal(err)
 	}
+	geard.StartPortAllocator(4000, 60000)
 	dispatcher.Start()
 	wg := &sync.WaitGroup{}
 	//listenSsh(wg)

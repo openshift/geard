@@ -65,6 +65,10 @@ func (i Identifier) SshAccessPathFor(f Fingerprint) string {
 	return isolateContentPath(filepath.Join(basePath, "access", "gears", "ssh"), string(i), f.ToShortName())
 }
 
+func (i Identifier) PortDescriptionPathFor() string {
+	return isolateContentPath(filepath.Join(basePath, "ports", "descriptions"), string(i), "")
+}
+
 func isolateContentPath(base, id, suffix string) string {
 	var path string
 	if suffix == "" {
@@ -79,7 +83,8 @@ func isolateContentPath(base, id, suffix string) string {
 	return filepath.Join(path, suffix)
 }
 
-var basePath = "/var/lib/gears"
+const basePath = "/var/lib/gears"
+const GearBasePath = basePath
 
 func VerifyDataPaths() error {
 	for _, path := range []string{
@@ -90,6 +95,7 @@ func VerifyDataPaths() error {
 		filepath.Join(basePath, "access", "git", "write"),
 		filepath.Join(basePath, "access", "gears", "ssh"),
 		filepath.Join(basePath, "keys", "public"),
+		filepath.Join(basePath, "ports", "interfaces"),
 	} {
 		if err := checkPath(path, os.FileMode(0770), true); err != nil {
 			return err
