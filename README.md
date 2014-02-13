@@ -124,6 +124,16 @@ The on disk structure of geard is exploratory at the moment.  The major componen
         (unsymlinked) on the stop operation.  Disabled services are not automatically started on reboot.  The "start"
         operation against a gear will reenable the service.
 
+      slices/
+        gear.slice        # default slice
+        gear-small.slice  # more limited slice
+
+        All slice units are created in this directory.  At the moment, the two slices are defaults and are created
+        on first startup of the process, enabled, then started.  More advanced cgroup settings must be configured
+        after creation, which is outside the scope of this prototype.
+
+        All containers are created in the "gear-small" slice at the moment.
+
       data/
         TBD (reserved for gear unique volumes)
 
