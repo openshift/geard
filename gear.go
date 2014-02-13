@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -90,6 +91,7 @@ func VerifyDataPaths() error {
 	for _, path := range []string{
 		basePath,
 		filepath.Join(basePath, "units"),
+		filepath.Join(basePath, "slices"),
 		filepath.Join(basePath, "git"),
 		filepath.Join(basePath, "access", "git", "read"),
 		filepath.Join(basePath, "access", "git", "write"),
@@ -99,6 +101,40 @@ func VerifyDataPaths() error {
 	} {
 		if err := checkPath(path, os.FileMode(0770), true); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func InitializeSlices() error {
+	for _, name := range []string{
+		"gear",
+		"gear-small",
+	} {
+		path := filepath.Join(basePath, "slices", name+".slice")
+		unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
+		if os.IsExist(err) {
+			continue
+		} else if err != nil {
+			return err
+		}
+
+		parent := "gear"
+		if name == "gear" {
+			parent = ""
+		}
+		if errs := sliceUnitTemplate.Execute(unit, sliceUnit{name, parent}); errs != nil {
+			log.Printf("gear: Unable to write slice %s: %v", name, errs)
+			continue
+		}
+		if errc := unit.Close(); errc != nil {
+			log.Printf("gear: Unable to close slice %s: %v", name, errc)
+			continue
+		}
+
+		if _, errs := StartAndEnableUnit(name+".slice", path); errs != nil {
+			log.Printf("gear: Unable to start and enable slice %s: %v", name, errs)
+			continue
 		}
 	}
 	return nil

@@ -8,6 +8,7 @@ type containerUnit struct {
 	Gear     Identifier
 	Image    string
 	PortSpec string
+	Slice    string
 }
 
 var containerUnitTemplate = template.Must(template.New("unit.service").Parse(`
@@ -16,8 +17,28 @@ Description=Gear container {{.Gear}}
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/docker run -a stdout -a stderr {{.PortSpec}} -rm "{{.Image}}"
+Slice={{.Slice}}
+ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -a stdout -a stderr {{.PortSpec}} -rm "{{.Image}}"
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=gear.target
+`))
+
+type sliceUnit struct {
+	Name   string
+	Parent string
+}
+
+var sliceUnitTemplate = template.Must(template.New("unit.slice").Parse(`
+[Unit]
+Description=Gear slice {{.Name}}
+
+[Slice]
+CPUAccounting=yes
+MemoryAccounting=yes
+MemoryLimit=512M
+{{ if .Parent }}Slice={{.Parent}}{{ end }}
+
+[Install]
+WantedBy=gear.target
 `))

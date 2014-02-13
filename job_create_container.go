@@ -62,7 +62,9 @@ func (j *createContainerJobRequest) Execute() {
 		}
 	}
 
-	containerUnitTemplate.Execute(unit, containerUnit{j.GearId, j.Image, portSpec.String()})
+	slice := "gear-small"
+
+	containerUnitTemplate.Execute(unit, containerUnit{j.GearId, j.Image, portSpec.String(), slice + ".slice"})
 	fmt.Fprintf(unit, "\n\n# Gear information\nX-GearId=%s\nX-ContainerImage=%s\nX-ContainerUserId=%s\nX-ContainerRequestId=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToShortName())
 	unit.Close()
 
