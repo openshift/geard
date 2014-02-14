@@ -18,6 +18,10 @@ func (r RequestIdentifier) UnitNameFor() string {
 	return fmt.Sprintf("job-%s.service", r.ToShortName())
 }
 
+func (r RequestIdentifier) UnitNameForBuild() string {
+	return fmt.Sprintf("build-%s.service", r.ToShortName())
+}
+
 type RequestIdentifierMap struct {
 	keys  map[string]interface{}
 	order *list.List
