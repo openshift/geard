@@ -3,5 +3,8 @@ go:
  - 1.2
  - release
 
+install:
+ - go get -t
+
 script:
  - go test -v ./...

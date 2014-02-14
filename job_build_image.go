@@ -15,10 +15,17 @@ type buildImageJobRequest struct {
 	Source    string
 	BaseImage string
 	Tag       string
+	Data      *extendedBuildImageData
+}
+
+type extendedBuildImageData struct {
+	RuntimeImage string
+	Clean        bool
+	Verbose      bool
 }
 
 func (j *buildImageJobRequest) Execute() {
-	log.Printf("Starting build %s", j.Id())
+	log.Printf("Starting build %d", j.Id())
 	w := j.SuccessWithWrite(JobResponseAccepted, true)
 
 	fmt.Fprintf(w, "Processing build-image request:\n")
@@ -36,13 +43,13 @@ func (j *buildImageJobRequest) Execute() {
 
 	conn, errc := NewSystemdConnection()
 	if errc != nil {
-		log.Print("job_create_repository:", errc)
+		log.Print("job_build_image:", errc)
 		fmt.Fprintf(w, "Unable to watch start status", errc)
 		return
 	}
-	//defer conn.Close()
+
 	if err := conn.Subscribe(); err != nil {
-		log.Print("job_create_repository:", err)
+		log.Print("job_build_image:", err)
 		fmt.Fprintf(w, "Unable to watch start status", errc)
 		return
 	}
@@ -59,16 +66,32 @@ func (j *buildImageJobRequest) Execute() {
 
 	fmt.Fprintf(w, "Running sti build unit: %s\n", unitName)
 
+	startCmd := []string{
+		"/usr/bin/docker", "run",
+		"-rm",
+		"-v", "/var/run:/var/run",
+		"-t", "pmorie/sti-builder",
+		"sti", "build", j.Source, j.BaseImage, j.Tag,
+	}
+
+	if j.Data.RuntimeImage != "" {
+		startCmd = append(startCmd, "--runtime-image")
+		startCmd = append(startCmd, j.Data.RuntimeImage)
+	}
+
+	if j.Data.Clean {
+		startCmd = append(startCmd, "--clean")
+	}
+
+	if j.Data.Verbose {
+		startCmd = append(startCmd, "-l")
+		startCmd = append(startCmd, "DEBUG")
+	}
+
 	status, err := SystemdConnection().StartTransientUnit(
 		unitName,
 		"fail",
-		dbus.PropExecStart([]string{
-			"/usr/bin/docker", "run",
-			"-rm",
-			"-v", "/var/run:/var/run",
-			"-t", "pmorie/sti-builder",
-			"sti", "build", j.Source, j.BaseImage, j.Tag,
-		}, true),
+		dbus.PropExecStart(startCmd, true),
 		dbus.PropDescription(unitDescription),
 		dbus.PropRemainAfterExit(true),
 		dbus.PropSlice("gear.slice"),
@@ -84,11 +107,7 @@ func (j *buildImageJobRequest) Execute() {
 		fmt.Fprintf(w, "Sti build is running\n")
 	}
 
-	ioerr := make(chan error)
-	go func() {
-		_, err := io.Copy(w, stdout)
-		ioerr <- err
-	}()
+	go io.Copy(w, stdout)
 
 wait:
 	for {
@@ -102,17 +121,11 @@ wait:
 			}
 		case err := <-errch:
 			fmt.Fprintf(w, "Error %+v\n", err)
-		case <-time.After(10 * time.Second):
+		case <-time.After(25 * time.Second):
 			log.Print("job_build_image:", "timeout")
 			break wait
 		}
 	}
 
 	stdout.Close()
-	select {
-	case erri := <-ioerr:
-		log.Printf("job_build_image: Error from IO on wait: %+v", erri)
-	case <-time.After(15 * time.Second):
-		log.Printf("job_build_image: Timeout waiting for write to complete")
-	}
 }
