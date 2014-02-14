@@ -3,8 +3,10 @@ package main
 import (
 	geard ".."
 	"code.google.com/p/go.crypto/ssh"
+	"flag"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 )
 
@@ -15,11 +17,28 @@ var dispatcher = geard.Dispatcher{
 	TrackDuplicateIds: 1000,
 }
 
-func main() {
+func init() {
+	var clean bool
+	flag.BoolVar(&clean, "clean", false, "Reset the state of the system and unregister gears")
+
+	flag.Parse()
+
 	if err := geard.StartSystemdConnection(); err != nil {
 		log.Println("WARNING: No systemd connection available via dbus: ", err)
+		log.Println("  You may need to run as root or check that /var/run/dbus/system_bus_socket is bind mounted.")
 	}
+
+	if clean {
+		geard.DisableAllUnits()
+		os.Exit(1)
+	}
+}
+
+func main() {
 	if err := geard.VerifyDataPaths(); err != nil {
+		log.Fatal(err)
+	}
+	if err := geard.InitializeTargets(); err != nil {
 		log.Fatal(err)
 	}
 	if err := geard.InitializeSlices(); err != nil {

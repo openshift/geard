@@ -42,3 +42,16 @@ MemoryLimit=512M
 [Install]
 WantedBy=gear.target
 `))
+
+type targetUnit struct {
+	Name     string
+	WantedBy string
+}
+
+var targetUnitTemplate = template.Must(template.New("unit.target").Parse(`
+[Unit]
+Description=Gear target {{.Name}}
+
+[Install]
+WantedBy={{.WantedBy}}
+`))

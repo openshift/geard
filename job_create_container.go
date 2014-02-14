@@ -39,6 +39,7 @@ func (j *createContainerJobRequest) Execute() {
 		fmt.Fprintf(j.Output, "Unable to create a gear for this container due to %s\n", err.Error())
 		return
 	}
+	defer unit.Close()
 
 	var portSpec bytes.Buffer
 	if len(j.Data.Ports) > 0 {
@@ -63,17 +64,9 @@ func (j *createContainerJobRequest) Execute() {
 	}
 
 	slice := "gear-small"
-
 	containerUnitTemplate.Execute(unit, containerUnit{j.GearId, j.Image, portSpec.String(), slice + ".slice"})
 	fmt.Fprintf(unit, "\n\n# Gear information\nX-GearId=%s\nX-ContainerImage=%s\nX-ContainerUserId=%s\nX-ContainerRequestId=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToShortName())
 	unit.Close()
-
-	fmt.Fprintf(j.Output, "Unit in place %s ... \n", j.GearId)
-	if _, _, err := SystemdConnection().EnableUnitFiles([]string{unitPath}, false, false); err != nil {
-		log.Printf("job_create_container: Failed enabling %s: %s", unitPath, err.Error())
-		fmt.Fprintf(j.Output, "Unable to enable gear for this container due to %s\n", err.Error())
-		return
-	}
 
 	stdout, err := ProcessLogsFor(j.GearId)
 	if err != nil {
@@ -84,9 +77,9 @@ func (j *createContainerJobRequest) Execute() {
 	go io.Copy(j.Output, stdout)
 
 	unitName := j.GearId.UnitNameFor()
-	status, err := SystemdConnection().StartUnit(unitName, "fail")
+	status, err := StartAndEnableUnit(SystemdConnection(), unitName, unitPath, "fail")
 	if err != nil {
-		fmt.Fprintf(j.Output, "Could not start gear %s\n", err.Error())
+		fmt.Fprintf(j.Output, "Could not start gear %s: %s\n", unitName, err.Error())
 	} else if status != "done" {
 		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
 	} else {

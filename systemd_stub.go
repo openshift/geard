@@ -64,6 +64,11 @@ func (c *StubSystemd) EnableUnitFiles(files []string, runtime bool, force bool) 
 	return true, nil, nil
 }
 
+func (c *StubSystemd) DisableUnitFiles(files []string, runtime bool) ([]dbus.DisableUnitFileChange, error) {
+	log.Print("stub_systemd: DisableUnitFiles", files, runtime)
+	return nil, nil
+}
+
 func (c *StubSystemd) Subscribe() error {
 	return nil
 }
@@ -85,4 +90,8 @@ func (c *StubSystemd) SubscribeUnitsCustom(interval time.Duration, buffer int, i
 	close(statusChan)
 	close(errChan)
 	return statusChan, errChan
+}
+
+func (c *StubSystemd) Reload() error {
+	return nil
 }

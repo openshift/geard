@@ -90,6 +90,7 @@ const GearBasePath = basePath
 func VerifyDataPaths() error {
 	for _, path := range []string{
 		basePath,
+		filepath.Join(basePath, "targets"),
 		filepath.Join(basePath, "units"),
 		filepath.Join(basePath, "slices"),
 		filepath.Join(basePath, "git"),
@@ -101,6 +102,36 @@ func VerifyDataPaths() error {
 	} {
 		if err := checkPath(path, os.FileMode(0770), true); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func InitializeTargets() error {
+	for _, target := range [][]string{
+		[]string{"gear", "multi-user.target"},
+	} {
+		name, wants := target[0], target[1]
+		path := filepath.Join(basePath, "targets", name+".target")
+		unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
+		if os.IsExist(err) {
+			continue
+		} else if err != nil {
+			return err
+		}
+
+		if errs := targetUnitTemplate.Execute(unit, targetUnit{name, wants}); errs != nil {
+			log.Printf("gear: Unable to write target %s: %v", name, errs)
+			continue
+		}
+		if errc := unit.Close(); errc != nil {
+			log.Printf("gear: Unable to close target %s: %v", name, errc)
+			continue
+		}
+
+		if _, errs := StartAndEnableUnit(SystemdConnection(), name+".target", path, "fail"); errs != nil {
+			log.Printf("gear: Unable to start and enable target %s: %v", name, errs)
+			continue
 		}
 	}
 	return nil
@@ -132,7 +163,7 @@ func InitializeSlices() error {
 			continue
 		}
 
-		if _, errs := StartAndEnableUnit(name+".slice", path); errs != nil {
+		if _, errs := StartAndEnableUnit(SystemdConnection(), name+".slice", path, "fail"); errs != nil {
 			log.Printf("gear: Unable to start and enable slice %s: %v", name, errs)
 			continue
 		}
@@ -153,4 +184,32 @@ func checkPath(path string, mode os.FileMode, dir bool) error {
 		return errors.New("gear: path (" + path + ") must be a directory instead of a file")
 	}
 	return nil
+}
+
+func DisableAllUnits() {
+	for _, path := range []string{
+		filepath.Join(basePath, "units"),
+		filepath.Join(basePath, "slices"),
+		filepath.Join(basePath, "targets"),
+	} {
+		filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			if err != nil {
+				log.Printf("gear: Can't read %s: %v", p, err)
+				return nil
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if _, err := SystemdConnection().DisableUnitFiles([]string{p}, false); err != nil {
+				log.Printf("gear: Unable to disable %s: %+v", p, err)
+			}
+			return nil
+		})
+		if err := SystemdConnection().Reload(); err != nil {
+			log.Printf("gear: systemd reload failed: %+v", err)
+		}
+	}
 }

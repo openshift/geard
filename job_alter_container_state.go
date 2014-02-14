@@ -17,7 +17,7 @@ type startedContainerStateJobRequest struct {
 func (j *startedContainerStateJobRequest) Execute() {
 	fmt.Fprintf(j.Output, "Ensuring gear %s is started ... \n", j.GearId)
 
-	status, err := StartAndEnableUnit(j.GearId.UnitNameFor(), j.GearId.UnitPathFor())
+	status, err := StartAndEnableUnit(SystemdConnection(), j.GearId.UnitNameFor(), j.GearId.UnitPathFor(), "fail")
 
 	switch {
 	case IsNoSuchUnit(err):
@@ -40,24 +40,6 @@ func (j *startedContainerStateJobRequest) Execute() {
 
 		fmt.Fprintf(j.Output, "Gear %s is started\n", j.GearId)
 	}
-}
-
-func StartAndEnableUnit(name string, path string) (string, error) {
-	status, err := SystemdConnection().StartUnit(name, "fail")
-	switch {
-	case IsNoSuchUnit(err), IsLoadFailed(err):
-		if _, err := os.Stat(path); err == nil {
-			_, _, err := SystemdConnection().EnableUnitFiles([]string{path}, false, false)
-			if err == nil {
-				return SystemdConnection().StartUnit(name, "fail")
-			} else {
-				return "", err
-			}
-		} else {
-			return "", ErrNoSuchUnit
-		}
-	}
-	return status, err
 }
 
 type stoppedContainerStateJobRequest struct {
