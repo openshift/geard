@@ -20,6 +20,8 @@ Take the systemd unit file in <code>contrib/geard.service</code> and enable it o
     systemctl enable /usr/lib/systemd/service/geard.service
     mkdir -p /var/lib/gears/units
     systemctl start geard
+
+The service is set to bind to port 2223 and is accessible on localhost.
     
 The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
 
