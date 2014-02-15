@@ -1,4 +1,4 @@
-geard
+geard [![Build Status](https://travis-ci.org/smarterclayton/geard.png?branch=master)](https://travis-ci.org/smarterclayton/geard)
 =====
 
 Exploration of a Docker+systemd gear daemon (geard) in Go.  The daemon runs at a system level and interfaces with the Docker daemon and systemd over DBus to install and run Docker containers on the system.  It will also support retrieval of local content for use in a distributed environment.
