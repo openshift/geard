@@ -1,9 +1,8 @@
 package geard
 
 import (
-	//"errors"
-	streams "./streams"
 	"fmt"
+	"github.com/smarterclayton/geard/streams"
 	"io"
 )
 

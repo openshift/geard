@@ -1,9 +1,9 @@
 package main
 
 import (
-	geard ".."
 	"code.google.com/p/go.crypto/ssh"
 	"flag"
+	"github.com/smarterclayton/geard"
 	"log"
 	"net/http"
 	"os"

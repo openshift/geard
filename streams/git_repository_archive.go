@@ -1,7 +1,6 @@
 package streams
 
 import (
-	//"errors"
 	"bytes"
 	"errors"
 	"fmt"
