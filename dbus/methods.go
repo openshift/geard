@@ -61,6 +61,17 @@ func (c *Conn) runJob(job string, args ...interface{}) (string, error) {
 	return <-respCh, nil
 }
 
+// LoadUnit is similar to GetUnit() but will load the unit from disk if
+// possible.
+func (c *Conn) LoadUnit(name string) (string, error) {
+	var path dbus.ObjectPath
+	err := c.sysobj.Call("GetUnit", 0, name).Store(&path)
+	if err != nil {
+		return "", err
+	}
+	return string(path), nil
+}
+
 // StartUnit enqeues a start job and depending jobs, if any (unless otherwise
 // specified by the mode string).
 //
