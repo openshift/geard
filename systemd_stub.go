@@ -15,6 +15,10 @@ func NewStubSystemd() *StubSystemd {
 	return &StubSystemd{}
 }
 
+func (c *StubSystemd) LoadUnit(name string) (string, error) {
+	return "done", nil
+}
+
 func (c *StubSystemd) StartUnit(name string, mode string) (string, error) {
 	log.Print("stub_systemd: StartUnit", name, mode)
 	return "done", nil

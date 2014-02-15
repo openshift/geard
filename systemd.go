@@ -11,6 +11,7 @@ import (
 )
 
 type Systemd interface {
+	LoadUnit(name string) (string, error)
 	StartUnit(name string, mode string) (string, error)
 	StopUnit(name string, mode string) (string, error)
 	ReloadUnit(name string, mode string) (string, error)
@@ -44,6 +45,7 @@ func StartAndEnableUnit(systemd Systemd, name, path, mode string) (string, error
 			return "", err
 		}
 		if ok, err := IsUnitLoadState(systemd, name, "not-found"); err == nil && ok {
+			// The daemon needs to be reloaded to pick up the changed configuration
 			if errr := systemd.Reload(); errr != nil {
 				log.Printf("systemd: Contents changed on disk and reload failed, subsequent start will likely fail: %v", errr)
 			}
