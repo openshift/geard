@@ -25,11 +25,11 @@ The service is set to bind to port 2223 and is accessible on localhost.
     
 The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container?u=0&d=1&t=pmorie%2Fsti-html-app&r=1111&i=1" -d '{"ports":[{"external":"4343","internal":"8080"}]}'
+    curl -X PUT "http://localhost:2223/token/__test__/container?u=0&d=1&t=pmorie%2Fsti-html-app&r=0001&i=1" -d '{"ports":[{"external":"4343","internal":"8080"}]}'
     
-This will install a new systemd unit to <code>/var/lib/gears/units/gear-1.service</code> and invoke start, and expose the port 8080 at 4343 on the host.  Use
+This will install a new systemd unit to <code>/var/lib/gears/units/gear-0001.service</code> and invoke start, and expose the port 8080 at 4343 on the host.  Use
 
-    systemctl status gear-1
+    systemctl status gear-0001
     
 to see whether the startup succeeded.  If you set the external port to 0 or omit the field, geard will allocate a port for you between 4000 and 60000.
 
@@ -37,15 +37,15 @@ A brief note: the /token/__test__ prefix (and the r, t, u, d, and i parameters) 
 
 To start that gear, run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container/started?u=0&d=1&r=1111&i=2"
+    curl -X PUT "http://localhost:2223/token/__test__/container/started?u=0&d=1&r=0001&i=2"
 
 and to stop run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?u=0&d=1&r=1111&i=3"
+    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?u=0&d=1&r=0001&i=3"
 
 To stream the logs from the gear over http, run:
 
-    curl -X GET "http://localhost:2223/token/__test__/container/log?u=0&d=1&r=1111&i=4"
+    curl -X GET "http://localhost:2223/token/__test__/container/log?u=0&d=1&r=0001&i=4"
 
 The logs will close after 30 seconds.
 
