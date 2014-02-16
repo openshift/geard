@@ -1,81 +1,122 @@
 package geard
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"time"
 )
 
 type startedContainerStateJobRequest struct {
+	JobResponse
 	jobRequest
 	GearId Identifier
 	UserId string
-	Output io.Writer
 }
 
 func (j *startedContainerStateJobRequest) Execute() {
-	fmt.Fprintf(j.Output, "Ensuring gear %s is started ... \n", j.GearId)
-
 	status, err := StartAndEnableUnit(SystemdConnection(), j.GearId.UnitNameFor(), j.GearId.UnitPathFor(), "fail")
 
 	switch {
 	case IsNoSuchUnit(err):
-		fmt.Fprintf(j.Output, "No such gear %s\n", j.GearId)
+		j.Failure(ErrGearNotFound)
+		return
 	case err != nil:
-		fmt.Fprintf(j.Output, "Could not start gear %+v\n", err)
+		log.Printf("job_alter_container_state: Gear did not start: %+v", err)
+		j.Failure(ErrGearStartFailed)
+		return
 	case status != "done":
-		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
-	default:
-		stdout, err := ProcessLogsFor(j.GearId)
-		if err != nil {
-			stdout = emptyReader
-			fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s\n", err.Error())
-		}
-		defer stdout.Close()
-		go io.Copy(j.Output, stdout)
-
-		time.Sleep(3 * time.Second)
-		stdout.Close()
-
-		fmt.Fprintf(j.Output, "Gear %s is started\n", j.GearId)
+		log.Printf("job_alter_container_state: Unit did not return 'done': %v", err)
+		j.Failure(ErrGearStartFailed)
+		return
 	}
+
+	w := j.SuccessWithWrite(JobResponseAccepted, true)
+	fmt.Fprintf(w, "Gear %s starting\n", j.GearId)
+	// stdout, err := ProcessLogsFor(j.GearId)
+	// if err != nil {
+	// 	stdout = emptyReader
+	// 	log.Printf("job_alter_container_state: Could not fetch journal logs: %+v", err)
+	// }
+	// ioerr := make(chan error)
+
+	// go func() {
+	// 	_, err := io.Copy(w, stdout)
+	// 	ioerr <- err
+	// }()
+
+	// time.Sleep(1 * time.Second)
+	// stdout.Close()
+
+	// select {
+	// case erri := <-ioerr:
+	// 	log.Printf("job_alter_container_state: Error from IO on wait: %+v", erri)
+	// case <-time.After(15 * time.Second):
+	// 	log.Printf("job_alter_container_state: Timeout waiting for write to complete")
+	// }
 }
 
 type stoppedContainerStateJobRequest struct {
+	JobResponse
 	jobRequest
 	GearId Identifier
 	UserId string
-	Output io.Writer
 }
 
 func (j *stoppedContainerStateJobRequest) Execute() {
-	fmt.Fprintf(j.Output, "Ensuring gear %s is stopped ... \n", j.GearId)
+	w := j.SuccessWithWrite(JobResponseAccepted, true)
 
-	// stop is a blocking operation
+	// stop is a blocking operation so logs are read first
 	stdout, err := ProcessLogsFor(j.GearId)
 	if err != nil {
 		stdout = emptyReader
-		//fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s\n", err.Error())
+		log.Printf("job_alter_container_state: Unable to read logs for stop: %+v\n", err)
 	}
-	defer stdout.Close()
-	go io.Copy(j.Output, stdout)
 
 	unitName := j.GearId.UnitNameFor()
-	status, err := SystemdConnection().StopUnit(unitName, "fail")
+	ioerr := make(chan error)
+	joberr := make(chan error)
+
+	go func() {
+		_, err := io.Copy(w, stdout)
+		ioerr <- err
+	}()
+
+	go func() {
+		status, err := SystemdConnection().StopUnit(unitName, "fail")
+		if err == nil && status != "done" {
+			err = errors.New(fmt.Sprintf("Job status 'done' != %s", status))
+		}
+		joberr <- err
+	}()
+
+	err = nil
+	select {
+	case err = <-joberr:
+	case <-time.After(15 * time.Second):
+		log.Printf("job_alter_container_state: Timeout waiting for stop completion")
+	}
 	stdout.Close()
+
 	switch {
 	case IsNoSuchUnit(err):
 		if _, err := os.Stat(j.GearId.UnitPathFor()); err == nil {
-			fmt.Fprintf(j.Output, "Gear %s is stopped\n", j.GearId)
+			fmt.Fprintf(w, "Gear %s is stopped\n", j.GearId)
 		} else {
-			fmt.Fprintf(j.Output, "No such gear %s\n", j.GearId)
+			fmt.Fprintf(w, "No such gear %s\n", j.GearId)
 		}
 	case err != nil:
-		fmt.Fprintf(j.Output, "Could not start gear: %s\n", err.Error())
-	case status != "done":
-		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
+		fmt.Fprintf(w, "Could not start gear: %s\n", err.Error())
 	default:
-		fmt.Fprintf(j.Output, "Gear %s is stopped\n", j.GearId)
+		fmt.Fprintf(w, "Gear %s is stopped\n", j.GearId)
+	}
+
+	select {
+	case erri := <-ioerr:
+		log.Printf("job_alter_container_state: Error from IO on wait: %+v", erri)
+	case <-time.After(15 * time.Second):
+		log.Printf("job_alter_container_state: Timeout waiting for write to complete")
 	}
 }

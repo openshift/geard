@@ -4,21 +4,35 @@ import (
 	"code.google.com/p/go.crypto/ssh"
 	"crypto/sha256"
 	"errors"
-	"fmt"
-	"io"
+	"log"
 	"os"
 )
 
 type createKeysJobRequest struct {
+	JobResponse
 	jobRequest
 	UserId string
-	Output io.Writer
 	Data   *extendedCreateKeysData
+}
+
+type extendedCreateKeysData struct {
+	Keys         []KeyData
+	Repositories []RepositoryPermission
+	Gears        []GearPermission
 }
 
 type KeyData struct {
 	Type  string
 	Value string
+}
+
+type RepositoryPermission struct {
+	Id    Identifier
+	Write bool
+}
+
+type GearPermission struct {
+	Id Identifier
 }
 
 func (k *KeyData) Check() error {
@@ -33,29 +47,14 @@ func (k *KeyData) Check() error {
 	return nil
 }
 
-type RepositoryPermission struct {
-	Id    Identifier
-	Write bool
-}
-
 func (p *RepositoryPermission) Check() error {
 	_, err := NewIdentifier(string(p.Id))
 	return err
 }
 
-type GearPermission struct {
-	Id Identifier
-}
-
 func (p *GearPermission) Check() error {
 	_, err := NewIdentifier(string(p.Id))
 	return err
-}
-
-type extendedCreateKeysData struct {
-	Keys         []KeyData
-	Repositories []RepositoryPermission
-	Gears        []GearPermission
 }
 
 func (d *extendedCreateKeysData) Check() error {
@@ -89,14 +88,17 @@ type keyFailure struct {
 	Reason error
 }
 
+type keyStructuredFailure struct {
+	Index   int    `json:"index"`
+	Message string `json:"message"`
+}
+
 func KeyFingerprint(key ssh.PublicKey) Fingerprint {
 	bytes := sha256.Sum256(key.Marshal())
 	return Fingerprint(bytes[:])
 }
 
 func (j *createKeysJobRequest) Execute() {
-	fmt.Fprintf(j.Output, "Enabling keys %s ... \n", j.RequestId)
-
 	failedKeys := []keyFailure{}
 	for i := range j.Data.Keys {
 		key := j.Data.Keys[i]
@@ -135,10 +137,15 @@ func (j *createKeysJobRequest) Execute() {
 			}
 		}
 	}
-	// FIXME Execute should take an interface for reporting errors, completion, etc
-	// that abstracts differences between JSON serialization, message transport
-	// serialization, etc
-	for i := range failedKeys {
-		fmt.Fprintf(j.Output, "Failure %i: %+v", failedKeys[i].Index, failedKeys[i].Reason)
+
+	if len(failedKeys) > 0 {
+		data := make([]keyStructuredFailure, len(failedKeys))
+		for i := range failedKeys {
+			data[i] = keyStructuredFailure{failedKeys[i].Index, failedKeys[i].Reason.Error()}
+			log.Printf("Failure %d: %+v", failedKeys[i].Index, failedKeys[i].Reason)
+		}
+		j.Failure(StructuredJobError{SimpleJobError{JobResponseError, "Not all keys were completed"}, data})
+	} else {
+		j.Success(JobResponseOk)
 	}
 }

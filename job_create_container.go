@@ -1,42 +1,52 @@
 package geard
 
 import (
-	"errors"
-	//"fmt"
-	"io"
-	//"io/ioutil"
-	//"time"
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 )
 
 type createContainerJobRequest struct {
+	JobResponse
 	jobRequest
 	GearId Identifier
 	UserId string
 	Image  string
-	Output io.Writer
 	Data   *extendedCreateContainerData
 }
 
 type extendedCreateContainerData struct {
-	Ports []PortPair
+	Ports PortPairs
+}
+
+type PortPairs []PortPair
+
+func (p PortPairs) ToHeader() string {
+	var pairs bytes.Buffer
+	for i := range p {
+		if i != 0 {
+			pairs.WriteString(",")
+		}
+		pairs.WriteString(strconv.Itoa(int(p[i].Internal)))
+		pairs.WriteString("=")
+		pairs.WriteString(strconv.Itoa(int(p[i].External)))
+	}
+	return pairs.String()
 }
 
 func (j *createContainerJobRequest) Execute() {
-	fmt.Fprintf(j.Output, "Creating gear %s ... \n", j.GearId)
-
 	unitPath := j.GearId.UnitPathFor()
 
 	unit, err := os.OpenFile(unitPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 	if os.IsExist(err) {
-		fmt.Fprintf(j.Output, "A container already exists for this gear")
+		j.Failure(ErrGearAlreadyExists)
 		return
 	} else if err != nil {
 		log.Print("job_create_container: Unable to create unit file: ", err)
-		fmt.Fprintf(j.Output, "Unable to create a gear for this container due to %s\n", err.Error())
+		j.Failure(ErrGearCreateFailed)
 		return
 	}
 	defer unit.Close()
@@ -49,8 +59,8 @@ func (j *createContainerJobRequest) Execute() {
 			if ports.External < 1 {
 				ports.External = AllocatePort()
 				if ports.External == 0 {
-					log.Print("job_create_container: Unable to allocate external port: ", err)
-					fmt.Fprintf(j.Output, "Unable to allocate an external port for %i\n", ports.Internal)
+					log.Printf("job_create_container: Unable to allocate external port for %d", ports.Internal)
+					j.Failure(ErrGearCreateFailed)
 					return
 				}
 			}
@@ -58,35 +68,54 @@ func (j *createContainerJobRequest) Execute() {
 		}
 
 		if erra := AtomicReserveExternalPorts(j.GearId.PortDescriptionPathFor(), j.Data.Ports); erra != nil {
-			fmt.Fprintf(j.Output, "Unable to reserve external ports: %v\n", erra)
+			log.Printf("job_create_container: Unable to reserve external ports: %+v", erra)
+			j.Failure(ErrGearCreateFailed)
 			return
 		}
+
+		j.WritePendingSuccess("PortMapping", j.Data.Ports)
 	}
 
 	slice := "gear-small"
-	containerUnitTemplate.Execute(unit, containerUnit{j.GearId, j.Image, portSpec.String(), slice + ".slice"})
-	fmt.Fprintf(unit, "\n\n# Gear information\nX-GearId=%s\nX-ContainerImage=%s\nX-ContainerUserId=%s\nX-ContainerRequestId=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToShortName())
+	if erre := containerUnitTemplate.Execute(unit, containerUnit{
+		j.GearId,
+		j.Image,
+		portSpec.String(),
+		slice + ".slice",
+		j.UserId,
+		j.Id().ToShortName(),
+	}); erre != nil {
+		log.Printf("job_create_container: Unable to output template: %+v", erre)
+		j.Failure(ErrGearCreateFailed)
+	}
+	//fmt.Fprintf(unit, "\n\n# Gear information\nX-GearId=%s\nX-ContainerImage=%s\nX-ContainerUserId=%s\nX-ContainerRequestId=%s\nX-ExposesPorts=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToShortName())
 	unit.Close()
 
-	stdout, err := ProcessLogsFor(j.GearId)
-	if err != nil {
-		stdout = emptyReader
-		fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s\n", err.Error())
-	}
-	defer stdout.Close()
-	go io.Copy(j.Output, stdout)
+	// FIXME check for j.StreamResult before attempting this
+	// stdout, err := ProcessLogsFor(j.GearId)
+	// if err != nil {
+	// 	stdout = emptyReader
+	// 	log.Printf("job_create_container: Unable to fetch journal logs: %+v", err)
+	// }
+	// defer stdout.Close()
 
 	unitName := j.GearId.UnitNameFor()
 	status, err := StartAndEnableUnit(SystemdConnection(), unitName, unitPath, "fail")
 	if err != nil {
-		fmt.Fprintf(j.Output, "Could not start gear %s: %s\n", unitName, err.Error())
+		log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
+		j.Failure(ErrGearCreateFailed)
+		return
 	} else if status != "done" {
-		fmt.Fprintf(j.Output, "Gear did not start successfully: %s\n", status)
-	} else {
-		fmt.Fprintf(j.Output, "Gear %s is starting\n", j.GearId)
+		log.Printf("job_create_container: Unit did not return 'done': %s", status)
+		j.Failure(ErrGearCreateFailed)
+		return
 	}
 
-	stdout.Close()
+	w := j.SuccessWithWrite(JobResponseAccepted, true)
+	fmt.Fprintf(w, "Gear %s is starting\n", j.GearId)
+	// FIXME check for j.StreamResult
+	//go io.Copy(w, stdout)
+	//stdout.Close()
 }
 
 func (j *createContainerJobRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {

@@ -1,6 +1,7 @@
 package geard
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -8,6 +9,8 @@ import (
 	"os"
 	"strings"
 )
+
+var emptyReader = ioutil.NopCloser(bytes.NewReader([]byte{}))
 
 type flushable interface {
 	io.Writer

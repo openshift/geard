@@ -5,57 +5,51 @@ import (
 	"github.com/smarterclayton/go-systemd/dbus"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
 )
 
 type createRepositoryJobRequest struct {
+	JobResponse
 	jobRequest
 	RepositoryId Identifier
 	UserId       string
 	Image        string
 	CloneUrl     string
-	Output       io.Writer
 }
 
 const repositoryOwnerUid = 1001
 const repositoryOwnerGid = 1001
 
 func (j *createRepositoryJobRequest) Execute() {
-	fmt.Fprintf(j.Output, "Creating repository %s ... \n", j.RepositoryId)
-
 	repositoryPath := j.RepositoryId.RepositoryPathFor()
 	unitName := j.RepositoryId.UnitNameForJob()
 	cloneUrl := j.CloneUrl
 
 	if err := os.Mkdir(repositoryPath, 0770); err != nil {
-		fmt.Fprintf(j.Output, "Unable to create %s: %s", repositoryPath, err.Error())
+		if os.IsExist(err) {
+			j.Failure(ErrRepositoryAlreadyExists)
+		} else {
+			log.Printf("job_create_repository: make repository dir: %+v", err)
+			j.Failure(ErrRepositoryCreateFailed)
+		}
 		return
 	}
 	if err := os.Chown(repositoryPath, repositoryOwnerUid, repositoryOwnerGid); err != nil {
 		log.Printf("job_create_repository: Unable to set owner for repository path %s: %s", repositoryPath, err.Error())
 	}
 
-	stdout, err := ProcessLogsForUnit(unitName)
-	if err != nil {
-		stdout = emptyReader
-		fmt.Fprintf(j.Output, "Unable to fetch build logs: %s\n", err.Error())
-	}
-	defer stdout.Close()
-	go io.Copy(j.Output, stdout)
-
 	conn, errc := NewSystemdConnection()
 	if errc != nil {
-		log.Print("job_create_repository:", errc)
-		fmt.Fprintf(j.Output, "Unable to watch start status", errc)
+		log.Print("job_create_repository: systemd: ", errc)
+		j.Failure(ErrSubscribeToUnit)
 		return
 	}
 	//defer conn.Close()
 	if err := conn.Subscribe(); err != nil {
-		log.Print("job_create_repository:", err)
-		fmt.Fprintf(j.Output, "Unable to watch start status", errc)
+		log.Print("job_create_repository: subscribe: ", err)
+		j.Failure(ErrSubscribeToUnit)
 		return
 	}
 	defer conn.Unsubscribe()
@@ -68,6 +62,13 @@ func (j *createRepositoryJobRequest) Execute() {
 		func(unit string) bool {
 			return unit != unitName
 		})
+
+	stdout, err := ProcessLogsForUnit(unitName)
+	if err != nil {
+		stdout = emptyReader
+		log.Printf("job_create_repository: Unable to fetch build logs: %+v", err)
+	}
+	defer stdout.Close()
 
 	// Start unit after subscription and logging has begun, since
 	// we don't want to miss extremely fast events
@@ -82,19 +83,22 @@ func (j *createRepositoryJobRequest) Execute() {
 			j.Image,
 			cloneUrl,
 		}, true),
+		dbus.PropDescription(fmt.Sprintf("Create a repository (%s)", repositoryPath)),
 		dbus.PropRemainAfterExit(true),
+		dbus.PropSlice("gear.slice"),
 	)
 	if err != nil {
-		fmt.Fprintf(j.Output, "Could not create repository %s\n(%s)", err.Error(), SprintSystemdError(err))
+		log.Printf("job_create_repository: Could not start transient unit: %s", SprintSystemdError(err))
+		j.Failure(ErrRepositoryCreateFailed)
+		return
 	} else if status != "done" {
-		fmt.Fprintf(j.Output, "Repository not created successfully: %s\n", status)
-	} else {
-		fmt.Fprintf(j.Output, "\nRepository %s is being created\n", j.RepositoryId)
+		log.Printf("job_create_repository: Unit did not return 'done'")
+		j.Failure(ErrRepositoryCreateFailed)
+		return
 	}
 
-	if flusher, ok := j.Output.(http.Flusher); ok {
-		flusher.Flush()
-	}
+	w := j.SuccessWithWrite(JobResponseAccepted, true)
+	go io.Copy(w, stdout)
 
 wait:
 	for {
@@ -102,12 +106,12 @@ wait:
 		case c := <-changes:
 			if changed, ok := c[unitName]; ok {
 				if changed.SubState != "running" {
-					fmt.Fprintf(j.Output, "Repository completed\n", changed.SubState)
+					fmt.Fprintf(w, "Repository completed\n", changed.SubState)
 					break wait
 				}
 			}
 		case err := <-errch:
-			fmt.Fprintf(j.Output, "Error %+v\n", err)
+			fmt.Fprintf(w, "Error %+v\n", err)
 		case <-time.After(10 * time.Second):
 			log.Print("job_create_repository:", "timeout")
 			break wait

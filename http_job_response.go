@@ -8,12 +8,18 @@ import (
 )
 
 type HttpJobResponse struct {
-	AllowStreaming bool
+	response      http.ResponseWriter
+	skipStreaming bool
+	succeeded     bool
+	failed        bool
+	pending       map[string]string
+}
 
-	succeeded bool
-	failed    bool
-	response  http.ResponseWriter
-	pending   map[string]string
+func NewHttpJobResponse(w http.ResponseWriter, skipStreaming bool) JobResponse {
+	return &HttpJobResponse{
+		response:      w,
+		skipStreaming: skipStreaming,
+	}
 }
 
 func (t JobResponseSuccess) StatusCode() int {
@@ -26,7 +32,7 @@ func (t JobResponseSuccess) StatusCode() int {
 }
 
 func (s *HttpJobResponse) StreamResult() bool {
-	return s.AllowStreaming
+	return !s.skipStreaming
 }
 
 func (s *HttpJobResponse) Success(t JobResponseSuccess) {
@@ -39,7 +45,7 @@ func (s *HttpJobResponse) Success(t JobResponseSuccess) {
 	if s.pending != nil {
 		header := s.response.Header()
 		for key := range s.pending {
-			header.Add(key, s.pending[key])
+			header.Add("x-"+key, s.pending[key])
 		}
 		s.pending = nil
 	}
@@ -53,10 +59,10 @@ func (s *HttpJobResponse) SuccessWithData(t JobResponseSuccess, data interface{}
 	encoder.Encode(&data)
 }
 
-func (s *HttpJobResponse) SuccessAndWrite(t JobResponseSuccess, flush bool) io.Writer {
+func (s *HttpJobResponse) SuccessWithWrite(t JobResponseSuccess, flush bool) io.Writer {
 	s.Success(t)
 	var w io.Writer
-	if !s.AllowStreaming {
+	if s.skipStreaming {
 		w = ioutil.Discard
 	} else if flush {
 		w = NewWriteFlusher(s.response)
@@ -66,7 +72,7 @@ func (s *HttpJobResponse) SuccessAndWrite(t JobResponseSuccess, flush bool) io.W
 	return w
 }
 
-func (s *HttpJobResponse) WriteCloser() <-chan bool {
+func (s *HttpJobResponse) WriteClosed() <-chan bool {
 	if c, ok := s.response.(http.CloseNotifier); ok {
 		return c.CloseNotify()
 	}
@@ -86,7 +92,7 @@ func (s *HttpJobResponse) WritePendingSuccess(name string, value interface{}) {
 	}
 }
 
-func (s *HttpJobResponse) Failure(reason error) {
+func (s *HttpJobResponse) Failure(e JobError) {
 	if s.succeeded {
 		panic("May not invoke failure after Success()")
 	}
@@ -94,21 +100,27 @@ func (s *HttpJobResponse) Failure(reason error) {
 		panic("May not write failure twice")
 	}
 	s.failed = true
-	code := http.StatusInternalServerError
-	response := httpFailureResponse{reason.Error(), nil}
-	if j, ok := reason.(JobError); ok {
-		switch j.Failure() {
-		case JobResponseAlreadyExists:
-			code = http.StatusConflict
-		}
+
+	response := httpFailureResponse{e.Error(), e.ResponseData()}
+	var code int
+	switch e.ResponseFailure() {
+	case JobResponseAlreadyExists:
+		code = http.StatusConflict
+	case JobResponseNotFound:
+		code = http.StatusNotFound
+	case JobResponseInvalidRequest:
+		code = http.StatusBadRequest
+	default:
+		code = http.StatusInternalServerError
 	}
+
 	s.response.WriteHeader(code)
 	json.NewEncoder(s.response).Encode(&response)
 }
 
 type httpFailureResponse struct {
-	Message string      `json:message`
-	Data    interface{} `json:data,omitempty`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
 }
 
 type HeaderSerialization interface {

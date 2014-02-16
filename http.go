@@ -86,7 +86,14 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 		data.Ports = make([]PortPair, 0)
 	}
 
-	return &createContainerJobRequest{jobRequest{reqid}, gearId, token.U, token.ResourceType(), w, &data}, nil
+	return &createContainerJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobRequest{reqid},
+		gearId,
+		token.U,
+		token.ResourceType(),
+		&data,
+	}, nil
 }
 
 func ApiGetContainerLog(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
@@ -94,7 +101,12 @@ func ApiGetContainerLog(reqid RequestIdentifier, token *TokenData, w *rest.Respo
 	if errg != nil {
 		return nil, errg
 	}
-	return &containerLogJobRequest{jobRequest{reqid}, gearId, token.U, w.ResponseWriter}, nil
+	return &containerLogJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobRequest{reqid},
+		gearId,
+		token.U,
+	}, nil
 }
 
 func ApiPutKeys(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
@@ -108,7 +120,12 @@ func ApiPutKeys(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWrite
 	if err := data.Check(); err != nil {
 		return nil, err
 	}
-	return &createKeysJobRequest{jobRequest{reqid}, token.U, w, &data}, nil
+	return &createKeysJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, true),
+		jobRequest{reqid},
+		token.U,
+		&data,
+	}, nil
 }
 
 func ApiPutRepository(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
@@ -117,7 +134,14 @@ func ApiPutRepository(reqid RequestIdentifier, token *TokenData, w *rest.Respons
 		return nil, errg
 	}
 	// TODO: convert token into a safe clone spec and commit hash
-	return &createRepositoryJobRequest{jobRequest{reqid}, repositoryId, token.U, "ccoleman/githost", token.ResourceType(), w}, nil
+	return &createRepositoryJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobRequest{reqid},
+		repositoryId,
+		token.U,
+		"ccoleman/githost",
+		token.ResourceType(),
+	}, nil
 }
 
 func ApiPutContainerAction(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
@@ -128,9 +152,19 @@ func ApiPutContainerAction(reqid RequestIdentifier, token *TokenData, w *rest.Re
 	}
 	switch action {
 	case "started":
-		return &startedContainerStateJobRequest{jobRequest{reqid}, gearId, token.U, w}, nil
+		return &startedContainerStateJobRequest{
+			NewHttpJobResponse(w.ResponseWriter, false),
+			jobRequest{reqid},
+			gearId,
+			token.U,
+		}, nil
 	case "stopped":
-		return &stoppedContainerStateJobRequest{jobRequest{reqid}, gearId, token.U, w}, nil
+		return &stoppedContainerStateJobRequest{
+			NewHttpJobResponse(w.ResponseWriter, false),
+			jobRequest{reqid},
+			gearId,
+			token.U,
+		}, nil
 	default:
 		return nil, errors.New("You must provide a valid action for this container to take")
 	}
@@ -148,7 +182,13 @@ func ApiPutBuildImageAction(reqid RequestIdentifier, token *TokenData, w *rest.R
 	baseImage := token.ResourceType() // token.T
 	tag := token.U
 
-	return &buildImageJobRequest{jobRequest{reqid}, source, baseImage, tag, w}, nil
+	return &buildImageJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobRequest{reqid},
+		source,
+		baseImage,
+		tag,
+	}, nil
 }
 
 func ApiGetContent(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
@@ -159,7 +199,13 @@ func ApiGetContent(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWr
 		return nil, errors.New("You must specify the type of the content you want to access")
 	}
 
-	return &contentJobRequest{jobRequest{reqid}, token.ResourceType(), token.ResourceLocator(), r.PathParam("*"), w}, nil
+	return &contentJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobRequest{reqid},
+		token.ResourceType(),
+		token.ResourceLocator(),
+		r.PathParam("*"),
+	}, nil
 }
 
 func limitedBodyReader(r *rest.Request) io.Reader {

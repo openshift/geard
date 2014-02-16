@@ -9,6 +9,8 @@ type containerUnit struct {
 	Image    string
 	PortSpec string
 	Slice    string
+	User     string
+	ReqId    string
 }
 
 var containerUnitTemplate = template.Must(template.New("unit.service").Parse(`
@@ -22,6 +24,12 @@ ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear
 
 [Install]
 WantedBy=gear.target
+
+# Gear information
+X-GearId={{.Gear}}
+X-ContainerImage={{.Image}}
+X-ContainerUserId={{.User}}
+X-ContainerRequestId={{.ReqId}}
 `))
 
 type sliceUnit struct {
