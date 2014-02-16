@@ -63,6 +63,8 @@ If you want to create a repository based on a source URL, pass <code>t=&lt;url&g
 
 NOTE: the <code>i</code> parameter is a unique request ID - geard will filter duplicate requests, so if you change the request parameters be sure to increment <code>i</code> to a higher hexadecimal number (2, a, 2a, etc).
 
+See [contrib/example.sh](contrib/example.sh) and [contrib/stress.sh](contrib/stress.sh) for more examples of API calls.
+
 
 API Design
 ----------
