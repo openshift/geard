@@ -1,11 +1,11 @@
 package main
 
 import (
-	"code.google.com/p/go.crypto/ssh"
 	"flag"
 	"github.com/smarterclayton/geard"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"sync"
 )
@@ -47,21 +47,9 @@ func main() {
 	geard.StartPortAllocator(4000, 60000)
 	dispatcher.Start()
 	wg := &sync.WaitGroup{}
-	//listenSsh(wg)
 	listenHttp(wg)
 	wg.Wait()
 	log.Print("Exiting ...")
-}
-
-func listenSsh(wg *sync.WaitGroup) {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		connect := ":2022"
-		server := &geard.SshServer{}
-		log.Printf("Starting SSHD on %s ... ", connect)
-		log.Fatal(server.ListenAndServe(connect, &ssh.ServerConfig{}))
-	}()
 }
 
 func listenHttp(wg *sync.WaitGroup) {
@@ -71,6 +59,7 @@ func listenHttp(wg *sync.WaitGroup) {
 
 		connect := ":8080"
 		log.Printf("Starting HTTP on %s ... ", connect)
-		log.Fatal(http.ListenAndServe(connect, geard.NewHttpApiHandler(&dispatcher)))
+		http.Handle("/", geard.NewHttpApiHandler(&dispatcher))
+		log.Fatal(http.ListenAndServe(connect, nil))
 	}()
 }

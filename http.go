@@ -77,7 +77,7 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 
 	data := extendedCreateContainerData{}
 	if r.Body != nil {
-		dec := json.NewDecoder(r.Body)
+		dec := json.NewDecoder(limitedBodyReader(r))
 		if err := dec.Decode(&data); err != nil && err != io.EOF {
 			return nil, err
 		}
@@ -100,7 +100,7 @@ func ApiGetContainerLog(reqid RequestIdentifier, token *TokenData, w *rest.Respo
 func ApiPutKeys(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
 	data := extendedCreateKeysData{}
 	if r.Body != nil {
-		dec := json.NewDecoder(io.LimitReader(r.Body, 100*1024))
+		dec := json.NewDecoder(limitedBodyReader(r))
 		if err := dec.Decode(&data); err != nil && err != io.EOF {
 			return nil, err
 		}
@@ -160,6 +160,10 @@ func ApiGetContent(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWr
 	}
 
 	return &contentJobRequest{jobRequest{reqid}, token.ResourceType(), token.ResourceLocator(), r.PathParam("*"), w}, nil
+}
+
+func limitedBodyReader(r *rest.Request) io.Reader {
+	return io.LimitReader(r.Body, 100*1024)
 }
 
 func extractToken(segment string, r *http.Request) (token *TokenData, id RequestIdentifier, rerr *apiRequestError) {
