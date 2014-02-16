@@ -1,12 +1,7 @@
 package geard
 
 import (
-	"bytes"
-	"errors"
-	//"fmt"
 	"io"
-	"io/ioutil"
-	//"time"
 )
 
 type Job interface {
@@ -32,37 +27,25 @@ type JobResponse interface {
 	Success(t JobResponseSuccess)
 	SuccessWithData(t JobResponseSuccess, data interface{})
 	SuccessWithWrite(t JobResponseSuccess, flush bool) io.Writer
-	Failure(reason error)
+	Failure(reason JobError)
 
 	WriteClosed() <-chan bool
 	WritePendingSuccess(name string, value interface{})
 }
 
-var (
-	ErrRanToCompletion = errors.New("This job has run to completion.")
-)
-
 type JobResponseSuccess int
+type JobResponseFailure int
 
-const (
-	JobResponseOk JobResponseSuccess = iota
-	JobResponseAccepted
-)
+// A structured error response for a job.
+type JobError interface {
+	error
+	ResponseFailure() JobResponseFailure
+	ResponseData() interface{} // May be nil if no data is returned to a client
+}
 
 type jobRequest struct {
 	RequestId RequestIdentifier
 }
-
-type JobError interface {
-	Failure() JobResponseFailure
-}
-
-type JobResponseFailure int
-
-const (
-	JobResponseError JobResponseFailure = iota
-	JobResponseAlreadyExists
-)
 
 func (j *jobRequest) Fast() bool {
 	return false
@@ -71,5 +54,3 @@ func (j *jobRequest) Fast() bool {
 func (j *jobRequest) Id() RequestIdentifier {
 	return j.RequestId
 }
-
-var emptyReader = ioutil.NopCloser(bytes.NewReader([]byte{}))

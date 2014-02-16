@@ -93,7 +93,7 @@ func SprintSystemdError(err error) string {
 	if errd, ok := err.(db.Error); ok {
 		return fmt.Sprintf("%s %s", reflect.TypeOf(errd), errd.Name)
 	}
-	return ""
+	return err.Error()
 }
 
 var ErrNoSuchUnit = db.Error{Name: "org.freedesktop.systemd1.NoSuchUnit"}

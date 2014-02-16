@@ -1,26 +1,27 @@
 package geard
 
 import (
-	"fmt"
-	"io"
+	"log"
 	"os"
 	"time"
 )
 
 type containerLogJobRequest struct {
+	JobResponse
 	jobRequest
 	GearId Identifier
 	UserId string
-	Output io.Writer
 }
 
 func (j *containerLogJobRequest) Execute() {
 	if _, err := os.Stat(j.GearId.UnitPathFor()); err != nil {
+		j.Failure(ErrGearNotFound)
 		return
 	}
 
-	err := WriteLogsTo(j.Output, j.GearId.UnitNameFor(), 30*time.Second)
+	w := j.SuccessWithWrite(JobResponseOk, true)
+	err := WriteLogsTo(w, j.GearId.UnitNameFor(), 30*time.Second)
 	if err != nil {
-		fmt.Fprintf(j.Output, "Unable to fetch journal logs: %s\n", err.Error())
+		log.Printf("job_container_log: Unable to fetch journal logs: %s\n", err.Error())
 	}
 }

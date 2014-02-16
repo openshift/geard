@@ -28,7 +28,7 @@ func ProcessLogsForUnit(unit string) (io.ReadCloser, error) {
 
 func WriteLogsTo(w io.Writer, unit string, until time.Duration) error {
 	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-f", "--unit", unit)
-	cmd.Stdout = NewWriteFlusher(w)
+	cmd.Stdout = w
 	if err := cmd.Start(); err != nil {
 		return err
 	}

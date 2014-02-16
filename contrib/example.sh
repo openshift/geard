@@ -9,9 +9,11 @@ function header() {
 
 port=${PORT:-8080}
 base=http://localhost:$port/token/__test__
+keydata=${KEYDATA:-"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}
 
-seq=${SEQ:-$(date +%s)}
+seq=${SEQ:-$(date +%s)00}
 gear=$seq
+gear1=$gear
 
 header "Create a container and expose a single port"
 curl "$base/container?u=1&d=1&i=$seq&r=$gear&t=pmorie%2Fsti-html-app" -X PUT -d '{"ports":[{"internal":8080}]}'
@@ -28,6 +30,7 @@ systemctl status gear-$gear
 
 seq=$[seq+1]
 gear=$[gear+1]
+gear2=$gear
 
 header "Create a second container"
 curl "$base/container?u=1&d=1&i=$seq&r=$gear&t=pmorie%2Fsti-html-app" -X PUT
@@ -45,11 +48,22 @@ header "Start the second container"
 curl "$base/container/started?u=1&d=1&i=$seq&r=$gear" -X PUT
 echo
 
-seq=$[seq+1]
-repo=${REPO:-$(date +%N)}
-
 header "See the gear slice"
 systemctl status gear.slice
+
+seq=$[seq+1]
+
+header "Add keys to both gears"
+curl "$base/keys?d=1&u=1&i=$seq" -X PUT -d "{\"keys\":[{\"type\":\"ssh-rsa\",\"value\":\"$keydata\"}],\"gears\":[{\"id\":\"$gear1\"},{\"id\":\"$gear2\"}]}"
+echo
+
+seq=$[seq+1]
+
+header "Build an image"
+curl "$base/build-image?d=1&u=imagefoo&t=pmorie%2ffedora-mock&r=http:%2F%2Fgithub.com%2Fopenshift%2Fsinatra-example.git&i=$seq" -X PUT
+
+seq=$[seq+1]
+repo=${REPO:-$(date +%N)}
 
 header "Create an empty repository"
 curl "$base/repository?u=1&d=1&i=$seq&r=$repo" -X PUT
