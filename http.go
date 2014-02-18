@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 )
 
 var ErrHandledResponse = errors.New("Request handled")
@@ -26,6 +27,8 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 		rest.Route{"GET", "/token/:token/content", JobRestHandler(dispatcher, ApiGetContent)},
 		rest.Route{"GET", "/token/:token/content/*", JobRestHandler(dispatcher, ApiGetContent)},
 		rest.Route{"PUT", "/token/:token/build-image", JobRestHandler(dispatcher, ApiPutBuildImageAction)},
+		rest.Route{"PUT", "/token/:token/environment", JobRestHandler(dispatcher, ApiPutEnvironment)},
+		rest.Route{"PATCH", "/token/:token/environment", JobRestHandler(dispatcher, ApiPatchEnvironment)},
 	)
 	return &handler
 }
@@ -188,6 +191,66 @@ func ApiPutBuildImageAction(reqid RequestIdentifier, token *TokenData, w *rest.R
 		source,
 		baseImage,
 		tag,
+	}, nil
+}
+
+func ApiPutEnvironment(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	id, errg := NewIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
+	}
+
+	data := extendedEnvironmentData{}
+	if r.Body != nil {
+		dec := json.NewDecoder(limitedBodyReader(r))
+		if err := dec.Decode(&data); err != nil && err != io.EOF {
+			return nil, err
+		}
+	}
+	if err := data.Check(); err != nil {
+		return nil, err
+	}
+
+	var source *url.URL
+	if data.Source != "" {
+		url, erru := url.Parse(data.Source)
+		if erru != nil {
+			return nil, erru
+		}
+		source = url
+	}
+
+	return &putEnvironmentJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobRequest{reqid},
+		id,
+		data.Env,
+		source,
+	}, nil
+}
+
+func ApiPatchEnvironment(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	id, errg := NewIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
+	}
+
+	data := extendedEnvironmentData{}
+	if r.Body != nil {
+		dec := json.NewDecoder(limitedBodyReader(r))
+		if err := dec.Decode(&data); err != nil && err != io.EOF {
+			return nil, err
+		}
+	}
+	if err := data.Check(); err != nil {
+		return nil, err
+	}
+
+	return &patchEnvironmentJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobRequest{reqid},
+		id,
+		data.Env,
 	}, nil
 }
 

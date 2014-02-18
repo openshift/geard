@@ -3,10 +3,13 @@ package geard
 import (
 	"fmt"
 	"github.com/smarterclayton/geard/streams"
+	"io"
 	"log"
+	"os"
 )
 
 const ContentTypeGitArchive = "gitarchive"
+const ContentTypeEnvironment = "env"
 
 type contentJobRequest struct {
 	JobResponse
@@ -22,6 +25,22 @@ func (j *contentJobRequest) Fast() bool {
 
 func (j *contentJobRequest) Execute() {
 	switch j.Type {
+	case ContentTypeEnvironment:
+		id, errr := NewIdentifier(j.Locator)
+		if errr != nil {
+			j.Failure(SimpleJobError{JobResponseInvalidRequest, fmt.Sprintf("Invalid environment identifier: %s", errr.Error())})
+			return
+		}
+		file, erro := os.OpenFile(id.EnvironmentPathFor(), os.O_RDONLY, 0660)
+		if erro != nil {
+			j.Failure(SimpleJobError{JobResponseNotFound, fmt.Sprintf("Invalid environment: %s", erro.Error())})
+			return
+		}
+		w := j.SuccessWithWrite(JobResponseOk, false)
+		if _, err := io.Copy(w, file); err != nil {
+			log.Printf("job_content: Unable to write environment file: %+v", err)
+		}
+
 	case ContentTypeGitArchive:
 		repoId, errr := NewIdentifier(j.Locator)
 		if errr != nil {
@@ -35,8 +54,7 @@ func (j *contentJobRequest) Execute() {
 		}
 		w := j.SuccessWithWrite(JobResponseOk, false)
 		if err := streams.WriteGitRepositoryArchive(w, repoId.RepositoryPathFor(), ref); err != nil {
-			log.Printf("Invalid git repository stream: %v", err)
-			return
+			log.Printf("job_content: Invalid git repository stream: %v", err)
 		}
 	}
 }

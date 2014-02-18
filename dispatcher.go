@@ -60,8 +60,12 @@ func (d *Dispatcher) Dispatch(j Job) (done <-chan bool, err error) {
 			join = j
 			complete = other.complete
 		} else {
-			err = ErrRanToCompletion
-			return
+			self, ok := j.(Join)
+			if !ok {
+				err = ErrRanToCompletion
+				return
+			}
+			join = self
 		}
 
 		joined, complete, errj := join.Join(j, complete)

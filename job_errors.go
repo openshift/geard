@@ -9,6 +9,7 @@ var (
 	ErrSubscribeToUnit         = SimpleJobError{JobResponseError, "Unable to watch for the completion of this action."}
 	ErrRepositoryCreateFailed  = SimpleJobError{JobResponseError, "Unable to create the repository."}
 	ErrGearStartFailed         = SimpleJobError{JobResponseError, "Unable to start this gear."}
+	ErrEnvironmentUpdateFailed = SimpleJobError{JobResponseError, "Unable to update the specified environment."}
 )
 
 const (

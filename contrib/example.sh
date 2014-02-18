@@ -53,6 +53,24 @@ systemctl status gear.slice
 
 seq=$[seq+1]
 
+header "Set an environment resource"
+curl "$base/environment?d=1&u=1&t=&r=1000&i=$seq" -X PUT -d '{"env":[{"name":"foo","value":"bar"}]}'
+echo
+
+seq=$[seq+1]
+
+header "Patch that environment resource"
+curl "$base/environment?d=1&u=1&t=&r=1000&i=$seq" -X PATCH -d '{"env":[{"name":"baz","value":"boo"}]}'
+echo
+
+seq=$[seq+1]
+
+header "Fetch environment resource"
+curl "$base/content?d=1&u=1&t=env&r=1000&i=$seq"
+echo
+
+seq=$[seq+1]
+
 header "Add keys to both gears"
 curl "$base/keys?d=1&u=1&i=$seq" -X PUT -d "{\"keys\":[{\"type\":\"ssh-rsa\",\"value\":\"$keydata\"}],\"gears\":[{\"id\":\"$gear1\"},{\"id\":\"$gear2\"}]}"
 echo

@@ -42,14 +42,8 @@ func (g Identifier) RepositoryPathFor() string {
 	return filepath.Join(basePath, "git", string(g))
 }
 
-type Fingerprint []byte
-
-func (f Fingerprint) ToShortName() string {
-	return strings.Trim(base64.URLEncoding.EncodeToString(f), "=")
-}
-
-func (f Fingerprint) PublicKeyPathFor() string {
-	return isolateContentPath(filepath.Join(basePath, "keys", "public"), f.ToShortName(), "")
+func (g Identifier) EnvironmentPathFor() string {
+	return isolateContentPath(filepath.Join(basePath, "environments"), string(g), "")
 }
 
 func (i Identifier) GitAccessPathFor(f Fingerprint, write bool) string {
@@ -82,6 +76,16 @@ func isolateContentPath(base, id, suffix string) string {
 	// handle directory not found errors
 	os.MkdirAll(path, 0770)
 	return filepath.Join(path, suffix)
+}
+
+type Fingerprint []byte
+
+func (f Fingerprint) ToShortName() string {
+	return strings.Trim(base64.URLEncoding.EncodeToString(f), "=")
+}
+
+func (f Fingerprint) PublicKeyPathFor() string {
+	return isolateContentPath(filepath.Join(basePath, "keys", "public"), f.ToShortName(), "")
 }
 
 const basePath = "/var/lib/gears"

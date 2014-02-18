@@ -3,6 +3,17 @@ geard [![Build Status](https://travis-ci.org/smarterclayton/geard.png?branch=mas
 
 Exploration of a Docker+systemd gear daemon (geard) in Go.  The daemon runs at a system level and interfaces with the Docker daemon and systemd over DBus to install and run Docker containers on the system.  It will also support retrieval of local content for use in a distributed environment.
 
+The primary operations are:
+
+* Create a new system unit file that runs a single docker image (create and run a gear)
+* Stop or start a gear
+* Fetch the logs for a gear
+* Create a new empty Git repository
+* Set a public key as enabling SSH or Git SSH access to a gear or repository (respectively)
+* Build a new image from a source URL and base image
+* Fetch a Git archive zip for a repository
+* Set and retrieve environment files for sharing between gears (patch and pull operations)
+
 
 Try it out
 ----------
@@ -60,6 +71,14 @@ First creation will be slow while the ccoleman/githost image is pulled down.  Re
 If you want to create a repository based on a source URL, pass <code>t=&lt;url&gt;</code> to the PUT repository call.  Once you've created a repository with at least one commit, you can stream a git archive zip file of the contents with:
 
     curl "http://localhost:2223/token/__test__/content?u=0&d=1&t=gitarchive&r=git2&i=7"
+
+To set an environment file:
+
+    curl -X PUT "http://localhost:2223/token/__test__/environment?u=0&d=1&r=1000&i=8" -d '{"env":[{"name":"foo","value":"bar"}]}'
+
+and to retrieve that environment (in normalized env file form)
+
+    curl "http://localhost:2223/token/__test__/content?u=0&d=1&t=env&r=1000&i=9"
 
 NOTE: the <code>i</code> parameter is a unique request ID - geard will filter duplicate requests, so if you change the request parameters be sure to increment <code>i</code> to a higher hexadecimal number (2, a, 2a, etc).
 
