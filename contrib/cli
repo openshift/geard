@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# Start i counter if needed
+[ -z $f ] && echo woot
+
+echo "Downloading resty from the internet, this is insecure and a terrible idea.  Fix later"
+echo
+
+wget -qO /tmp/resty http://github.com/micha/resty/raw/master/resty
+
+. /tmp/resty
+
+resty http://localhost:2223/token/__test__/
+
+echo
+echo "run list-examples to see a list of command examples"
+echo
+
+function list-examples
+{
+    echo "build-image git://github.com/pmorie/simple-html pmorie/fedora-mock"
+    echo "container test-app 0001"
+    echo "started 0001"
+    echo "stopped 0001"
+    echo "log 0001"
+    echo "repository not-implemented"
+    echo "environment not-implemented"
+}
+
+# This can take a minute
+function build-image
+{
+    # Example
+    # build-image git://github.com/pmorie/simple-html pmorie/fedora-mock
+    CARTRIDGE_SOURCE=$1
+    LOCAL_IMAGE_NAME=$2
+    PUT '/build-image' -q "u=test-app&d=1&r=${CARTRIDGE_SOURCE}&i=$i&t=${LOCAL_IMAGE_NAME}"
+    i=$(($i+1))
+}
+
+function container
+{
+    # Example
+    # container test-app 0001
+
+    IMAGE_NAME=$1
+    GEAR_ID=$2
+
+    PUT /container -q "u=0&d=1&t=${IMAGE_NAME}&r=${GEAR_ID}&i=$i" -d '{"ports":[{"external":4343,"internal":8080}]}'
+    i=$(($i+1))
+}
+
+# Not yet working
+
+function started
+{
+    # Example
+    # started 0001
+
+    GEAR_ID=$1
+    PUT /container/started -q "u=0&d=1&r=${GEAR_ID}&i=$i"
+    i=$(($i+1))
+}
+
+function stopped
+{
+    # Example
+    # stopped 0001
+
+    GEAR_ID=$1
+    PUT /container/stopped -q "u=0&d=1&r=${GEAR_ID}&i=$i"
+    i=$(($i+1))
+}
+
+function log
+{
+    # Example
+    # log 0001
+
+    GEAR_ID=$1
+    GET /container/log -q "u=0&d=1&r=${GEAR_ID}&i=$i"
+    i=$(($i+1))
+}
+
+function repository
+{
+#    PUT /repository -q 'u=0&d=1&r=dddd&i=12'
+    echo "not implemented"
+}
+
+function environment
+{
+    #PUT /environment -q 'u=0&d=1&r=1000&i=17' -d '{"env":[{"name":"foo","value":"bar"}]}'
+    echo "not implemented"
+}
