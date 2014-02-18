@@ -36,7 +36,7 @@ The service is set to bind to port 2223 and is accessible on localhost.
 
 To build an image from a source repository and base image:
 
-    curl -X PUT "http://localhost:2224/token/__test__/build-image?u=test-app&d=1&r=git%3A%2F%2Fgithub.com%2Fpmorie%2Fsimple-html&i=1&t=pmorie%2Ffedora-mock"
+    curl -X PUT "http://localhost:2223/token/__test__/build-image?u=test-app&d=1&r=git%3A%2F%2Fgithub.com%2Fpmorie%2Fsimple-html&i=1&t=pmorie%2Ffedora-mock"
     
 The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
 
