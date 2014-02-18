@@ -33,10 +33,14 @@ Take the systemd unit file in <code>contrib/geard.service</code> and enable it o
     systemctl start geard
 
 The service is set to bind to port 2223 and is accessible on localhost.
+
+To build an image from a source repository and base image:
+
+    curl -X PUT "http://localhost:2224/token/__test__/build-image?u=test-app&d=1&r=git%3A%2F%2Fgithub.com%2Fpmorie%2Fsimple-html&i=1&t=pmorie%2Ffedora-mock"
     
 The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container?u=0&d=1&t=pmorie%2Fsti-html-app&r=0001&i=1" -d '{"ports":[{"external":"4343","internal":"8080"}]}'
+    curl -X PUT "http://localhost:2223/token/__test__/container?u=0&d=1&t=test-app&r=0001&i=2" -d '{"ports":[{"external":"4343","internal":"8080"}]}'
     
 This will install a new systemd unit to <code>/var/lib/gears/units/gear-0001.service</code> and invoke start, and expose the port 8080 at 4343 on the host.  Use
 
@@ -48,21 +52,21 @@ A brief note: the /token/__test__ prefix (and the r, t, u, d, and i parameters) 
 
 To start that gear, run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container/started?u=0&d=1&r=0001&i=2"
+    curl -X PUT "http://localhost:2223/token/__test__/container/started?u=0&d=1&r=0001&i=3"
 
 and to stop run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?u=0&d=1&r=0001&i=3"
+    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?u=0&d=1&r=0001&i=4"
 
 To stream the logs from the gear over http, run:
 
-    curl -X GET "http://localhost:2223/token/__test__/container/log?u=0&d=1&r=0001&i=4"
+    curl -X GET "http://localhost:2223/token/__test__/container/log?u=0&d=1&r=0001&i=5"
 
 The logs will close after 30 seconds.
 
 To create a new repository, ensure the /var/lib/gears/git directory is created and then run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/repository?u=0&d=1&r=git1&i=5"
+    curl -X PUT "http://localhost:2223/token/__test__/repository?u=0&d=1&r=git1&i=6"
 
 First creation will be slow while the ccoleman/githost image is pulled down.  Repository creation will use a systemd transient unit named <code>job-&lt;r&gt;</code> - to see status run:
 
