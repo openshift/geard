@@ -40,7 +40,7 @@ To build an image from a source repository and base image:
     
 The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container?u=0&d=1&t=test-app&r=0001&i=2" -d '{"ports":[{"external":"4343","internal":"8080"}]}'
+    curl -X PUT "http://localhost:2223/token/__test__/container?u=0&d=1&t=test-app&r=0001&i=2" -d '{"ports":[{"external":4343,"internal":8080}]}'
     
 This will install a new systemd unit to <code>/var/lib/gears/units/gear-0001.service</code> and invoke start, and expose the port 8080 at 4343 on the host.  Use
 
@@ -66,11 +66,11 @@ The logs will close after 30 seconds.
 
 To create a new repository, ensure the /var/lib/gears/git directory is created and then run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/repository?u=0&d=1&r=git1&i=6"
+    curl -X PUT "http://localhost:2223/token/__test__/repository?u=0&d=1&r=dddd&i=6"
 
 First creation will be slow while the ccoleman/githost image is pulled down.  Repository creation will use a systemd transient unit named <code>job-&lt;r&gt;</code> - to see status run:
 
-    systemctl status job-git1
+    systemctl status job-dddd
 
 If you want to create a repository based on a source URL, pass <code>t=&lt;url&gt;</code> to the PUT repository call.  Once you've created a repository with at least one commit, you can stream a git archive zip file of the contents with:
 
