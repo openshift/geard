@@ -43,7 +43,7 @@ func (g Identifier) RepositoryPathFor() string {
 }
 
 func (g Identifier) EnvironmentPathFor() string {
-	return isolateContentPath(filepath.Join(basePath, "environments"), string(g), "")
+	return isolateContentPath(filepath.Join(basePath, "env", "contents"), string(g), "")
 }
 
 func (i Identifier) GitAccessPathFor(f Fingerprint, write bool) string {
@@ -98,10 +98,12 @@ func VerifyDataPaths() error {
 		filepath.Join(basePath, "units"),
 		filepath.Join(basePath, "slices"),
 		filepath.Join(basePath, "git"),
+		filepath.Join(basePath, "env", "contents"),
 		filepath.Join(basePath, "access", "git", "read"),
 		filepath.Join(basePath, "access", "git", "write"),
 		filepath.Join(basePath, "access", "gears", "ssh"),
 		filepath.Join(basePath, "keys", "public"),
+		filepath.Join(basePath, "ports", "descriptions"),
 		filepath.Join(basePath, "ports", "interfaces"),
 	} {
 		if err := checkPath(path, os.FileMode(0770), true); err != nil {

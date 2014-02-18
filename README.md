@@ -157,6 +157,13 @@ The on disk structure of geard is exploratory at the moment.  The major componen
 
         All containers are created in the "gear-small" slice at the moment.
 
+      env/
+        contents/
+          a3/
+            a3408aabfed
+
+            Files storing environment variables and values in KEY="VALUE" (one per line) form.
+
       data/
         TBD (reserved for gear unique volumes)
 
