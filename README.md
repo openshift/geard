@@ -27,8 +27,8 @@ You can get a vagrant F20 box from http://opscode-vm-bento.s3.amazonaws.com/vagr
 
 Take the systemd unit file in <code>contrib/geard.service</code> and enable it on your system (assumes Docker is installed) with: 
 
-    curl https://raw.github.com/smarterclayton/geard/master/contrib/geard.service > /usr/lib/systemd/service/geard.service
-    systemctl enable /usr/lib/systemd/service/geard.service
+    curl https://raw.github.com/smarterclayton/geard/master/contrib/geard.service > /usr/lib/systemd/system/geard.service
+    systemctl enable /usr/lib/systemd/system/geard.service
     mkdir -p /var/lib/gears/units
     systemctl start geard
 
