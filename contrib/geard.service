@@ -3,7 +3,7 @@ Description=Gear Provisioning Daemon (geard)
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/docker run -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket -v /var/lib/gears:/var/lib/gears -p 2223:8080 -t -i ccoleman/geard:latest
+ExecStart=/usr/bin/docker run -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket -v /var/lib/gears:/var/lib/gears -p 2223:8080 -a stderr -a stdout ccoleman/geard:latest
 
 [Install]
 WantedBy=multi-user.target

@@ -1,6 +1,7 @@
 package geard
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"github.com/smarterclayton/go-json-rest"
@@ -301,12 +302,22 @@ func extractToken(segment string, r *http.Request) (token *TokenData, id Request
 		token = t
 	}
 
-	i, err := token.RequestId()
-	if err != nil {
-		rerr = &apiRequestError{err, "Token is missing data: " + err.Error(), http.StatusBadRequest}
-		return
+	if token.I == "" {
+		i := make(RequestIdentifier, 16)
+		_, errr := rand.Read(i)
+		if errr != nil {
+			rerr = &apiRequestError{errr, "Unable to generate token for this request: " + errr.Error(), http.StatusBadRequest}
+			return
+		}
+		id = i
+	} else {
+		i, errr := token.RequestId()
+		if errr != nil {
+			rerr = &apiRequestError{errr, "Unable to parse token for this request: " + errr.Error(), http.StatusBadRequest}
+			return
+		}
+		id = i
 	}
-	id = i
 
 	return
 }
