@@ -185,12 +185,21 @@ func ApiPutBuildImageAction(reqid RequestIdentifier, token *TokenData, w *rest.R
 	baseImage := token.ResourceType() // token.T
 	tag := token.U
 
+	data := extendedBuildImageData{}
+	if r.Body != nil {
+		dec := json.NewDecoder(r.Body)
+		if err := dec.Decode(&data); err != nil && err != io.EOF {
+			return nil, err
+		}
+	}
+
 	return &buildImageJobRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobRequest{reqid},
 		source,
 		baseImage,
 		tag,
+		&data,
 	}, nil
 }
 
