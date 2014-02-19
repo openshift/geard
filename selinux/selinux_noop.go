@@ -1,4 +1,4 @@
-// +build noselinux
+// +build !selinux
 
 package selinux
 

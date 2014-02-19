@@ -2,9 +2,8 @@
 #GOOS=linux GOARCH=amd64 go build -o geard.linux64 geard/main.go
 rm -rf $GOPATH/pkg
 rm -rf $GOPATH/bin
-go build -o geard.local geard/main.go
-go get "github.com/kraman/geard-switchns"
-go get "github.com/kraman/geard-util"
+go build -tags 'selinux' -o geard.local geard/main.go
+go get -tags 'selinux' "github.com/kraman/geard-switchns"
+go get -tags 'selinux' "github.com/kraman/geard-util"
 /bin/cp -f $GOPATH/bin/geard-* .
-mkdir -p /opt/geard/bin
 /bin/cp -f geard-switchns geard-util /opt/geard/bin
