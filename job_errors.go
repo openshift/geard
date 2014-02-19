@@ -10,6 +10,7 @@ var (
 	ErrRepositoryCreateFailed  = SimpleJobError{JobResponseError, "Unable to create the repository."}
 	ErrGearStartFailed         = SimpleJobError{JobResponseError, "Unable to start this gear."}
 	ErrEnvironmentUpdateFailed = SimpleJobError{JobResponseError, "Unable to update the specified environment."}
+	ErrListImagesFailed        = SimpleJobError{JobResponseError, "Unable to list docker images."}
 )
 
 const (
