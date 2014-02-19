@@ -31,6 +31,7 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 		rest.Route{"PUT", "/token/:token/build-image", JobRestHandler(dispatcher, ApiPutBuildImageAction)},
 		rest.Route{"PUT", "/token/:token/environment", JobRestHandler(dispatcher, ApiPutEnvironment)},
 		rest.Route{"PATCH", "/token/:token/environment", JobRestHandler(dispatcher, ApiPatchEnvironment)},
+		rest.Route{"PUT", "/token/:token/linkcontainers", JobRestHandler(dispatcher, ApiLinkContainers)},
 	)
 	return &handler
 }
@@ -285,6 +286,28 @@ func ApiGetContent(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWr
 		token.ResourceType(),
 		token.ResourceLocator(),
 		r.PathParam("*"),
+	}, nil
+}
+
+func ApiLinkContainers(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	id, errg := NewIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
+	}
+
+	data := extendedLinkContainersData{}
+	if r.Body != nil {
+		dec := json.NewDecoder(limitedBodyReader(r))
+		if err := dec.Decode(&data); err != nil && err != io.EOF {
+			return nil, err
+		}
+	}
+
+	return &linkContainersJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobRequest{reqid},
+		id,
+		data,
 	}, nil
 }
 
