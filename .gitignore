@@ -3,3 +3,5 @@ geard.linux64
 geard.local
 go
 .project
+geard-switchns
+geard-util
