@@ -26,7 +26,7 @@ func executeCommandInContainer(containerName string, args []string) (string, err
 	log.Printf("Executing %v in container %v\n", args, containerName)
 	//switchns.JoinContainer(containerName, args, nil)
 	cmdArgs := append([]string{containerName}, args...)
-	out, err := exec.Command("/usr/local/bin/docker-exec.sh", cmdArgs...).Output()
+	out, err := exec.Command("/var/lib/gears/bin/geard-switchns", cmdArgs...).Output()
 	if err != nil {
 		log.Printf("Failed to execute: %v\n", err)
 		return "", err
