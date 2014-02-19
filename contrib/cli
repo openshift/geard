@@ -35,8 +35,6 @@ function list-examples
     echo "cli started 0001"
     echo "cli stopped 0001"
     echo "cli log 0001"
-    echo "cli repository not-implemented"
-    echo "cli environment not-implemented"
     echo "cli repository <container_id> [<git url>]"
     echo "cli environment <environment_id> <key> <value>"
 }
