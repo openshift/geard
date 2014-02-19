@@ -3,22 +3,23 @@
 # Start i counter if needed
 [ -z $f ] && echo woot
 
-echo "Downloading resty from the internet, this is insecure and a terrible idea.  Fix later"
-echo
+if [ ! -f /tmp/resty ]; then
+    echo "Downloading resty from the internet, this is insecure and a terrible idea.  Fix later"
+    echo
 
-wget -qO /tmp/resty http://github.com/micha/resty/raw/master/resty
+    wget -qO /tmp/resty http://github.com/micha/resty/raw/master/resty
+fi
+
+i=${CLI_REQID:-1}
+CLI_PORT=${CLI_PORT:-"8080"}
 
 . /tmp/resty
-
-resty http://localhost:2223/token/__test__/
-
-echo
-echo "run list-examples to see a list of command examples"
-echo
+resty http://localhost:${CLI_PORT}/token/__test__/ > /dev/null 2&>1
 
 function list-examples
 {
-    echo "build-image git://github.com/pmorie/simple-html pmorie/fedora-mock"
+    echo "list-containers"
+    echo "build-image git://github.com/pmorie/simple-html pmorie/fedora-mock test-app"
     echo "container test-app 0001"
     echo "started 0001"
     echo "stopped 0001"
@@ -31,10 +32,17 @@ function list-examples
 function build-image
 {
     # Example
-    # build-image git://github.com/pmorie/simple-html pmorie/fedora-mock
+    # build-image git://github.com/pmorie/simple-html pmorie/fedora-mock test-app
     CARTRIDGE_SOURCE=$1
-    LOCAL_IMAGE_NAME=$2
-    PUT '/build-image' -q "u=test-app&d=1&r=${CARTRIDGE_SOURCE}&i=$i&t=${LOCAL_IMAGE_NAME}"
+    BASE_IMAGE_NAME=$2
+    BUILD_TAG=$3
+
+    PUT '/build-image' -q "u=${BUILD_TAG}&d=1&r=${CARTRIDGE_SOURCE}&i=$i&t=${BASE_IMAGE_NAME}"
+    i=$(($i+1))
+}
+
+function list-containers {
+    GET '/containers' -q "u=0&d=0&r=0&t=0&i=$i"
     i=$(($i+1))
 }
 
@@ -42,7 +50,6 @@ function container
 {
     # Example
     # container test-app 0001
-
     IMAGE_NAME=$1
     GEAR_ID=$2
 
@@ -93,3 +100,20 @@ function environment
     #PUT /environment -q 'u=0&d=1&r=1000&i=17' -d '{"env":[{"name":"foo","value":"bar"}]}'
     echo "not implemented"
 }
+
+cmd=$1
+
+if [ -z $cmd ]; then
+    echo "run list-examples to see a list of command examples"
+    exit
+fi
+
+case "$1" in
+    list-examples)  list-examples;;
+    list-containers) list-containers;;
+    build-image) build-image $2 $3 $4;;
+    container) container $2 $3;;
+    started) started $2;;
+    stopped) stopped $2;;
+    log) log $2;;
+esac
