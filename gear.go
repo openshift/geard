@@ -4,11 +4,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"github.com/smarterclayton/geard/selinux"
 )
 
 type Identifier string
@@ -56,15 +59,27 @@ func (i Identifier) GitAccessPathFor(f Fingerprint, write bool) string {
 	return isolateContentPath(filepath.Join(basePath, "access", "git"), string(i), f.ToShortName()+access)
 }
 
+func (i Identifier) SshAccessBasePath() string {
+	return isolateContentPath(filepath.Join(basePath, "access", "gears", "ssh"), string(i), "")
+}
+
 func (i Identifier) SshAccessPathFor(f Fingerprint) string {
 	return isolateContentPath(filepath.Join(basePath, "access", "gears", "ssh"), string(i), f.ToShortName())
+}
+
+func (i Identifier) BaseHomePath() string {
+	return isolateContentPathWithPerm(filepath.Join(basePath, "home"), string(i), "", 0775)
+}
+
+func (i Identifier) HomePath() string {
+	return isolateContentPathWithPerm(filepath.Join(basePath, "home"), string(i), "home", 0775)
 }
 
 func (i Identifier) PortDescriptionPathFor() string {
 	return isolateContentPath(filepath.Join(basePath, "ports", "descriptions"), string(i), "")
 }
 
-func isolateContentPath(base, id, suffix string) string {
+func isolateContentPathWithPerm(base, id, suffix string, perm os.FileMode) string {
 	var path string
 	if suffix == "" {
 		path = filepath.Join(base, id[0:2])
@@ -74,8 +89,13 @@ func isolateContentPath(base, id, suffix string) string {
 	}
 	// fail silently, require startup to set paths, let consumers
 	// handle directory not found errors
-	os.MkdirAll(path, 0770)
+	os.MkdirAll(path, perm)
+	
 	return filepath.Join(path, suffix)
+}
+
+func isolateContentPath(base, id, suffix string) string {
+	return isolateContentPathWithPerm(base, id, suffix, 0770)
 }
 
 type Fingerprint []byte
@@ -94,6 +114,17 @@ const GearBasePath = basePath
 func VerifyDataPaths() error {
 	for _, path := range []string{
 		basePath,
+		filepath.Join(basePath, "home"),
+		filepath.Join(basePath, "bin"),		
+	} {
+		if err := checkPath(path, os.FileMode(0775), true); err != nil {
+			return err
+		}
+		if err := selinux.RestoreCon(path) ; err != nil {
+			return err
+		}
+	}
+	for _, path := range []string{
 		filepath.Join(basePath, "targets"),
 		filepath.Join(basePath, "units"),
 		filepath.Join(basePath, "slices"),
@@ -109,7 +140,11 @@ func VerifyDataPaths() error {
 		if err := checkPath(path, os.FileMode(0770), true); err != nil {
 			return err
 		}
+		if err := selinux.RestoreCon(path) ; err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -218,4 +253,68 @@ func DisableAllUnits() {
 			log.Printf("gear: systemd reload failed: %+v", err)
 		}
 	}
+}
+
+func copyBinary(src string, dest string, setUid bool) error {
+	var err error
+	var sourceInfo os.FileInfo
+	if sourceInfo, err = os.Stat(src) ; err != nil {
+		return err
+	}
+	if !sourceInfo.Mode().IsRegular() {
+		return fmt.Errorf("Cannot copy source %s", src)
+	}
+	
+	if _, err = os.Stat(dest) ; err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else {
+		if err = os.Remove(dest) ; err != nil {
+			return err
+		}
+	}
+
+	var mode os.FileMode
+	if setUid {
+		mode = 0555 | os.ModeSetuid
+	} else {
+		mode = 0555
+	}
+
+	var destFile *os.File
+	if destFile, err = os.Create(dest) ; err != nil {
+		return err
+	}
+	defer destFile.Close()
+	
+	var sourceFile *os.File
+	if sourceFile, err = os.Open(src) ; err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	if _,err = io.Copy(destFile, sourceFile) ; err != nil {
+		return err
+	}
+	destFile.Sync()
+	
+	if err = destFile.Chmod(mode) ; err != nil {
+		return err
+	}
+	
+	return nil
+}
+
+func InitializeBinaries() error {
+	srcDir := path.Join("/", "opt", "geard", "bin")
+	destDir := path.Join(GearBasePath, "bin")
+	
+	if err := copyBinary(path.Join(srcDir, "geard-switchns"), path.Join(destDir, "geard-switchns"), true) ; err != nil {
+		return err
+	}
+	if err := copyBinary(path.Join(srcDir, "geard-util"), path.Join(destDir, "geard-util"), false) ; err != nil {
+		return err
+	}
+	return nil
 }

@@ -1,0 +1,4 @@
+/var/lib/gears/home/([^/]*)                   -d      gen_context(unconfined_u:object_r:var_lib_t,s0)
+/var/lib/gears/home/([^/]*)/([^/]*)           -d      gen_context(unconfined_u:object_r:home_root_t,s0)
+/var/lib/gears/home/([^/]*)/([^/]*)/home      -d      gen_context(unconfined_u:object_r:user_home_dir_t,s0)
+/var/lib/gears/home/([^/]*)/([^/]*)/home/(.*)         gen_context(unconfined_u:object_r:user_home_t,s0)

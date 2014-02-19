@@ -5,12 +5,13 @@ import (
 )
 
 type containerUnit struct {
-	Gear     Identifier
-	Image    string
-	PortSpec string
-	Slice    string
-	User     string
-	ReqId    string
+	Gear         Identifier
+	Image        string
+	PortSpec     string
+	Slice        string
+	User         string
+	ReqId        string
+	GearBasePath string
 }
 
 var containerUnitTemplate = template.Must(template.New("unit.service").Parse(`
@@ -20,6 +21,8 @@ Description=Gear container {{.Gear}}
 [Service]
 Type=simple
 Slice={{.Slice}}
+ExecStartPre={{.GearBasePath}}/bin/geard-util gear-init "{{.Gear}}"
+ExecStartPre={{.GearBasePath}}/bin/geard-util gen-authorized-keys "{{.Gear}}"
 ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -a stdout -a stderr {{.PortSpec}} -rm "{{.Image}}"
 
 [Install]

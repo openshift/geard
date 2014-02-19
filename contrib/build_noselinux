@@ -1,0 +1,2 @@
+#!/bin/bash
+go build -tags noselinux -o geard.local geard/main.go
