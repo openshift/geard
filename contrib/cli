@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # Start i counter if needed
+[ -f /tmp/docker-i.txt ] || echo 1 > /tmp/docker-i.txt
 [ -z $i ] && export i=0
+echo $((`cat /tmp/docker-i.txt`+1)) > /tmp/docker-i.txt
+i=`cat /tmp/docker-i.txt`
+
 
 if [ ! -f /tmp/resty ]; then
     echo "Downloading resty from the internet, this is insecure and a terrible idea.  Fix later"
@@ -24,14 +28,16 @@ resty http://localhost:${CLI_PORT}/token/__test__/ > /dev/null 2>&1
 
 function list-examples
 {
-    echo "list-containers"
-    echo "build-image git://github.com/pmorie/simple-html pmorie/fedora-mock test-app"
-    echo "container test-app 0001"
-    echo "started 0001"
-    echo "stopped 0001"
-    echo "log 0001"
-    echo "repository <container_id> [<git url>]"
-    echo "environment <environment_id> <key> <value>"
+    echo "cli list-containers"
+    echo "cli build-image git://github.com/pmorie/simple-html pmorie/fedora-mock test-app"
+    echo "cli container test-app 0001 8080:6000  # internal:external"
+    echo "cli started 0001"
+    echo "cli stopped 0001"
+    echo "cli log 0001"
+    echo "cli repository not-implemented"
+    echo "cli environment not-implemented"
+    echo "cli repository <container_id> [<git url>]"
+    echo "cli environment <environment_id> <key> <value>"
 }
 
 # This can take a minute
@@ -44,12 +50,10 @@ function build-image
     BUILD_TAG=$3
 
     PUT '/build-image' -q "u=${BUILD_TAG}&d=1&r=${CARTRIDGE_SOURCE}&i=$i&t=${BASE_IMAGE_NAME}" $DEBUG_FLAG
-    i=$(($i+1))
 }
 
 function list-containers {
     GET '/containers' -q "u=0&d=0&r=0&t=0&i=$i" $DEBUG_FLAG
-    i=$(($i+1))
 }
 
 function container
@@ -58,9 +62,14 @@ function container
     # container test-app 0001
     IMAGE_NAME=$1
     GEAR_ID=$2
+    INTERNAL=`echo $3 | awk -F':' '{ print $1 }'`
+    EXTERNAL=`echo $3 | awk -F':' '{ print $2 }'`
 
-    PUT /container -q "u=0&d=1&t=${IMAGE_NAME}&r=${GEAR_ID}&i=$i" -d '{"ports":[{"external":4343,"internal":8080}]}' $DEBUG_FLAG
-    i=$(($i+1))
+    #PUT /container -q "u=0&d=1&t=${IMAGE_NAME}&r=${GEAR_ID}&i=$i" -d '{"ports":[{"external":4343,"internal":8080}]}' $DEBUG_FLAG
+    PUT /container -q "t=${IMAGE_NAME}&r=${GEAR_ID}" -d '{"ports":[{"external":'${EXTERNAL}',"internal":'${INTERNAL}'}]}' $DEBUG_FLAG
+    #PUT /container -q "t=test-app&r=0030" -d '{"ports":[{"external":'${EXTERNAL}',"internal":'${INTERNAL}'}]}' $DEBUG_FLAG
+    echo PUT /container -q "t=test-app&r=0034" -d "{\"ports\":[{\"external\":\"4333\",\"internal\":\"8080\"}]}" $DEBUG_FLAG --verbose
+    #PUT /container -q "t=test-app&r=0034" -d "{\"ports\":[{\"external\":\"4333\",\"internal\":\"8080\"}]}" $DEBUG_FLAG --verbose
 }
 
 # Not yet working
@@ -72,7 +81,6 @@ function started
 
     GEAR_ID=$1
     PUT /container/started -q "u=0&d=1&r=${GEAR_ID}&i=$i" $DEBUG_FLAG
-    i=$(($i+1))
 }
 
 function stopped
@@ -82,7 +90,6 @@ function stopped
 
     GEAR_ID=$1
     PUT /container/stopped -q "u=0&d=1&r=${GEAR_ID}&i=$i" $DEBUG_FLAG
-    i=$(($i+1))
 }
 
 function log
@@ -92,7 +99,6 @@ function log
 
     GEAR_ID=$1
     GET /container/log -q "u=0&d=1&r=${GEAR_ID}&i=$i" $DEBUG_FLAG
-    i=$(($i+1))
 }
 
 function repository
@@ -127,7 +133,7 @@ case "$1" in
     list-examples)  list-examples;;
     list-containers) list-containers;;
     build-image) build-image $2 $3 $4;;
-    container) container $2 $3;;
+    container) container $2 $3 $4;;
     started) started $2;;
     stopped) stopped $2;;
     log) log $2;;
