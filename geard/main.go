@@ -44,6 +44,9 @@ func main() {
 	if err := geard.InitializeSlices(); err != nil {
 		log.Fatal(err)
 	}
+	if err := geard.InitializeBinaries(); err != nil {
+		log.Fatal(err)
+	}
 	geard.StartPortAllocator(4000, 60000)
 	dispatcher.Start()
 	wg := &sync.WaitGroup{}

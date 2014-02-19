@@ -4,7 +4,7 @@ go:
  - release
 
 install:
- - go get -t
+ - go get -t -tags 'noselinux'
 
 script:
- - go test -v ./...
+ - go test -tags 'noselinux' -v ./...

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	pathlib "path"
 )
 
 type createKeysJobRequest struct {
@@ -123,6 +124,9 @@ func (j *createKeysJobRequest) Execute() {
 				failedKeys = append(failedKeys, keyFailure{i, &key, err})
 			}
 			if err := os.Symlink(path, p.Id.SshAccessPathFor(fingerprint)); err != nil && !os.IsExist(err) {
+				failedKeys = append(failedKeys, keyFailure{i, &key, err})
+			}
+			if err := os.Remove(pathlib.Join(p.Id.HomePath(), ".ssh", "authorized_keys")); err != nil {
 				failedKeys = append(failedKeys, keyFailure{i, &key, err})
 			}
 		}
