@@ -14,11 +14,11 @@ if [ ! -f /tmp/resty ]; then
     wget -qO /tmp/resty http://github.com/micha/resty/raw/master/resty
 fi
 
-if [ -z $CLI_DEBUG ]
+if [ $CLI_DEBUG -eq 1 ]
 then
-    DEBUG_FLAG=''
-else
     DEBUG_FLAG='-v'
+else
+    DEBUG_FLAG=''
 fi
 
 CLI_PORT=${CLI_PORT:-"8080"}
@@ -28,15 +28,20 @@ resty http://localhost:${CLI_PORT}/token/__test__ > /dev/null 2>&1
 
 function list-examples
 {
-    echo "cli list-containers"
-    echo "cli list-images"
-    echo "cli build-image git://github.com/pmorie/simple-html pmorie/fedora-mock test-app"
-    echo "cli container test-app 0001 8080:6000  # internal:external"
-    echo "cli started 0001"
-    echo "cli stopped 0001"
-    echo "cli log 0001"
-    echo "cli repository <container_id> [<git url>]"
-    echo "cli environment <environment_id> <key> <value>"
+    echo "Supported env vars:"
+    echo "   CLI_PORT=8080 (default)"
+    echo "   CLI_DEBUG=0 (default)"
+    echo
+    echo "$0 list-containers"
+    echo "$0 build-image git://github.com/pmorie/simple-html pmorie/fedora-mock test-app"
+    echo "$0 container test-app 0001 8080:6000  # internal:external"
+    echo "$0 started 0001"
+    echo "$0 stopped 0001"
+    echo "$0 log 0001"
+    echo "$0 repository not-implemented"
+    echo "$0 environment not-implemented"
+    echo "$0 repository <container_id> [<git url>]"
+    echo "$0 environment <environment_id> <key> <value>"
 }
 
 # This can take a minute
