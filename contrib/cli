@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start i counter if needed
-[ -z $f ] && echo woot
+[ -z $i ] && export i=0
 
 if [ ! -f /tmp/resty ]; then
     echo "Downloading resty from the internet, this is insecure and a terrible idea.  Fix later"
@@ -10,7 +10,14 @@ if [ ! -f /tmp/resty ]; then
     wget -qO /tmp/resty http://github.com/micha/resty/raw/master/resty
 fi
 
-i=${CLI_REQID:-1}
+if [ -z $CLI_DEBUG ]
+then
+    DEBUG_FLAG=''
+else
+    DEBUG_FLAG='-v'
+fi
+
+#i=${CLI_REQID:-1}
 CLI_PORT=${CLI_PORT:-"8080"}
 
 . /tmp/resty
@@ -37,12 +44,12 @@ function build-image
     BASE_IMAGE_NAME=$2
     BUILD_TAG=$3
 
-    PUT '/build-image' -q "u=${BUILD_TAG}&d=1&r=${CARTRIDGE_SOURCE}&i=$i&t=${BASE_IMAGE_NAME}"
+    PUT '/build-image' -q "u=${BUILD_TAG}&d=1&r=${CARTRIDGE_SOURCE}&i=$i&t=${BASE_IMAGE_NAME}" $DEBUG_FLAG
     i=$(($i+1))
 }
 
 function list-containers {
-    GET '/containers' -q "u=0&d=0&r=0&t=0&i=$i"
+    GET '/containers' -q "u=0&d=0&r=0&t=0&i=$i" $DEBUG_FLAG
     i=$(($i+1))
 }
 
@@ -53,7 +60,7 @@ function container
     IMAGE_NAME=$1
     GEAR_ID=$2
 
-    PUT /container -q "u=0&d=1&t=${IMAGE_NAME}&r=${GEAR_ID}&i=$i" -d '{"ports":[{"external":4343,"internal":8080}]}'
+    PUT /container -q "u=0&d=1&t=${IMAGE_NAME}&r=${GEAR_ID}&i=$i" -d '{"ports":[{"external":4343,"internal":8080}]}' $DEBUG_FLAG
     i=$(($i+1))
 }
 
@@ -65,7 +72,7 @@ function started
     # started 0001
 
     GEAR_ID=$1
-    PUT /container/started -q "u=0&d=1&r=${GEAR_ID}&i=$i"
+    PUT /container/started -q "u=0&d=1&r=${GEAR_ID}&i=$i" $DEBUG_FLAG
     i=$(($i+1))
 }
 
@@ -73,9 +80,8 @@ function stopped
 {
     # Example
     # stopped 0001
-
     GEAR_ID=$1
-    PUT /container/stopped -q "u=0&d=1&r=${GEAR_ID}&i=$i"
+    PUT /container/stopped -q "u=0&d=1&r=${GEAR_ID}&i=$i" $DEBUG_FLAG
     i=$(($i+1))
 }
 
@@ -85,7 +91,7 @@ function log
     # log 0001
 
     GEAR_ID=$1
-    GET /container/log -q "u=0&d=1&r=${GEAR_ID}&i=$i"
+    GET /container/log -q "u=0&d=1&r=${GEAR_ID}&i=$i" $DEBUG_FLAG
     i=$(($i+1))
 }
 
@@ -104,7 +110,7 @@ function environment
 cmd=$1
 
 if [ -z $cmd ]; then
-    echo "run list-examples to see a list of command examples"
+    list-examples
     exit
 fi
 
