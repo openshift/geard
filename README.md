@@ -33,10 +33,14 @@ Take the systemd unit file in <code>contrib/geard.service</code> and enable it o
     systemctl start geard
 
 The service is set to bind to port 2223 and is accessible on localhost.
+
+To build an image from a source repository and base image:
+
+    curl -X PUT "http://localhost:2223/token/__test__/build-image?u=test-app&r=git%3A%2F%2Fgithub.com%2Fpmorie%2Fsimple-html&t=pmorie%2Ffedora-mock"
     
 The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container?u=0&d=1&t=pmorie%2Fsti-html-app&r=0001&i=1" -d '{"ports":[{"external":"4343","internal":"8080"}]}'
+    curl -X PUT "http://localhost:2223/token/__test__/container?t=test-app&r=0001" -d '{"ports":[{"external":4343,"internal":8080}]}'
     
 This will install a new systemd unit to <code>/var/lib/gears/units/gear-0001.service</code> and invoke start, and expose the port 8080 at 4343 on the host.  Use
 
@@ -48,39 +52,37 @@ A brief note: the /token/__test__ prefix (and the r, t, u, d, and i parameters) 
 
 To start that gear, run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container/started?u=0&d=1&r=0001&i=2"
+    curl -X PUT "http://localhost:2223/token/__test__/container/started?r=0001"
 
 and to stop run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?u=0&d=1&r=0001&i=3"
+    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?r=0001"
 
 To stream the logs from the gear over http, run:
 
-    curl -X GET "http://localhost:2223/token/__test__/container/log?u=0&d=1&r=0001&i=4"
+    curl -X GET "http://localhost:2223/token/__test__/container/log?r=0001"
 
 The logs will close after 30 seconds.
 
 To create a new repository, ensure the /var/lib/gears/git directory is created and then run:
 
-    curl -X PUT "http://localhost:2223/token/__test__/repository?u=0&d=1&r=git1&i=5"
+    curl -X PUT "http://localhost:2223/token/__test__/repository?r=dddd"
 
 First creation will be slow while the ccoleman/githost image is pulled down.  Repository creation will use a systemd transient unit named <code>job-&lt;r&gt;</code> - to see status run:
 
-    systemctl status job-git1
+    systemctl status job-dddd
 
 If you want to create a repository based on a source URL, pass <code>t=&lt;url&gt;</code> to the PUT repository call.  Once you've created a repository with at least one commit, you can stream a git archive zip file of the contents with:
 
-    curl "http://localhost:2223/token/__test__/content?u=0&d=1&t=gitarchive&r=git2&i=7"
+    curl "http://localhost:2223/token/__test__/content?t=gitarchive&r=eeee"
 
 To set an environment file:
 
-    curl -X PUT "http://localhost:2223/token/__test__/environment?u=0&d=1&r=1000&i=8" -d '{"env":[{"name":"foo","value":"bar"}]}'
+    curl -X PUT "http://localhost:2223/token/__test__/environment?r=1000" -d '{"env":[{"name":"foo","value":"bar"}]}'
 
 and to retrieve that environment (in normalized env file form)
 
-    curl "http://localhost:2223/token/__test__/content?u=0&d=1&t=env&r=1000&i=9"
-
-NOTE: the <code>i</code> parameter is a unique request ID - geard will filter duplicate requests, so if you change the request parameters be sure to increment <code>i</code> to a higher hexadecimal number (2, a, 2a, etc).
+    curl "http://localhost:2223/token/__test__/content?t=env&r=1000"
 
 See [contrib/example.sh](contrib/example.sh) and [contrib/stress.sh](contrib/stress.sh) for more examples of API calls.
 

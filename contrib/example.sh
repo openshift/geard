@@ -16,13 +16,13 @@ gear=$seq
 gear1=$gear
 
 header "Create a container and expose a single port"
-curl "$base/container?u=1&d=1&i=$seq&r=$gear&t=pmorie%2Fsti-html-app" -X PUT -d '{"ports":[{"internal":8080}]}'
+curl "$base/container?r=$gear&t=pmorie%2Fsti-html-app" -X PUT -d '{"ports":[{"internal":8080}]}'
 echo
 
 seq=$[seq+1]
 
 header "Follow the logs of the container for 30 seconds"
-curl "$base/container/log?u=1&d=1&i=$seq&r=$gear"
+curl "$base/container/log?r=$gear"
 echo
 
 header "See the status of the container"
@@ -33,19 +33,19 @@ gear=$[gear+1]
 gear2=$gear
 
 header "Create a second container"
-curl "$base/container?u=1&d=1&i=$seq&r=$gear&t=pmorie%2Fsti-html-app" -X PUT
+curl "$base/container?r=$gear&t=pmorie%2Fsti-html-app" -X PUT
 echo
 
 seq=$[seq+1]
 
 header "Stop the second container"
-curl "$base/container/stopped?u=1&d=1&i=$seq&r=$gear" -X PUT
+curl "$base/container/stopped?r=$gear" -X PUT
 echo
 
 seq=$[seq+1]
 
 header "Start the second container"
-curl "$base/container/started?u=1&d=1&i=$seq&r=$gear" -X PUT
+curl "$base/container/started?r=$gear" -X PUT
 echo
 
 header "See the gear slice"
@@ -54,37 +54,37 @@ systemctl status gear.slice
 seq=$[seq+1]
 
 header "Set an environment resource"
-curl "$base/environment?d=1&u=1&t=&r=1000&i=$seq" -X PUT -d '{"env":[{"name":"foo","value":"bar"}]}'
+curl "$base/environment?t=&r=1000" -X PUT -d '{"env":[{"name":"foo","value":"bar"}]}'
 echo
 
 seq=$[seq+1]
 
 header "Patch that environment resource"
-curl "$base/environment?d=1&u=1&t=&r=1000&i=$seq" -X PATCH -d '{"env":[{"name":"baz","value":"boo"}]}'
+curl "$base/environment?t=&r=1000" -X PATCH -d '{"env":[{"name":"baz","value":"boo"}]}'
 echo
 
 seq=$[seq+1]
 
 header "Fetch environment resource"
-curl "$base/content?d=1&u=1&t=env&r=1000&i=$seq"
+curl "$base/content?t=env&r=1000"
 echo
 
 seq=$[seq+1]
 
 header "Add keys to both gears"
-curl "$base/keys?d=1&u=1&i=$seq" -X PUT -d "{\"keys\":[{\"type\":\"ssh-rsa\",\"value\":\"$keydata\"}],\"gears\":[{\"id\":\"$gear1\"},{\"id\":\"$gear2\"}]}"
+curl "$base/keys?u=1" -X PUT -d "{\"keys\":[{\"type\":\"ssh-rsa\",\"value\":\"$keydata\"}],\"gears\":[{\"id\":\"$gear1\"},{\"id\":\"$gear2\"}]}"
 echo
 
 seq=$[seq+1]
 
 header "Build an image"
-curl "$base/build-image?d=1&u=imagefoo&t=pmorie%2ffedora-mock&r=http:%2F%2Fgithub.com%2Fopenshift%2Fsinatra-example.git&i=$seq" -X PUT
+curl "$base/build-image?u=imagefoo&t=pmorie%2ffedora-mock&r=http:%2F%2Fgithub.com%2Fopenshift%2Fsinatra-example.git" -X PUT
 
 seq=$[seq+1]
 repo=${REPO:-$(date +%N)}
 
 header "Create an empty repository"
-curl "$base/repository?u=1&d=1&i=$seq&r=$repo" -X PUT
+curl "$base/repository?r=$repo" -X PUT
 echo
 
 header "See the job logs for the repo"
@@ -95,7 +95,7 @@ seq=$[seq+1]
 repo=$[repo+1]
 
 header "Create a cloned repository"
-curl "$base/repository?u=1&d=1&i=$seq&r=$repo&t=http:%2F%2Fgithub.com%2Fsmarterclayton%2F/docker-cartridge-examples" -X PUT
+curl "$base/repository?r=$repo&t=http:%2F%2Fgithub.com%2Fsmarterclayton%2F/docker-cartridge-examples" -X PUT
 echo
 
 header "See the job logs for the repo"

@@ -1,6 +1,7 @@
 package geard
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"github.com/smarterclayton/go-json-rest"
@@ -19,6 +20,7 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 		EnableGzip:               false,
 	}
 	handler.SetRoutes(
+		rest.Route{"GET", "/token/:token/containers", JobRestHandler(dispatcher, ApiListContainers)},
 		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dispatcher, ApiPutContainer)},
 		rest.Route{"GET", "/token/:token/container/log", JobRestHandler(dispatcher, ApiGetContainerLog)},
 		rest.Route{"PUT", "/token/:token/container/:action", JobRestHandler(dispatcher, ApiPutContainerAction)},
@@ -44,9 +46,11 @@ func JobRestHandler(dispatcher *Dispatcher, handler JobHandler) func(*rest.Respo
 			return
 		}
 
+		if token.D == 0 {
+			log.Println("http: Recommend passing 'd' as an argument for the current date")
+		}
 		if token.U == "" {
-			http.Error(w, "All requests must be associated with a user", http.StatusBadRequest)
-			return
+			log.Println("http: Recommend passing 'u' as an argument for the associated user")
 		}
 
 		job, errh := handler(id, token, w, r)
@@ -97,6 +101,10 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 		token.ResourceType(),
 		&data,
 	}, nil
+}
+
+func ApiListContainers(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	return &listContainersRequest{NewHttpJobResponse(w.ResponseWriter, false), jobRequest{reqid}}, nil
 }
 
 func ApiGetContainerLog(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
@@ -185,12 +193,21 @@ func ApiPutBuildImageAction(reqid RequestIdentifier, token *TokenData, w *rest.R
 	baseImage := token.ResourceType() // token.T
 	tag := token.U
 
+	data := extendedBuildImageData{}
+	if r.Body != nil {
+		dec := json.NewDecoder(r.Body)
+		if err := dec.Decode(&data); err != nil && err != io.EOF {
+			return nil, err
+		}
+	}
+
 	return &buildImageJobRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobRequest{reqid},
 		source,
 		baseImage,
 		tag,
+		&data,
 	}, nil
 }
 
@@ -292,12 +309,22 @@ func extractToken(segment string, r *http.Request) (token *TokenData, id Request
 		token = t
 	}
 
-	i, err := token.RequestId()
-	if err != nil {
-		rerr = &apiRequestError{err, "Token is missing data: " + err.Error(), http.StatusBadRequest}
-		return
+	if token.I == "" {
+		i := make(RequestIdentifier, 16)
+		_, errr := rand.Read(i)
+		if errr != nil {
+			rerr = &apiRequestError{errr, "Unable to generate token for this request: " + errr.Error(), http.StatusBadRequest}
+			return
+		}
+		id = i
+	} else {
+		i, errr := token.RequestId()
+		if errr != nil {
+			rerr = &apiRequestError{errr, "Unable to parse token for this request: " + errr.Error(), http.StatusBadRequest}
+			return
+		}
+		id = i
 	}
-	id = i
 
 	return
 }

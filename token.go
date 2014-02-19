@@ -48,14 +48,17 @@ func NewTokenFromString(s string) (*TokenData, error) {
 func NewTokenFromMap(m map[string][]string) (*TokenData, error) {
 	token := TokenData{}
 	token.I = firstParam(m, "i")
-	if len(token.I) < 32 {
+	if len(token.I) > 0 && len(token.I) < 32 {
 		token.I = strings.Repeat("0", 32-len(token.I)) + token.I
 	}
-	d, err := strconv.Atoi(firstParam(m, "d"))
-	if err != nil {
-		return nil, err
+	date := firstParam(m, "d")
+	if date != "" {
+		d, err := strconv.Atoi(date)
+		if err != nil {
+			return nil, err
+		}
+		token.D = d
 	}
-	token.D = d
 	token.U = firstParam(m, "u")
 	token.T = firstParam(m, "t")
 	token.R = firstParam(m, "r")

@@ -1,5 +1,5 @@
 #!/bin/bash
-sudo yum install -y docker-io golang git hg
+sudo yum install -y docker-io golang git hg bzr
 sudo usermod -a -G docker vagrant
 sudo systemctl enable docker.service
 sudo systemctl start docker
