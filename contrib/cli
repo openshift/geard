@@ -24,7 +24,7 @@ fi
 CLI_PORT=${CLI_PORT:-"8080"}
 
 . /tmp/resty
-resty http://localhost:${CLI_PORT}/token/__test__/ > /dev/null 2>&1
+resty http://localhost:${CLI_PORT}/token/__test__ > /dev/null 2>&1
 
 function list-examples
 {
@@ -68,7 +68,7 @@ function container
     #PUT /container -q "u=0&d=1&t=${IMAGE_NAME}&r=${GEAR_ID}&i=$i" -d '{"ports":[{"external":4343,"internal":8080}]}' $DEBUG_FLAG
     PUT /container -q "t=${IMAGE_NAME}&r=${GEAR_ID}" -d '{"ports":[{"external":'${EXTERNAL}',"internal":'${INTERNAL}'}]}' $DEBUG_FLAG
     #PUT /container -q "t=test-app&r=0030" -d '{"ports":[{"external":'${EXTERNAL}',"internal":'${INTERNAL}'}]}' $DEBUG_FLAG
-    echo PUT /container -q "t=test-app&r=0034" -d "{\"ports\":[{\"external\":\"4333\",\"internal\":\"8080\"}]}" $DEBUG_FLAG --verbose
+    #echo PUT /container -q "t=test-app&r=0034" -d "{\"ports\":[{\"external\":\"4333\",\"internal\":\"8080\"}]}" $DEBUG_FLAG --verbose
     #PUT /container -q "t=test-app&r=0034" -d "{\"ports\":[{\"external\":\"4333\",\"internal\":\"8080\"}]}" $DEBUG_FLAG --verbose
 }
 
