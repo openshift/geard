@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os/exec"
+	"sync"
 	"time"
 )
 
@@ -28,26 +29,55 @@ func ProcessLogsForUnit(unit string) (io.ReadCloser, error) {
 
 func WriteLogsTo(w io.Writer, unit string, until time.Duration) error {
 	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-f", "--unit", unit)
-	cmd.Stdout = w
+	stdout, errp := cmd.StderrPipe()
+	if errp != nil {
+		return errp
+	}
 	if err := cmd.Start(); err != nil {
+		stdout.Close()
 		return err
 	}
-	defer cmd.Process.Kill()
-	done := make(chan error)
+
+	wg := sync.WaitGroup{}
+	outch := make(chan error, 1)
 	go func() {
-		if err := cmd.Wait(); err != nil {
-			done <- err
-		}
-		close(done)
+		wg.Add(1)
+		_, err := io.Copy(w, stdout)
+		outch <- err
+		wg.Done()
 	}()
-	if until != 0 {
-		select {
-		case err := <-done:
-			log.Print("gear_logs: Error when writing to log: ", err)
-			return err
-		case <-time.After(until):
-			return ErrLogWriteTimeout
-		}
+	prcch := make(chan error, 1)
+	go func() {
+		wg.Add(1)
+		err := cmd.Wait()
+		prcch <- err
+		wg.Done()
+	}()
+
+	if until == 0 {
+		until = 5 * time.Second
 	}
+
+	var err error
+	select {
+	case err = <-prcch:
+		if err != nil {
+			log.Print("gear_logs: Process exited unexpectedly: ", err)
+		}
+	case err = <-outch:
+		if err != nil {
+			log.Print("gear_logs: Output closed before process exited: ", err)
+		} else {
+			log.Print("gear_logs: Write completed")
+		}
+	case <-time.After(until):
+		log.Print("gear_logs: Timeout")
+		err = ErrLogWriteTimeout
+	}
+
+	stdout.Close()
+	cmd.Process.Kill()
+	wg.Wait()
+
 	return nil
 }

@@ -21,11 +21,10 @@ else
     DEBUG_FLAG='-v'
 fi
 
-#i=${CLI_REQID:-1}
 CLI_PORT=${CLI_PORT:-"8080"}
 
 . /tmp/resty
-resty http://localhost:${CLI_PORT}/token/__test__/ > /dev/null 2&>1
+resty http://localhost:${CLI_PORT}/token/__test__/ > /dev/null 2>&1
 
 function list-examples
 {
@@ -37,6 +36,8 @@ function list-examples
     echo "cli log 0001"
     echo "cli repository not-implemented"
     echo "cli environment not-implemented"
+    echo "cli repository <container_id> [<git url>]"
+    echo "cli environment <environment_id> <key> <value>"
 }
 
 # This can take a minute
@@ -86,6 +87,7 @@ function stopped
 {
     # Example
     # stopped 0001
+
     GEAR_ID=$1
     PUT /container/stopped -q "u=0&d=1&r=${GEAR_ID}&i=$i" $DEBUG_FLAG
 }
@@ -101,14 +103,23 @@ function log
 
 function repository
 {
-#    PUT /repository -q 'u=0&d=1&r=dddd&i=12'
-    echo "not implemented"
+    JOB_ID=$1
+    GIT_URL=$2
+
+    if [ -z "$GIT_URL" ]; then
+        PUT /repository -q "u=0&d=1&r=${JOB_ID}&i=$i" $DEBUG_FLAG
+    else
+        PUT /repository -q "u=0&d=1&r=${JOB_ID}&i=$i&t=${GIT_URL}" $DEBUG_FLAG
+    fi
 }
 
 function environment
 {
-    #PUT /environment -q 'u=0&d=1&r=1000&i=17' -d '{"env":[{"name":"foo","value":"bar"}]}'
-    echo "not implemented"
+    ENV_ID=$1
+    KEY=$2
+    VALUE=$3
+    PUT '/environment' -q "u=0&d=1&r=${ENV_ID}&i=$i" -d "{\"env\":[{\"name\":\"${KEY}\",\"value\":\"${VALUE}\"}]}"
+    i=$(($i+1))
 }
 
 cmd=$1
@@ -126,4 +137,6 @@ case "$1" in
     started) started $2;;
     stopped) stopped $2;;
     log) log $2;;
+    repository) repository $2 $3;;
+    environment) environment $2 $3 $4;;
 esac
