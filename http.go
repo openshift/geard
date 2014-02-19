@@ -312,7 +312,7 @@ func ApiLinkContainers(reqid RequestIdentifier, token *TokenData, w *rest.Respon
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobRequest{reqid},
 		id,
-		data,
+		&data,
 	}, nil
 }
 
