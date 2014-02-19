@@ -46,9 +46,11 @@ func JobRestHandler(dispatcher *Dispatcher, handler JobHandler) func(*rest.Respo
 			return
 		}
 
+		if token.D == 0 {
+			log.Println("http: Recommend passing 'd' as an argument for the current date")
+		}
 		if token.U == "" {
-			http.Error(w, "All requests must be associated with a user", http.StatusBadRequest)
-			return
+			log.Println("http: Recommend passing 'u' as an argument for the associated user")
 		}
 
 		job, errh := handler(id, token, w, r)
