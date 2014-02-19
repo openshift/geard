@@ -19,7 +19,7 @@ type linkContainersJobRequest struct {
 	JobResponse
 	jobRequest
 	LocalGearId Identifier
-	Data        extendedLinkContainersData
+	Data        *extendedLinkContainersData
 }
 
 func executeCommandInContainer(containerName string, args []string) (string, error) {
