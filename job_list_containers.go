@@ -37,17 +37,16 @@ func (j *listContainersRequest) Execute() {
 	}
 
 	var gearUnits []dbus.UnitStatus
+	re := regexp.MustCompile("gear-(.*)\\.service")
 
 	for _, unit := range units {
-		if matched, _ := regexp.MatchString("gear-.*\\.service", unit.Name); matched {
+		if matched := re.MatchString(unit.Name); matched {
 			gearUnits = append(gearUnits, unit)
 		}
 	}
 
-	realNameRe, err := regexp.Compile("gear-(.*)\\.service")
-
 	for _, unit := range gearUnits {
-		res := realNameRe.FindStringSubmatch(unit.Name)
+		res := re.FindStringSubmatch(unit.Name)
 		fmt.Fprintf(w, "%s\n", res[1])
 	}
 }
