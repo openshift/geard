@@ -8,7 +8,10 @@ RUN mkdir -p $GOPATH && echo $GOPATH >> ~/.bash_profile
 ADD . /geard
 WORKDIR /geard
 RUN go get -d
-RUN go build -o geard.local geard/main.go
+RUN go build -tags selinux -o geard.local geard/main.go
+RUN go get -tags selinux "github.com/kraman/geard-switchns"
+RUN go get -tags selinux "github.com/kraman/geard-util"
+run mkdir /opt/geard/bin && cp $GOPATH/bin/geard-switchns /opt/geard/bin && $GOPATH/bin/geard-util /opt/geard/bin
 
 CMD /geard/geard.local
 EXPOSE 8080
