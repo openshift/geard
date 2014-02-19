@@ -4,6 +4,8 @@ package selinux
 
 import (
 	se "github.com/rhatdan/selinux"
+	"path"
+	"path/filepath"
 )
 
 func RestoreCon(path string) error {
@@ -13,7 +15,7 @@ func RestoreCon(path string) error {
 	if !se.Selinux_enabled() {
 		return nil
 	}
-	
+
 	if flabel, err = se.Matchpathcon(path, 0); err != nil {
 		return nil
 	}
