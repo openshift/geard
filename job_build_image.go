@@ -24,6 +24,8 @@ type extendedBuildImageData struct {
 	Verbose      bool
 }
 
+const buildImage = "pmorie/sti-builder"
+
 func (j *buildImageJobRequest) Execute() {
 	log.Printf("Starting build %d", j.Id())
 	w := j.SuccessWithWrite(JobResponseAccepted, true)
@@ -70,7 +72,7 @@ func (j *buildImageJobRequest) Execute() {
 		"/usr/bin/docker", "run",
 		"-rm",
 		"-v", "/var/run:/var/run",
-		"-t", "pmorie/sti-builder",
+		"-t", buildImage,
 		"sti", "build", j.Source, j.BaseImage, j.Tag,
 	}
 
