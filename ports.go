@@ -14,8 +14,8 @@ import (
 type Port uint
 
 type PortPair struct {
-	Internal Port		`json:",string"`
-	External Port		`json:",string"`
+	Internal Port
+	External Port
 }
 
 type device string
