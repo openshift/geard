@@ -7,9 +7,9 @@ package namespaces
 import (
 	"errors"
 	"fmt"
-	"github.com/crosbymichael/libcontainer"
-	"github.com/crosbymichael/libcontainer/capabilities"
-	"github.com/crosbymichael/libcontainer/utils"
+	"github.com/kraman/libcontainer"
+	"github.com/kraman/libcontainer/capabilities"
+	"github.com/kraman/libcontainer/utils"
 	"os"
 	"path/filepath"
 	"syscall"

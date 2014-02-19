@@ -2,7 +2,7 @@ package namespaces
 
 import (
 	"fmt"
-	"github.com/crosbymichael/libcontainer"
+	"github.com/kraman/libcontainer"
 	"os"
 	"path/filepath"
 	"strconv"

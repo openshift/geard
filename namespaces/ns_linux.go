@@ -1,7 +1,7 @@
 package namespaces
 
 import (
-	"github.com/crosbymichael/libcontainer"
+	"github.com/kraman/libcontainer"
 )
 
 const (

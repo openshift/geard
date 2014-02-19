@@ -2,8 +2,8 @@ package network
 
 import (
 	"fmt"
-	"github.com/crosbymichael/libcontainer"
-	"github.com/crosbymichael/libcontainer/namespaces"
+	"github.com/kraman/libcontainer"
+	"github.com/kraman/libcontainer/namespaces"
 	"os"
 	"syscall"
 )

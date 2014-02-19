@@ -1,7 +1,7 @@
 package capabilities
 
 import (
-	"github.com/crosbymichael/libcontainer"
+	"github.com/kraman/libcontainer"
 	"github.com/syndtr/gocapability/capability"
 	"os"
 )

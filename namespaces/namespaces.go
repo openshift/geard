@@ -10,8 +10,8 @@ package namespaces
 
 import (
 	"fmt"
-	"github.com/crosbymichael/libcontainer"
-	"github.com/crosbymichael/libcontainer/utils"
+	"github.com/kraman/libcontainer"
+	"github.com/kraman/libcontainer/utils"
 	"os"
 	"path/filepath"
 	"syscall"
