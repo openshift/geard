@@ -20,6 +20,7 @@ func NewHttpApiHandler(dispatcher *Dispatcher) *rest.ResourceHandler {
 		EnableGzip:               false,
 	}
 	handler.SetRoutes(
+		rest.Route{"GET", "/token/:token/images", JobRestHandler(dispatcher, ApiListImages)},
 		rest.Route{"GET", "/token/:token/containers", JobRestHandler(dispatcher, ApiListContainers)},
 		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dispatcher, ApiPutContainer)},
 		rest.Route{"GET", "/token/:token/container/log", JobRestHandler(dispatcher, ApiGetContainerLog)},
@@ -106,6 +107,10 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 
 func ApiListContainers(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
 	return &listContainersRequest{NewHttpJobResponse(w.ResponseWriter, false), jobRequest{reqid}}, nil
+}
+
+func ApiListImages(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {
+	return &listImagesRequest{NewHttpJobResponse(w.ResponseWriter, false), jobRequest{reqid}}, nil
 }
 
 func ApiGetContainerLog(reqid RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (Job, error) {

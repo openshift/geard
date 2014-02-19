@@ -29,6 +29,7 @@ resty http://localhost:${CLI_PORT}/token/__test__ > /dev/null 2>&1
 function list-examples
 {
     echo "cli list-containers"
+    echo "cli list-images"
     echo "cli build-image git://github.com/pmorie/simple-html pmorie/fedora-mock test-app"
     echo "cli container test-app 0001 8080:6000  # internal:external"
     echo "cli started 0001"
@@ -54,6 +55,10 @@ function build-image
 
 function list-containers {
     GET '/containers' -q "u=0&d=0&r=0&t=0&i=$i" $DEBUG_FLAG
+}
+
+function list-images {
+    GET '/images' -q "u=0&d=0&r=0&t=0&i=$i" $DEBUG_FLAG
 }
 
 function container
@@ -131,6 +136,7 @@ fi
 
 case "$1" in
     list-examples)  list-examples;;
+    list-images) list-images;;
     list-containers) list-containers;;
     build-image) build-image $2 $3 $4;;
     container) container $2 $3 $4;;
