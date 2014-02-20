@@ -19,7 +19,8 @@ type createContainerJobRequest struct {
 }
 
 type extendedCreateContainerData struct {
-	Ports PortPairs
+	Ports       PortPairs
+	Environment *extendedEnvironmentData
 }
 
 type PortPairs []PortPair
@@ -39,6 +40,14 @@ func (p PortPairs) ToHeader() string {
 
 func (j *createContainerJobRequest) Execute() {
 	unitPath := j.GearId.UnitPathFor()
+
+	env := j.Data.Environment
+	if env != nil {
+		if err := env.Fetch(); err != nil {
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
+	}
 
 	unit, err := os.OpenFile(unitPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 	if os.IsExist(err) {
@@ -76,6 +85,15 @@ func (j *createContainerJobRequest) Execute() {
 		j.WritePendingSuccess("PortMapping", j.Data.Ports)
 	}
 
+	var environmentPath string
+	if env != nil {
+		if errw := env.Write(false); errw != nil {
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
+		environmentPath = env.Id.EnvironmentPathFor()
+	}
+
 	slice := "gear-small"
 	if erre := containerUnitTemplate.Execute(unit, containerUnit{
 		j.GearId,
@@ -83,9 +101,10 @@ func (j *createContainerJobRequest) Execute() {
 		portSpec.String(),
 		slice + ".slice",
 		j.UserId,
-		j.Id().ToShortName(),
-		GearBasePath,
+		j.RequestId.ToShortName(),
+		GearBasePath(),
 		j.GearId.HomePath(),
+		environmentPath,
 	}); erre != nil {
 		log.Printf("job_create_container: Unable to output template: %+v", erre)
 		j.Failure(ErrGearCreateFailed)

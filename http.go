@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 )
 
 var ErrHandledResponse = errors.New("Request handled")
@@ -93,6 +92,13 @@ func ApiPutContainer(reqid RequestIdentifier, token *TokenData, w *rest.Response
 	}
 	if data.Ports == nil {
 		data.Ports = make([]PortPair, 0)
+	}
+
+	if data.Environment != nil {
+		env := data.Environment
+		if env.Id == InvalidIdentifier {
+			return nil, errors.New("You must specify an environment identifier on creation.")
+		}
 	}
 
 	return &createContainerJobRequest{
@@ -233,22 +239,12 @@ func ApiPutEnvironment(reqid RequestIdentifier, token *TokenData, w *rest.Respon
 	if err := data.Check(); err != nil {
 		return nil, err
 	}
-
-	var source *url.URL
-	if data.Source != "" {
-		url, erru := url.Parse(data.Source)
-		if erru != nil {
-			return nil, erru
-		}
-		source = url
-	}
+	data.Id = id
 
 	return &putEnvironmentJobRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobRequest{reqid},
-		id,
-		data.Env,
-		source,
+		&data,
 	}, nil
 }
 
@@ -268,12 +264,12 @@ func ApiPatchEnvironment(reqid RequestIdentifier, token *TokenData, w *rest.Resp
 	if err := data.Check(); err != nil {
 		return nil, err
 	}
+	data.Id = id
 
 	return &patchEnvironmentJobRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobRequest{reqid},
-		id,
-		data.Env,
+		&data,
 	}, nil
 }
 
