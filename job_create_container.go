@@ -85,6 +85,7 @@ func (j *createContainerJobRequest) Execute() {
 		j.UserId,
 		j.Id().ToShortName(),
 		GearBasePath,
+		j.GearId.HomePath(),
 	}); erre != nil {
 		log.Printf("job_create_container: Unable to output template: %+v", erre)
 		j.Failure(ErrGearCreateFailed)
