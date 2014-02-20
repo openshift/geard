@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/smarterclayton/geard/jobs"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"net/http"
@@ -104,7 +105,7 @@ func (s *IntegrationTestSuite) TestCleanBuild(c *C) {
 	tag := "geard/fake-app"
 	gitRepo := "git://github.com/pmorie/simple-html"
 	baseImage := "pmorie/sti-fake"
-	extendedParams := extendedBuildImageData{"", true, true}
+	extendedParams := jobs.ExtendedBuildImageData{"", true, true}
 
 	s.buildImage(c, gitRepo, baseImage, tag, extendedParams)
 	s.checkForImage(c, tag)
@@ -114,7 +115,7 @@ func (s *IntegrationTestSuite) TestCleanBuild(c *C) {
 	s.checkBasicBuildState(c, containerId)
 }
 
-func (s *IntegrationTestSuite) buildImage(c *C, sourceRepo string, baseImage string, tag string, extendedParams extendedBuildImageData) {
+func (s *IntegrationTestSuite) buildImage(c *C, sourceRepo string, baseImage string, tag string, extendedParams jobs.ExtendedBuildImageData) {
 	// Request parameters are the fields of Token (token.go)
 	values := url.Values{}
 	values.Set("u", tag)
