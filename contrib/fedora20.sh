@@ -7,7 +7,7 @@ sudo systemctl status docker
 sudo systemctl start accounts-daemon
 
 mkdir -p ~/go/src
-echo 'export GOPATH=~/go/src' >> ~/.bash_profile
+echo 'export GOPATH=~/go' >> ~/.bash_profile
 
 echo vi /usr/lib/systemd/service/docker.service
 echo Set run command to docker -d -H :2223 -H unix:///var/run/docker.sock

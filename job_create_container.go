@@ -62,7 +62,7 @@ func (j *createContainerJobRequest) Execute() {
 
 	var portSpec bytes.Buffer
 	if len(j.Data.Ports) > 0 {
-		portSpec.WriteString("-p ")
+		portSpec.WriteString("-p")
 		for i := range j.Data.Ports {
 			ports := &j.Data.Ports[i]
 			if ports.External < 1 {
