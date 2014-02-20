@@ -5,11 +5,11 @@ import (
 	"io"
 	"log"
 	"os/exec"
-	"sync"
 	"time"
 )
 
 var ErrLogWriteTimeout = errors.New("gear_logs: Maximum duration exceeded, timeout")
+var ErrLogComplete = errors.New("gear_logs: Closed by caller")
 
 func ProcessLogsFor(id ProvidesUnitName) (io.ReadCloser, error) {
 	return ProcessLogsForUnit(id.UnitNameFor())
@@ -27,9 +27,9 @@ func ProcessLogsForUnit(unit string) (io.ReadCloser, error) {
 	return stdout, nil
 }
 
-func WriteLogsTo(w io.Writer, unit string, until time.Duration) error {
+func WriteLogsTo(w io.Writer, unit string, until <-chan time.Time) error {
 	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-f", "--unit", unit)
-	stdout, errp := cmd.StderrPipe()
+	stdout, errp := cmd.StdoutPipe()
 	if errp != nil {
 		return errp
 	}
@@ -38,25 +38,16 @@ func WriteLogsTo(w io.Writer, unit string, until time.Duration) error {
 		return err
 	}
 
-	wg := sync.WaitGroup{}
 	outch := make(chan error, 1)
 	go func() {
-		wg.Add(1)
 		_, err := io.Copy(w, stdout)
 		outch <- err
-		wg.Done()
 	}()
 	prcch := make(chan error, 1)
 	go func() {
-		wg.Add(1)
 		err := cmd.Wait()
 		prcch <- err
-		wg.Done()
 	}()
-
-	if until == 0 {
-		until = 5 * time.Second
-	}
 
 	var err error
 	select {
@@ -70,14 +61,13 @@ func WriteLogsTo(w io.Writer, unit string, until time.Duration) error {
 		} else {
 			log.Print("gear_logs: Write completed")
 		}
-	case <-time.After(until):
-		log.Print("gear_logs: Timeout")
-		err = ErrLogWriteTimeout
+	case <-until:
+		log.Print("gear_logs: Done")
+		err = nil
 	}
 
 	stdout.Close()
 	cmd.Process.Kill()
-	wg.Wait()
 
-	return nil
+	return err
 }
