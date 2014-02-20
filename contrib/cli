@@ -11,6 +11,7 @@ if [ ! -f /tmp/resty ]; then
     wget -qO /tmp/resty http://github.com/micha/resty/raw/master/resty
 fi
 
+CLI_DEBUG=${CLI_DEBUG:-0}
 if [ $CLI_DEBUG -eq 1 ]
 then
     DEBUG_FLAG='-v'
