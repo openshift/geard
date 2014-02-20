@@ -1,10 +1,7 @@
 #!/bin/bash
 
 # Start i counter if needed
-[ -f /tmp/docker-i.txt ] || echo 1 > /tmp/docker-i.txt
-[ -z $i ] && export i=0
-echo $((`cat /tmp/docker-i.txt`+1)) > /tmp/docker-i.txt
-i=`cat /tmp/docker-i.txt`
+i=$(uuidgen | tr -d '-')
 
 
 if [ ! -f /tmp/resty ]; then
