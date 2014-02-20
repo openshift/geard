@@ -73,9 +73,10 @@ func (j *BuildImageJobRequest) Execute() {
 	startCmd := []string{
 		"/usr/bin/docker", "run",
 		"-rm",
-		"-v", "/var/run:/var/run",
+		"-v", "/run/docker.sock:/run/docker.sock",
 		"-t", buildImage,
 		"sti", "build", j.Source, j.BaseImage, j.Tag,
+		"--url", "unix:///run/docker.sock",
 	}
 
 	if j.Data.RuntimeImage != "" {
