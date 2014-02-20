@@ -21,7 +21,7 @@ type PortPair struct {
 type device string
 
 func (d device) DevicePath() string {
-	return filepath.Join(GearBasePath, "ports", "interfaces", string(d))
+	return filepath.Join(GearBasePath(), "ports", "interfaces", string(d))
 }
 
 func (p Port) PortPathsFor() (base string, path string) {

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/smarterclayton/geard/selinux"
 	"io"
 	"log"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"github.com/smarterclayton/geard/selinux"
 )
 
 type Identifier string
@@ -30,7 +30,7 @@ func NewIdentifier(s string) (Identifier, error) {
 }
 
 func (g Identifier) UnitPathFor() string {
-	return filepath.Join(basePath, "units", g.UnitNameFor())
+	return filepath.Join(GearBasePath(), "units", g.UnitNameFor())
 }
 
 func (g Identifier) UnitNameFor() string {
@@ -42,11 +42,11 @@ func (g Identifier) UnitNameForJob() string {
 }
 
 func (g Identifier) RepositoryPathFor() string {
-	return filepath.Join(basePath, "git", string(g))
+	return filepath.Join(GearBasePath(), "git", string(g))
 }
 
 func (g Identifier) EnvironmentPathFor() string {
-	return isolateContentPath(filepath.Join(basePath, "env", "contents"), string(g), "")
+	return isolateContentPath(filepath.Join(GearBasePath(), "env", "contents"), string(g), "")
 }
 
 func (i Identifier) GitAccessPathFor(f Fingerprint, write bool) string {
@@ -56,27 +56,27 @@ func (i Identifier) GitAccessPathFor(f Fingerprint, write bool) string {
 	} else {
 		access = ".read"
 	}
-	return isolateContentPath(filepath.Join(basePath, "access", "git"), string(i), f.ToShortName()+access)
+	return isolateContentPath(filepath.Join(GearBasePath(), "access", "git"), string(i), f.ToShortName()+access)
 }
 
 func (i Identifier) SshAccessBasePath() string {
-	return isolateContentPath(filepath.Join(basePath, "access", "gears", "ssh"), string(i), "")
+	return isolateContentPath(filepath.Join(GearBasePath(), "access", "gears", "ssh"), string(i), "")
 }
 
 func (i Identifier) SshAccessPathFor(f Fingerprint) string {
-	return isolateContentPath(filepath.Join(basePath, "access", "gears", "ssh"), string(i), f.ToShortName())
+	return isolateContentPath(filepath.Join(GearBasePath(), "access", "gears", "ssh"), string(i), f.ToShortName())
 }
 
 func (i Identifier) BaseHomePath() string {
-	return isolateContentPathWithPerm(filepath.Join(basePath, "home"), string(i), "", 0775)
+	return isolateContentPathWithPerm(filepath.Join(GearBasePath(), "home"), string(i), "", 0775)
 }
 
 func (i Identifier) HomePath() string {
-	return isolateContentPathWithPerm(filepath.Join(basePath, "home"), string(i), "home", 0775)
+	return isolateContentPathWithPerm(filepath.Join(GearBasePath(), "home"), string(i), "home", 0775)
 }
 
 func (i Identifier) PortDescriptionPathFor() string {
-	return isolateContentPath(filepath.Join(basePath, "ports", "descriptions"), string(i), "")
+	return isolateContentPath(filepath.Join(GearBasePath(), "ports", "descriptions"), string(i), "")
 }
 
 func isolateContentPathWithPerm(base, id, suffix string, perm os.FileMode) string {
@@ -90,7 +90,7 @@ func isolateContentPathWithPerm(base, id, suffix string, perm os.FileMode) strin
 	// fail silently, require startup to set paths, let consumers
 	// handle directory not found errors
 	os.MkdirAll(path, perm)
-	
+
 	return filepath.Join(path, suffix)
 }
 
@@ -105,42 +105,55 @@ func (f Fingerprint) ToShortName() string {
 }
 
 func (f Fingerprint) PublicKeyPathFor() string {
-	return isolateContentPath(filepath.Join(basePath, "keys", "public"), f.ToShortName(), "")
+	return isolateContentPath(filepath.Join(GearBasePath(), "keys", "public"), f.ToShortName(), "")
 }
 
-const basePath = "/var/lib/gears"
-const GearBasePath = basePath
+const defaultBasePath = "/var/lib/gears"
+
+var basePath = defaultBasePath
+
+func GearBasePath() string {
+	return basePath
+}
+
+func SetGearBasePath(path string) {
+	if path != "" {
+		basePath = path
+	} else {
+		basePath = defaultBasePath
+	}
+}
 
 func VerifyDataPaths() error {
 	for _, path := range []string{
-		basePath,
-		filepath.Join(basePath, "home"),
-		filepath.Join(basePath, "bin"),		
+		GearBasePath(),
+		filepath.Join(GearBasePath(), "home"),
+		filepath.Join(GearBasePath(), "bin"),
 	} {
 		if err := checkPath(path, os.FileMode(0775), true); err != nil {
 			return err
 		}
-		if err := selinux.RestoreCon(path) ; err != nil {
+		if err := selinux.RestoreCon(path); err != nil {
 			return err
 		}
 	}
 	for _, path := range []string{
-		filepath.Join(basePath, "targets"),
-		filepath.Join(basePath, "units"),
-		filepath.Join(basePath, "slices"),
-		filepath.Join(basePath, "git"),
-		filepath.Join(basePath, "env", "contents"),
-		filepath.Join(basePath, "access", "git", "read"),
-		filepath.Join(basePath, "access", "git", "write"),
-		filepath.Join(basePath, "access", "gears", "ssh"),
-		filepath.Join(basePath, "keys", "public"),
-		filepath.Join(basePath, "ports", "descriptions"),
-		filepath.Join(basePath, "ports", "interfaces"),
+		filepath.Join(GearBasePath(), "targets"),
+		filepath.Join(GearBasePath(), "units"),
+		filepath.Join(GearBasePath(), "slices"),
+		filepath.Join(GearBasePath(), "git"),
+		filepath.Join(GearBasePath(), "env", "contents"),
+		filepath.Join(GearBasePath(), "access", "git", "read"),
+		filepath.Join(GearBasePath(), "access", "git", "write"),
+		filepath.Join(GearBasePath(), "access", "gears", "ssh"),
+		filepath.Join(GearBasePath(), "keys", "public"),
+		filepath.Join(GearBasePath(), "ports", "descriptions"),
+		filepath.Join(GearBasePath(), "ports", "interfaces"),
 	} {
 		if err := checkPath(path, os.FileMode(0770), true); err != nil {
 			return err
 		}
-		if err := selinux.RestoreCon(path) ; err != nil {
+		if err := selinux.RestoreCon(path); err != nil {
 			return err
 		}
 	}
@@ -153,7 +166,7 @@ func InitializeTargets() error {
 		[]string{"gear", "multi-user.target"},
 	} {
 		name, wants := target[0], target[1]
-		path := filepath.Join(basePath, "targets", name+".target")
+		path := filepath.Join(GearBasePath(), "targets", name+".target")
 		unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 		if os.IsExist(err) {
 			continue
@@ -183,7 +196,7 @@ func InitializeSlices() error {
 		"gear",
 		"gear-small",
 	} {
-		path := filepath.Join(basePath, "slices", name+".slice")
+		path := filepath.Join(GearBasePath(), "slices", name+".slice")
 		unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 		if os.IsExist(err) {
 			continue
@@ -229,9 +242,9 @@ func checkPath(path string, mode os.FileMode, dir bool) error {
 
 func DisableAllUnits() {
 	for _, path := range []string{
-		filepath.Join(basePath, "units"),
-		filepath.Join(basePath, "slices"),
-		filepath.Join(basePath, "targets"),
+		filepath.Join(GearBasePath(), "units"),
+		filepath.Join(GearBasePath(), "slices"),
+		filepath.Join(GearBasePath(), "targets"),
 	} {
 		filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 			if os.IsNotExist(err) {
@@ -258,19 +271,19 @@ func DisableAllUnits() {
 func copyBinary(src string, dest string, setUid bool) error {
 	var err error
 	var sourceInfo os.FileInfo
-	if sourceInfo, err = os.Stat(src) ; err != nil {
+	if sourceInfo, err = os.Stat(src); err != nil {
 		return err
 	}
 	if !sourceInfo.Mode().IsRegular() {
 		return fmt.Errorf("Cannot copy source %s", src)
 	}
-	
-	if _, err = os.Stat(dest) ; err != nil {
+
+	if _, err = os.Stat(dest); err != nil {
 		if !os.IsNotExist(err) {
 			return err
 		}
 	} else {
-		if err = os.Remove(dest) ; err != nil {
+		if err = os.Remove(dest); err != nil {
 			return err
 		}
 	}
@@ -283,37 +296,37 @@ func copyBinary(src string, dest string, setUid bool) error {
 	}
 
 	var destFile *os.File
-	if destFile, err = os.Create(dest) ; err != nil {
+	if destFile, err = os.Create(dest); err != nil {
 		return err
 	}
 	defer destFile.Close()
-	
+
 	var sourceFile *os.File
-	if sourceFile, err = os.Open(src) ; err != nil {
+	if sourceFile, err = os.Open(src); err != nil {
 		return err
 	}
 	defer sourceFile.Close()
 
-	if _,err = io.Copy(destFile, sourceFile) ; err != nil {
+	if _, err = io.Copy(destFile, sourceFile); err != nil {
 		return err
 	}
 	destFile.Sync()
-	
-	if err = destFile.Chmod(mode) ; err != nil {
+
+	if err = destFile.Chmod(mode); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
 func InitializeBinaries() error {
 	srcDir := path.Join("/", "opt", "geard", "bin")
-	destDir := path.Join(GearBasePath, "bin")
-	
-	if err := copyBinary(path.Join(srcDir, "geard-switchns"), path.Join(destDir, "geard-switchns"), true) ; err != nil {
+	destDir := path.Join(GearBasePath(), "bin")
+
+	if err := copyBinary(path.Join(srcDir, "geard-switchns"), path.Join(destDir, "geard-switchns"), true); err != nil {
 		return err
 	}
-	if err := copyBinary(path.Join(srcDir, "geard-util"), path.Join(destDir, "geard-util"), false) ; err != nil {
+	if err := copyBinary(path.Join(srcDir, "geard-util"), path.Join(destDir, "geard-util"), false); err != nil {
 		return err
 	}
 	return nil

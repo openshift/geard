@@ -8,7 +8,7 @@ type Job interface {
 	Execute()
 
 	Fast() bool
-	Id() RequestIdentifier
+	JobId() RequestIdentifier
 }
 
 type Join interface {
@@ -51,6 +51,6 @@ func (j *jobRequest) Fast() bool {
 	return false
 }
 
-func (j *jobRequest) Id() RequestIdentifier {
+func (j *jobRequest) JobId() RequestIdentifier {
 	return j.RequestId
 }

@@ -29,7 +29,7 @@ func (d *Dispatcher) Start() {
 func (d *Dispatcher) work(queue <-chan jobTracker) {
 	go func() {
 		for tracker := range queue {
-			id := tracker.job.Id()
+			id := tracker.job.JobId()
 			log.Printf("job START %s", id.ToShortName())
 			tracker.job.Execute()
 			log.Printf("job END   %s", id.ToShortName())
@@ -48,7 +48,7 @@ func (d *Dispatcher) Dispatch(j Job) (done <-chan bool, err error) {
 	complete := make(chan bool)
 	tracker := jobTracker{j, complete}
 
-	if existing, found := d.recentJobs.Put(j.Id(), tracker); found {
+	if existing, found := d.recentJobs.Put(j.JobId(), tracker); found {
 		var join Join
 		if existing != nil {
 			other, _ := existing.(jobTracker)

@@ -27,7 +27,6 @@ type extendedBuildImageData struct {
 const buildImage = "pmorie/sti-builder"
 
 func (j *buildImageJobRequest) Execute() {
-	log.Printf("Starting build %d", j.Id())
 	w := j.SuccessWithWrite(JobResponseAccepted, true)
 
 	fmt.Fprintf(w, "Processing build-image request:\n")
