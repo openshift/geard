@@ -20,7 +20,7 @@ func (j *containerLogJobRequest) Execute() {
 	}
 
 	w := j.SuccessWithWrite(JobResponseOk, true)
-	err := WriteLogsTo(w, j.GearId.UnitNameFor(), 30*time.Second)
+	err := WriteLogsTo(w, j.GearId.UnitNameFor(), time.After(30*time.Second))
 	if err != nil {
 		log.Printf("job_container_log: Unable to fetch journal logs: %s\n", err.Error())
 	}

@@ -3,7 +3,6 @@ package geard
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"time"
@@ -68,22 +67,15 @@ type stoppedContainerStateJobRequest struct {
 func (j *stoppedContainerStateJobRequest) Execute() {
 	w := j.SuccessWithWrite(JobResponseAccepted, true)
 
-	// stop is a blocking operation so logs are read first
-	stdout, err := ProcessLogsFor(j.GearId)
-	if err != nil {
-		stdout = emptyReader
-		log.Printf("job_alter_container_state: Unable to read logs for stop: %+v\n", err)
-	}
-
 	unitName := j.GearId.UnitNameFor()
-	ioerr := make(chan error)
-	joberr := make(chan error)
+	done := make(chan time.Time)
 
+	ioerr := make(chan error)
 	go func() {
-		_, err := io.Copy(w, stdout)
-		ioerr <- err
+		ioerr <- WriteLogsTo(w, unitName, done)
 	}()
 
+	joberr := make(chan error)
 	go func() {
 		status, err := SystemdConnection().StopUnit(unitName, "fail")
 		if err == nil && status != "done" {
@@ -92,13 +84,16 @@ func (j *stoppedContainerStateJobRequest) Execute() {
 		joberr <- err
 	}()
 
-	err = nil
+	var err error
 	select {
+	case err = <-ioerr:
+		log.Printf("job_alter_container_state: Client hung up")
 	case err = <-joberr:
+		log.Printf("job_alter_container_state: Stop job done")
 	case <-time.After(15 * time.Second):
 		log.Printf("job_alter_container_state: Timeout waiting for stop completion")
 	}
-	stdout.Close()
+	close(done)
 
 	switch {
 	case IsNoSuchUnit(err):
@@ -111,12 +106,5 @@ func (j *stoppedContainerStateJobRequest) Execute() {
 		fmt.Fprintf(w, "Could not start gear: %s\n", err.Error())
 	default:
 		fmt.Fprintf(w, "Gear %s is stopped\n", j.GearId)
-	}
-
-	select {
-	case erri := <-ioerr:
-		log.Printf("job_alter_container_state: Error from IO on wait: %+v", erri)
-	case <-time.After(15 * time.Second):
-		log.Printf("job_alter_container_state: Timeout waiting for write to complete")
 	}
 }
