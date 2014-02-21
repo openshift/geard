@@ -23,39 +23,39 @@ func StartAPI(wg *sync.WaitGroup, dpatcher *dispatcher.Dispatcher) error {
 
 		connect := ":8080"
 		log.Printf("Starting HTTP on %s ... ", connect)
-		http.Handle("/", NewHttpApiHandler(dpatcher))
+		http.Handle("/", newHttpApiHandler(dpatcher))
 		log.Fatal(http.ListenAndServe(connect, nil))
 	}()
 	return nil
 }
 
-func NewHttpApiHandler(dpatcher *dispatcher.Dispatcher) *rest.ResourceHandler {
+func newHttpApiHandler(dpatcher *dispatcher.Dispatcher) *rest.ResourceHandler {
 	handler := rest.ResourceHandler{
 		EnableRelaxedContentType: true,
 		EnableResponseStackTrace: true,
 		EnableGzip:               false,
 	}
 	handler.SetRoutes(
-		rest.Route{"GET", "/token/:token/images", JobRestHandler(dpatcher, ApiListImages)},
-		rest.Route{"GET", "/token/:token/containers", JobRestHandler(dpatcher, ApiListContainers)},
-		rest.Route{"PUT", "/token/:token/container", JobRestHandler(dpatcher, ApiPutContainer)},
-		rest.Route{"GET", "/token/:token/container/log", JobRestHandler(dpatcher, ApiGetContainerLog)},
-		rest.Route{"PUT", "/token/:token/container/:action", JobRestHandler(dpatcher, ApiPutContainerAction)},
-		rest.Route{"PUT", "/token/:token/repository", JobRestHandler(dpatcher, ApiPutRepository)},
-		rest.Route{"PUT", "/token/:token/keys", JobRestHandler(dpatcher, ApiPutKeys)},
-		rest.Route{"GET", "/token/:token/content", JobRestHandler(dpatcher, ApiGetContent)},
-		rest.Route{"GET", "/token/:token/content/*", JobRestHandler(dpatcher, ApiGetContent)},
-		rest.Route{"PUT", "/token/:token/build-image", JobRestHandler(dpatcher, ApiPutBuildImageAction)},
-		rest.Route{"PUT", "/token/:token/environment", JobRestHandler(dpatcher, ApiPutEnvironment)},
-		rest.Route{"PATCH", "/token/:token/environment", JobRestHandler(dpatcher, ApiPatchEnvironment)},
-		rest.Route{"PUT", "/token/:token/linkcontainers", JobRestHandler(dpatcher, ApiLinkContainers)},
+		rest.Route{"GET", "/token/:token/images", jobRestHandler(dpatcher, apiListImages)},
+		rest.Route{"GET", "/token/:token/containers", jobRestHandler(dpatcher, apiListContainers)},
+		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dpatcher, apiPutContainer)},
+		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dpatcher, apiGetContainerLog)},
+		rest.Route{"PUT", "/token/:token/container/:action", jobRestHandler(dpatcher, apiPutContainerAction)},
+		rest.Route{"PUT", "/token/:token/repository", jobRestHandler(dpatcher, apiPutRepository)},
+		rest.Route{"PUT", "/token/:token/keys", jobRestHandler(dpatcher, apiPutKeys)},
+		rest.Route{"GET", "/token/:token/content", jobRestHandler(dpatcher, apiGetContent)},
+		rest.Route{"GET", "/token/:token/content/*", jobRestHandler(dpatcher, apiGetContent)},
+		rest.Route{"PUT", "/token/:token/build-image", jobRestHandler(dpatcher, apiPutBuildImageAction)},
+		rest.Route{"PUT", "/token/:token/environment", jobRestHandler(dpatcher, apiPutEnvironment)},
+		rest.Route{"PATCH", "/token/:token/environment", jobRestHandler(dpatcher, apiPatchEnvironment)},
+		rest.Route{"PUT", "/token/:token/linkcontainers", jobRestHandler(dpatcher, apiLinkContainers)},
 	)
 	return &handler
 }
 
-type JobHandler func(jobs.RequestIdentifier, *TokenData, *rest.ResponseWriter, *rest.Request) (jobs.Job, error)
+type jobHandler func(jobs.RequestIdentifier, *TokenData, *rest.ResponseWriter, *rest.Request) (jobs.Job, error)
 
-func JobRestHandler(dpatcher *dispatcher.Dispatcher, handler JobHandler) func(*rest.ResponseWriter, *rest.Request) {
+func jobRestHandler(dpatcher *dispatcher.Dispatcher, handler jobHandler) func(*rest.ResponseWriter, *rest.Request) {
 	return func(w *rest.ResponseWriter, r *rest.Request) {
 		token, id, errt := extractToken(r.PathParam("token"), r.Request)
 		if errt != nil {
@@ -91,7 +91,7 @@ func JobRestHandler(dpatcher *dispatcher.Dispatcher, handler JobHandler) func(*r
 	}
 }
 
-func ApiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
@@ -128,15 +128,15 @@ func ApiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Res
 	}, nil
 }
 
-func ApiListContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiListContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	return &jobs.ListContainersRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}}, nil
 }
 
-func ApiListImages(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiListImages(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	return &jobs.ListImagesRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}}, nil
 }
 
-func ApiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
@@ -149,7 +149,7 @@ func ApiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.
 	}, nil
 }
 
-func ApiPutKeys(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiPutKeys(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	data := jobs.ExtendedCreateKeysData{}
 	if r.Body != nil {
 		dec := json.NewDecoder(limitedBodyReader(r))
@@ -168,7 +168,7 @@ func ApiPutKeys(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Response
 	}, nil
 }
 
-func ApiPutRepository(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiPutRepository(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	repositoryId, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
@@ -184,7 +184,7 @@ func ApiPutRepository(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Re
 	}, nil
 }
 
-func ApiPutContainerAction(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiPutContainerAction(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	action := r.PathParam("action")
 	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
@@ -210,7 +210,7 @@ func ApiPutContainerAction(reqid jobs.RequestIdentifier, token *TokenData, w *re
 	}
 }
 
-func ApiPutBuildImageAction(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiPutBuildImageAction(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	if token.ResourceLocator() == "" {
 		return nil, errors.New("You must specifiy the application source to build")
 	}
@@ -240,7 +240,7 @@ func ApiPutBuildImageAction(reqid jobs.RequestIdentifier, token *TokenData, w *r
 	}, nil
 }
 
-func ApiPutEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiPutEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	id, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
@@ -265,7 +265,7 @@ func ApiPutEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.R
 	}, nil
 }
 
-func ApiPatchEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiPatchEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	id, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
@@ -290,7 +290,7 @@ func ApiPatchEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest
 	}, nil
 }
 
-func ApiGetContent(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiGetContent(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	if token.ResourceLocator() == "" {
 		return nil, errors.New("You must specify the location of the content you want to access")
 	}
@@ -307,7 +307,7 @@ func ApiGetContent(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Respo
 	}, nil
 }
 
-func ApiLinkContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+func apiLinkContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	id, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg

@@ -15,6 +15,7 @@ type ContainerUnit struct {
 	HomeDir         string
 	EnvironmentPath string
 	Prestart        bool
+	Poststart        bool
 }
 
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
@@ -28,9 +29,12 @@ Slice={{.Slice}}
 {{ if .Prestart }}
 ExecStartPre=/bin/bash -c "/usr/bin/getent passwd 'gear-{{.Gear}}'; if [ $? -ne 0 ]; then /usr/sbin/useradd 'gear-{{.Gear}}' -d {{.HomeDir}} -m; fi"
 ExecStartPre=/usr/sbin/restorecon -rv {{.HomeDir}}
-ExecStartPre={{.GearBasePath}}/bin/geard-util gen-authorized-keys "{{.Gear}}"
+ExecStartPre={{.GearBasePath}}/bin/gear-setup pre-start "{{.Gear}}"
 {{ end }}
 ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -a stdout -a stderr {{.PortSpec}} -rm "{{.Image}}"
+{{ if .Poststart }}
+ExecStartPost={{.GearBasePath}}/bin/gear-setup post-start "{{.Gear}}"
+{{ end }}
 
 [Install]
 WantedBy=gear.target

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"github.com/smarterclayton/geard/config"
 	"github.com/smarterclayton/geard/utils"
+	"os/user"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 type Identifier string
@@ -24,8 +26,17 @@ func NewIdentifier(s string) (Identifier, error) {
 	return Identifier(s), nil
 }
 
+func NewIdentifierFromUser(u *user.User) (Identifier, error){
+	id := strings.TrimLeft(u.Username, "gear-")
+	return NewIdentifier(id)
+}
+
 func (g Identifier) UnitPathFor() string {
 	return filepath.Join(config.GearBasePath(), "units", g.UnitNameFor())
+}
+
+func (g Identifier) LoginFor() string {
+	return fmt.Sprintf("gear-%s", g)
 }
 
 func (g Identifier) UnitNameFor() string {

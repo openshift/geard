@@ -235,18 +235,25 @@ func copyBinary(src string, dest string, setUid bool) error {
 }
 
 func HasBinaries() bool {
-	_, err := os.Stat(path.Join(config.GearBasePath(), "bin", "geard-switchns"))
-	return err == nil
+	for _,b := range []string{
+		path.Join(config.GearBasePath(), "bin", "switchns"),
+		path.Join(config.GearBasePath(), "bin", "gear-setup"),
+	} {
+		if _, err := os.Stat(b) ; err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func initializeBinaries() error {
 	srcDir := path.Join("/", "opt", "geard", "bin")
 	destDir := path.Join(config.GearBasePath(), "bin")
 
-	if err := copyBinary(path.Join(srcDir, "geard-switchns"), path.Join(destDir, "geard-switchns"), true); err != nil {
+	if err := copyBinary(path.Join(srcDir, "switchns"), path.Join(destDir, "switchns"), true); err != nil {
 		return err
 	}
-	if err := copyBinary(path.Join(srcDir, "geard-util"), path.Join(destDir, "geard-util"), false); err != nil {
+	if err := copyBinary(path.Join(srcDir, "gear-setup"), path.Join(destDir, "gear-setup"), false); err != nil {
 		return err
 	}
 	return nil
