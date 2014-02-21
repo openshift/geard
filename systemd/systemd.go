@@ -81,6 +81,21 @@ func StartSystemdConnection() error {
 	return nil
 }
 
+func Start() error {
+	if err := StartSystemdConnection(); err != nil {
+		log.Println("WARNING: No systemd connection available via dbus: ", err)
+		log.Println("  You may need to run as root or check that /var/run/dbus/system_bus_socket is bind mounted.")
+		return err
+	}
+	return nil
+}
+
+func Require() {
+	if err := Start(); err != nil {
+		os.Exit(1)
+	}
+}
+
 func SystemdConnection() Systemd {
 	return connection
 }

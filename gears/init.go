@@ -1,4 +1,4 @@
-package main
+package gears
 
 import (
 	"errors"
@@ -12,15 +12,6 @@ import (
 	"path"
 	"path/filepath"
 )
-
-func InitializeSystemd() error {
-	if err := systemd.StartSystemdConnection(); err != nil {
-		log.Println("WARNING: No systemd connection available via dbus: ", err)
-		log.Println("  You may need to run as root or check that /var/run/dbus/system_bus_socket is bind mounted.")
-		return err
-	}
-	return nil
-}
 
 func InitializeData() error {
 	if err := verifyDataPaths(); err != nil {
