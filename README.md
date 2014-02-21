@@ -17,25 +17,25 @@ The gear command must run as root to interface with the Docker daemon and system
 
 A gear is a specific type of Linux container - for those familiar with Docker, it's a started container with some bound ports, some shared environment, some linking, some resource isolation and allocation, and some opionated defaults about configuration that ease use.  Here's some of those defaults:
 
-1) Gears are isolated from each other and the host, except where they're explicitly connected
+1. **Gears are isolated from each other and the host, except where they're explicitly connected**
 
    By default, a gear doesn't have access to the host system processes or files, except where an administrator explicitly chooses, just like Docker.
 
-2) Gears are portable across hosts
+2. **Gears are portable across hosts**
 
    A gear, like a Docker image, should be usable on many different hosts.  This means that the underlying Docker abstractions (links, port mappings, environment files) should be used to ensure the gear does not become dependent on the host system.  The system should make it easy to share environment files between gears and move them to other systems.
 
-3) Systemd is in charge of starting and stopping gears and journald is in charge of log aggregation
+3. **Systemd is in charge of starting and stopping gears and journald is in charge of log aggregation**
 
-   At its heart, a Linux container (Docker or not) is just a process.  No other process manager is as powerful or flexible as systemd, so it's only natural to depend on systemd to run processes and Docker to isolate them.  All of the flexibility of systemd should be available to customize gears, with reasonable defaults to make it easy to get started.
+   A Linux container (Docker or not) is just a process.  No other process manager is as powerful or flexible as systemd, so it's only natural to depend on systemd to run processes and Docker to isolate them.  All of the flexibility of systemd should be available to customize gears, with reasonable defaults to make it easy to get started.
 
-4) By default, every gear is quota bound and security constrained
+4. **By default, every gear is quota bound and security constrained**
 
    An isolated gear needs to minimize its impact on other gears in predictable ways.  Leveraging a host user id (uid) per gear allows the operating system to impose limits to file writes, and using SELinux MCS category labels ensures that processes and files in different gears are strongly separated.  An administrator might choose to share some of these limits, but by default enforcing them is good.
 
    A consequence of per gear uids is that each container can be placed in its own user namespace - the users within the container might be defined by the image creator, but the system sees a consistent user.
 
-5) The default network configuration of a gear is simple
+5. **The default network configuration of a gear is simple**
 
    By default a gear will have 0..N ports exposed and the system will automatically allocate those ports.  An admin may choose to override or change those mappings at runtime, or apply rules to the system that are applied each time a new gear is added.
 
