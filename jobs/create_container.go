@@ -108,6 +108,7 @@ func (j *CreateContainerJobRequest) Execute() {
 		config.GearBasePath(),
 		j.GearId.HomePath(),
 		environmentPath,
+		gears.HasBinaries(),
 	}); erre != nil {
 		log.Printf("job_create_container: Unable to output template: %+v", erre)
 		j.Failure(ErrGearCreateFailed)

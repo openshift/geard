@@ -91,13 +91,13 @@ func Execute() {
 			if len(args) != 2 {
 				fail(1, "Valid arguments: <gear_id> <image_name>\n")
 			}
-			gearId, err := gears.NewIdentifier(args[0])
-			if err != nil {
-				fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
-			}
-			imageId := args[1]
+			imageId := args[0]
 			if imageId == "" {
-				fail(1, "Argument 2 must be an image to base the gear on\n")
+				fail(1, "Argument 1 must be an image to base the gear on\n")
+			}
+			gearId, err := gears.NewIdentifier(args[1])
+			if err != nil {
+				fail(1, "Argument 2 must be a valid gear identifier: %s\n", err.Error())
 			}
 			run(cmd, func(r jobs.JobResponse) jobs.Job {
 				return &jobs.CreateContainerJobRequest{

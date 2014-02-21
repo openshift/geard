@@ -234,6 +234,11 @@ func copyBinary(src string, dest string, setUid bool) error {
 	return nil
 }
 
+func HasBinaries() bool {
+	_, err := os.Stat(path.Join(config.GearBasePath(), "bin", "geard-switchns"))
+	return err == nil
+}
+
 func initializeBinaries() error {
 	srcDir := path.Join("/", "opt", "geard", "bin")
 	destDir := path.Join(config.GearBasePath(), "bin")
