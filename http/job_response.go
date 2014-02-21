@@ -9,7 +9,7 @@ import (
 	"net/http"
 )
 
-type HttpJobResponse struct {
+type httpJobResponse struct {
 	response      http.ResponseWriter
 	skipStreaming bool
 	succeeded     bool
@@ -18,13 +18,13 @@ type HttpJobResponse struct {
 }
 
 func NewHttpJobResponse(w http.ResponseWriter, skipStreaming bool) jobs.JobResponse {
-	return &HttpJobResponse{
+	return &httpJobResponse{
 		response:      w,
 		skipStreaming: skipStreaming,
 	}
 }
 
-func (s *HttpJobResponse) StatusCode(t jobs.JobResponseSuccess) int {
+func (s *httpJobResponse) StatusCode(t jobs.JobResponseSuccess) int {
 	switch t {
 	case jobs.JobResponseAccepted:
 		return http.StatusAccepted
@@ -33,11 +33,11 @@ func (s *HttpJobResponse) StatusCode(t jobs.JobResponseSuccess) int {
 	}
 }
 
-func (s *HttpJobResponse) StreamResult() bool {
+func (s *httpJobResponse) StreamResult() bool {
 	return !s.skipStreaming
 }
 
-func (s *HttpJobResponse) Success(t jobs.JobResponseSuccess) {
+func (s *httpJobResponse) Success(t jobs.JobResponseSuccess) {
 	if s.failed {
 		panic("Cannot call Success() after failure")
 	}
@@ -55,14 +55,14 @@ func (s *HttpJobResponse) Success(t jobs.JobResponseSuccess) {
 	s.response.WriteHeader(s.StatusCode(t))
 }
 
-func (s *HttpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interface{}) {
+func (s *httpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interface{}) {
 	s.response.Header().Add("Content-Type", "application/json")
 	s.Success(t)
 	encoder := json.NewEncoder(s.response)
 	encoder.Encode(&data)
 }
 
-func (s *HttpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush bool) io.Writer {
+func (s *httpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush bool) io.Writer {
 	s.Success(t)
 	var w io.Writer
 	if s.skipStreaming {
@@ -75,7 +75,7 @@ func (s *HttpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush bool
 	return w
 }
 
-func (s *HttpJobResponse) WriteClosed() <-chan bool {
+func (s *httpJobResponse) WriteClosed() <-chan bool {
 	if c, ok := s.response.(http.CloseNotifier); ok {
 		return c.CloseNotify()
 	}
@@ -84,7 +84,7 @@ func (s *HttpJobResponse) WriteClosed() <-chan bool {
 	return ch
 }
 
-func (s *HttpJobResponse) WritePendingSuccess(name string, value interface{}) {
+func (s *httpJobResponse) WritePendingSuccess(name string, value interface{}) {
 	if s.pending == nil {
 		s.pending = make(map[string]string)
 	}
@@ -95,7 +95,7 @@ func (s *HttpJobResponse) WritePendingSuccess(name string, value interface{}) {
 	}
 }
 
-func (s *HttpJobResponse) Failure(e jobs.JobError) {
+func (s *httpJobResponse) Failure(e jobs.JobError) {
 	if s.succeeded {
 		panic("May not invoke failure after Success()")
 	}

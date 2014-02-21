@@ -70,12 +70,30 @@ func NewSystemdConnection() (Systemd, error) {
 }
 
 func StartSystemdConnection() error {
-	conn, err := NewSystemdConnection()
-	if err != nil {
+	if connection == nil {
+		conn, err := NewSystemdConnection()
+		if err != nil {
+			connection = conn
+			return err
+		}
+		connection = conn
+	}
+	return nil
+}
+
+func Start() error {
+	if err := StartSystemdConnection(); err != nil {
+		log.Println("WARNING: No systemd connection available via dbus: ", err)
+		log.Println("  You may need to run as root or check that /var/run/dbus/system_bus_socket is bind mounted.")
 		return err
 	}
-	connection = conn
 	return nil
+}
+
+func Require() {
+	if err := Start(); err != nil {
+		os.Exit(1)
+	}
 }
 
 func SystemdConnection() Systemd {

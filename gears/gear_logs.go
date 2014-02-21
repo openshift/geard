@@ -1,12 +1,12 @@
-package gear
+package gears
 
 import (
 	"errors"
+	"github.com/smarterclayton/geard/systemd"
 	"io"
 	"log"
 	"os/exec"
 	"time"
-	"github.com/smarterclayton/geard/systemd"
 )
 
 var ErrLogWriteTimeout = errors.New("gear_logs: Maximum duration exceeded, timeout")

@@ -1,18 +1,49 @@
 geard [![Build Status](https://travis-ci.org/smarterclayton/geard.png?branch=master)](https://travis-ci.org/smarterclayton/geard)
 =====
 
-Exploration of a Docker+systemd gear daemon (geard) in Go.  The daemon runs at a system level and interfaces with the Docker daemon and systemd over DBus to install and run Docker containers on the system.  It will also support retrieval of local content for use in a distributed environment.
+Gear(d) is an opinionated tool for installing Docker images as containers onto a systemd-enabled Linux operating system (systemd 207 or newer).  It may be run as a command:
+
+    $ sudo gear install pmorie/sti-html-app my-sample-service
+
+to install the public image <code>pmorie/sti-html-app</code> to systemd on the local box with the service name "gear-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (port 8080 is the default):
+
+    $ sudo gear -d
+    2014/02/21 02:59:42 ports: searching block 41, 4000-4099
+    2014/02/21 02:59:42 Starting HTTP on :8080 ...
+
+The gear command must run as root to interface with the Docker daemon and systemd over DBus at the current time.
 
 The primary operations are:
 
-* Create a new system unit file that runs a single docker image (create and run a gear)
-* Stop or start a gear
-* Fetch the logs for a gear
-* Create a new empty Git repository
-* Set a public key as enabling SSH or Git SSH access to a gear or repository (respectively)
-* Build a new image from a source URL and base image
-* Fetch a Git archive zip for a repository
-* Set and retrieve environment files for sharing between gears (patch and pull operations)
+*   Create a new system unit file that runs a single docker image (create and run a gear)
+
+        $ curl -X PUT "http://localhost:8080/token/__test__/container?t=pmorie%2Fsti-html-app&r=my-sample-service
+
+*   Stop or start a gear
+
+        $ curl -X PUT "http://localhost:8080/token/__test__/container/stopped?r=my-sample-service
+        $ curl -X PUT "http://localhost:8080/token/__test__/container/started?r=my-sample-service
+
+*   Fetch the logs for a gear
+
+        $ curl -X PUT "http://localhost:8080/token/__test__/container/log?r=my-sample-service
+
+*   Create a new empty Git repository
+
+        $ curl -X PUT "http://localhost:8080/token/__test__/repository?r=my-sample-repo
+
+*   Set a public key as enabling SSH or Git SSH access to a gear or repository (respectively)
+*   Enable SSH access to join a container for a set of authorized keys
+*   Build a new image from a source URL and base image
+*   Fetch a Git archive zip for a repository
+*   Set and retrieve environment files for sharing between gears (patch and pull operations)
+*   More....
+
+The daemon is geard (see what I did there?) towards allowing an administrator to easily ensure a given docker container will *always* run on the system by taking advantage of systemd.  It depends on the upcoming "foreground" mode of Docker which will allow the launching process to remain the parent of the container processes - this means that on termination the parent (systemd) can auto restart the process, set additional namespace options, and in general customize more deeply the behavior of the process.
+
+Each geard unit is assigned a unique Unix user and is the user context that the container is run under for quota and security purposes.  An SELinux MCS category label will automatically be assigned to the container, ensuring that each container is more deeply isolated.  Containers are added to a default systemd slice that may have cgroup rules applied to limit them.
+
+A container may also be optionally enabled for public key SSH access for a set of known keys under the user identifier associated with the container.  On SSH, they'll join the running namespace for that container.  More details coming soon.
 
 
 Try it out
@@ -32,11 +63,11 @@ Take the systemd unit file in <code>contrib/geard.service</code> and enable it o
     mkdir -p /var/lib/gears/units
     systemctl start geard
 
-The service is set to bind to port 2223 and is accessible on localhost.
+The docker image that is downloaded binds 8080 in the docker container to localhost:2223.
 
 To build an image from a source repository and base image:
 
-    curl -X PUT "http://localhost:2223/token/__test__/build-image?u=test-app&r=git%3A%2F%2Fgithub.com%2Fpmorie%2Fsimple-html&t=pmorie%2Ffedora-mock"
+    curl -X PUT "http://localhost:2223/token/__test__/build-image?r=git%3A%2F%2Fgithub.com%2Fpmorie%2Fsimple-html&t=pmorie%2Ffedora-mock"
     
 The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
 

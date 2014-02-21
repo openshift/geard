@@ -2,7 +2,7 @@ package jobs
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/gear"
+	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/systemd"
 	"github.com/smarterclayton/geard/utils"
 	"github.com/smarterclayton/go-systemd/dbus"
@@ -38,7 +38,7 @@ func (j *BuildImageJobRequest) Execute() {
 	unitName := j.RequestId.UnitNameForBuild()
 	unitDescription := fmt.Sprintf("Builder for %s", j.Tag)
 
-	stdout, err := gear.ProcessLogsForUnit(unitName)
+	stdout, err := gears.ProcessLogsForUnit(unitName)
 	if err != nil {
 		stdout = utils.EmptyReader
 		log.Printf("job_build_image: Unable to fetch build logs: %s, %+v", err.Error(), err)

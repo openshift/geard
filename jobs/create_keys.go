@@ -4,11 +4,11 @@ import (
 	"code.google.com/p/go.crypto/ssh"
 	"crypto/sha256"
 	"errors"
+	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/utils"
 	"log"
 	"os"
 	pathlib "path"
-	"github.com/smarterclayton/geard/gear"
-	"github.com/smarterclayton/geard/utils"
 )
 
 type CreateKeysJobRequest struct {
@@ -30,12 +30,12 @@ type KeyData struct {
 }
 
 type RepositoryPermission struct {
-	Id    gear.Identifier
+	Id    gears.Identifier
 	Write bool
 }
 
 type GearPermission struct {
-	Id gear.Identifier
+	Id gears.Identifier
 }
 
 func (k *KeyData) Check() error {
@@ -51,12 +51,12 @@ func (k *KeyData) Check() error {
 }
 
 func (p *RepositoryPermission) Check() error {
-	_, err := gear.NewIdentifier(string(p.Id))
+	_, err := gears.NewIdentifier(string(p.Id))
 	return err
 }
 
 func (p *GearPermission) Check() error {
-	_, err := gear.NewIdentifier(string(p.Id))
+	_, err := gears.NewIdentifier(string(p.Id))
 	return err
 }
 

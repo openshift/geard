@@ -3,7 +3,7 @@ package jobs
 import (
 	"fmt"
 	//switchns "github.com/kraman/geard-switchns/switchns"
-	"github.com/smarterclayton/geard/gear"
+	"github.com/smarterclayton/geard/gears"
 	"log"
 	"os/exec"
 	"strconv"
@@ -19,7 +19,7 @@ type ExtendedLinkContainersData struct {
 type LinkContainersJobRequest struct {
 	JobResponse
 	JobRequest
-	LocalGearId gear.Identifier
+	LocalGearId gears.Identifier
 	Data        *ExtendedLinkContainersData
 }
 

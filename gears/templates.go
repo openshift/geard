@@ -1,4 +1,4 @@
-package gear
+package gears
 
 import (
 	"text/template"
@@ -14,6 +14,7 @@ type ContainerUnit struct {
 	GearBasePath    string
 	HomeDir         string
 	EnvironmentPath string
+	Prestart        bool
 }
 
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
@@ -24,9 +25,11 @@ Description=Gear container {{.Gear}}
 Type=simple
 Slice={{.Slice}}
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
+{{ if .Prestart }}
 ExecStartPre=/bin/bash -c "/usr/bin/getent passwd 'gear-{{.Gear}}'; if [ $? -ne 0 ]; then /usr/sbin/useradd 'gear-{{.Gear}}' -d {{.HomeDir}} -m; fi"
 ExecStartPre=/usr/sbin/restorecon -rv {{.HomeDir}}
 ExecStartPre={{.GearBasePath}}/bin/geard-util gen-authorized-keys "{{.Gear}}"
+{{ end }}
 ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -a stdout -a stderr {{.PortSpec}} -rm "{{.Image}}"
 
 [Install]
