@@ -1,13 +1,13 @@
-package api
+package http
 
 import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/smarterclayton/geard/jobs"
 	"strconv"
 	"strings"
-	"github.com/smarterclayton/geard/jobs"	
 )
 
 type TokenData struct {

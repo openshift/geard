@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"github.com/smarterclayton/geard/api"
 	"github.com/smarterclayton/geard/dispatcher"
 	"github.com/smarterclayton/geard/gear"
+	"github.com/smarterclayton/geard/http"
 
 	"log"
 	_ "net/http/pprof"
@@ -34,7 +34,7 @@ func main() {
 	gear.StartPortAllocator(4000, 60000)
 	dispatch.Start()
 	wg := &sync.WaitGroup{}
-	api.StartAPI(wg, &dispatch)
+	http.StartAPI(wg, &dispatch)
 	wg.Wait()
 	log.Print("Exiting ...")
 }
