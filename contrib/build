@@ -2,9 +2,8 @@
 
 go get -d ./...
 go build -o gear
-
-go get -t "github.com/kraman/geard-switchns"
-go get -t "github.com/kraman/geard-util"
+go install ./support/gear-setup
+go install ./support/switchns
 
 sudo mkdir -p /opt/geard/bin
-sudo /usr/bin/cp -f $GOPATH/bin/geard-switchns $GOPATH/bin/geard-util /opt/geard/bin
+sudo /usr/bin/cp -f $GOPATH/bin/switchns $GOPATH/bin/gear-setup /opt/geard/bin

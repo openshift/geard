@@ -11,11 +11,11 @@ RUN \
    go get -tags selinux ./... && \
    go build -tags selinux -o gear . && \
    /bin/cp ./gear /bin/gear && \
+   go install -tags selinux ./support/gear-setup && \
+   go install -tags selinux ./support/switchns && \
+   mkdir -p /opt/geard/bin && \
+   /bin/cp -f $GOPATH/bin/switchns $GOPATH/bin/gear-setup /opt/geard/bin && \
    rm -rf $GOPATH
-
-   #go get -tags selinux "github.com/kraman/geard-switchns" && \
-   #go get -tags selinux "github.com/kraman/geard-util" && \
-   #mkdir /opt/geard/bin && /bin/cp $GOPATH/bin/geard-switchns $GOPATH/bin/geard-util /bin && \
 
 # Create an environment for Git execution
 ADD contrib/githost/default-hooks/ /home/git/default-hooks
