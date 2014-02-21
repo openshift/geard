@@ -1,9 +1,9 @@
-package api
+package http
 
 import (
 	"encoding/json"
 	"github.com/smarterclayton/geard/jobs"
-	"github.com/smarterclayton/geard/utils"	
+	"github.com/smarterclayton/geard/utils"
 	"io"
 	"io/ioutil"
 	"net/http"
