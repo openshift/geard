@@ -13,13 +13,16 @@ import (
 	"path/filepath"
 )
 
-func Initialize() error {
+func InitializeSystemd() error {
 	if err := systemd.StartSystemdConnection(); err != nil {
 		log.Println("WARNING: No systemd connection available via dbus: ", err)
 		log.Println("  You may need to run as root or check that /var/run/dbus/system_bus_socket is bind mounted.")
 		return err
 	}
+	return nil
+}
 
+func InitializeData() error {
 	if err := verifyDataPaths(); err != nil {
 		log.Fatal(err)
 		return err
@@ -33,7 +36,7 @@ func Initialize() error {
 		return err
 	}
 	if err := initializeBinaries(); err != nil {
-		log.Fatal(err)
+		log.Printf("WARNING: Unable to setup binaries - some operations may not be available: %v", err)
 		return err
 	}
 	return nil
@@ -160,6 +163,8 @@ func checkPath(path string, mode os.FileMode, dir bool) error {
 }
 
 func disableAllUnits() {
+	systemd := systemd.SystemdConnection()
+
 	for _, path := range []string{
 		filepath.Join(config.GearBasePath(), "units"),
 		filepath.Join(config.GearBasePath(), "slices"),
@@ -176,12 +181,12 @@ func disableAllUnits() {
 			if info.IsDir() {
 				return nil
 			}
-			if _, err := systemd.SystemdConnection().DisableUnitFiles([]string{p}, false); err != nil {
+			if _, err := systemd.DisableUnitFiles([]string{p}, false); err != nil {
 				log.Printf("gear: Unable to disable %s: %+v", p, err)
 			}
 			return nil
 		})
-		if err := systemd.SystemdConnection().Reload(); err != nil {
+		if err := systemd.Reload(); err != nil {
 			log.Printf("gear: systemd reload failed: %+v", err)
 		}
 	}

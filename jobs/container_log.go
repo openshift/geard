@@ -1,7 +1,7 @@
 package jobs
 
 import (
-	"github.com/smarterclayton/geard/gear"
+	"github.com/smarterclayton/geard/gears"
 	"log"
 	"os"
 	"time"
@@ -10,7 +10,7 @@ import (
 type ContainerLogJobRequest struct {
 	JobResponse
 	JobRequest
-	GearId gear.Identifier
+	GearId gears.Identifier
 	UserId string
 }
 
@@ -21,7 +21,7 @@ func (j *ContainerLogJobRequest) Execute() {
 	}
 
 	w := j.SuccessWithWrite(JobResponseOk, true)
-	err := gear.WriteLogsTo(w, j.GearId.UnitNameFor(), time.After(30*time.Second))
+	err := gears.WriteLogsTo(w, j.GearId.UnitNameFor(), time.After(30*time.Second))
 	if err != nil {
 		log.Printf("job_container_log: Unable to fetch journal logs: %s\n", err.Error())
 	}

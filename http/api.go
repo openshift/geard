@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/smarterclayton/geard/dispatcher"
-	"github.com/smarterclayton/geard/gear"
+	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/go-json-rest"
 	"io"
@@ -92,7 +92,7 @@ func JobRestHandler(dpatcher *dispatcher.Dispatcher, handler JobHandler) func(*r
 }
 
 func ApiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	gearId, errg := gear.NewIdentifier(token.ResourceLocator())
+	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}
@@ -108,12 +108,12 @@ func ApiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Res
 		}
 	}
 	if data.Ports == nil {
-		data.Ports = make([]gear.PortPair, 0)
+		data.Ports = make([]gears.PortPair, 0)
 	}
 
 	if data.Environment != nil {
 		env := data.Environment
-		if env.Id == gear.InvalidIdentifier {
+		if env.Id == gears.InvalidIdentifier {
 			return nil, errors.New("You must specify an environment identifier on creation.")
 		}
 	}
@@ -137,7 +137,7 @@ func ApiListImages(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Respo
 }
 
 func ApiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	gearId, errg := gear.NewIdentifier(token.ResourceLocator())
+	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}
@@ -169,7 +169,7 @@ func ApiPutKeys(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Response
 }
 
 func ApiPutRepository(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	repositoryId, errg := gear.NewIdentifier(token.ResourceLocator())
+	repositoryId, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}
@@ -186,7 +186,7 @@ func ApiPutRepository(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Re
 
 func ApiPutContainerAction(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	action := r.PathParam("action")
-	gearId, errg := gear.NewIdentifier(token.ResourceLocator())
+	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}
@@ -241,7 +241,7 @@ func ApiPutBuildImageAction(reqid jobs.RequestIdentifier, token *TokenData, w *r
 }
 
 func ApiPutEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	id, errg := gear.NewIdentifier(token.ResourceLocator())
+	id, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}
@@ -266,7 +266,7 @@ func ApiPutEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.R
 }
 
 func ApiPatchEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	id, errg := gear.NewIdentifier(token.ResourceLocator())
+	id, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}
@@ -308,7 +308,7 @@ func ApiGetContent(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Respo
 }
 
 func ApiLinkContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	id, errg := gear.NewIdentifier(token.ResourceLocator())
+	id, errg := gears.NewIdentifier(token.ResourceLocator())
 	if errg != nil {
 		return nil, errg
 	}

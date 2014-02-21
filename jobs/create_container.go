@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/gear"
+	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/systemd"
 	"log"
 	"os"
@@ -15,7 +15,7 @@ import (
 type CreateContainerJobRequest struct {
 	JobResponse
 	JobRequest
-	GearId gear.Identifier
+	GearId gears.Identifier
 	UserId string
 	Image  string
 	Data   *ExtendedCreateContainerData
@@ -26,7 +26,7 @@ type ExtendedCreateContainerData struct {
 	Environment *ExtendedEnvironmentData
 }
 
-type PortPairs []gear.PortPair
+type PortPairs []gears.PortPair
 
 func (p PortPairs) ToHeader() string {
 	var pairs bytes.Buffer
@@ -69,7 +69,7 @@ func (j *CreateContainerJobRequest) Execute() {
 		for i := range j.Data.Ports {
 			ports := &j.Data.Ports[i]
 			if ports.External < 1 {
-				ports.External = gear.AllocatePort()
+				ports.External = gears.AllocatePort()
 				if ports.External == 0 {
 					log.Printf("job_create_container: Unable to allocate external port for %d", ports.Internal)
 					j.Failure(ErrGearCreateFailed)
@@ -79,7 +79,7 @@ func (j *CreateContainerJobRequest) Execute() {
 			portSpec.WriteString(fmt.Sprintf(" %d:%d", ports.External, ports.Internal))
 		}
 
-		if erra := gear.AtomicReserveExternalPorts(j.GearId.PortDescriptionPathFor(), j.Data.Ports); erra != nil {
+		if erra := gears.AtomicReserveExternalPorts(j.GearId.PortDescriptionPathFor(), j.Data.Ports); erra != nil {
 			log.Printf("job_create_container: Unable to reserve external ports: %+v", erra)
 			j.Failure(ErrGearCreateFailed)
 			return
@@ -98,7 +98,7 @@ func (j *CreateContainerJobRequest) Execute() {
 	}
 
 	slice := "gear-small"
-	if erre := gear.ContainerUnitTemplate.Execute(unit, gear.ContainerUnit{
+	if erre := gears.ContainerUnitTemplate.Execute(unit, gears.ContainerUnit{
 		j.GearId,
 		j.Image,
 		portSpec.String(),

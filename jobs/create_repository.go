@@ -2,10 +2,10 @@ package jobs
 
 import (
 	"fmt"
+	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/systemd"
+	"github.com/smarterclayton/geard/utils"
 	"github.com/smarterclayton/go-systemd/dbus"
-	"github.com/smarterclayton/geard/gear"	
-	"github.com/smarterclayton/geard/systemd"		
-	"github.com/smarterclayton/geard/utils"			
 	"io"
 	"log"
 	"os"
@@ -16,7 +16,7 @@ import (
 type CreateRepositoryJobRequest struct {
 	JobResponse
 	JobRequest
-	RepositoryId gear.Identifier
+	RepositoryId gears.Identifier
 	UserId       string
 	Image        string
 	CloneUrl     string
@@ -66,7 +66,7 @@ func (j *CreateRepositoryJobRequest) Execute() {
 			return unit != unitName
 		})
 
-	stdout, err := gear.ProcessLogsForUnit(unitName)
+	stdout, err := gears.ProcessLogsForUnit(unitName)
 	if err != nil {
 		stdout = utils.EmptyReader
 		log.Printf("job_create_repository: Unable to fetch build logs: %+v", err)

@@ -70,11 +70,14 @@ func NewSystemdConnection() (Systemd, error) {
 }
 
 func StartSystemdConnection() error {
-	conn, err := NewSystemdConnection()
-	if err != nil {
-		return err
+	if connection == nil {
+		conn, err := NewSystemdConnection()
+		if err != nil {
+			connection = conn
+			return err
+		}
+		connection = conn
 	}
-	connection = conn
 	return nil
 }
 

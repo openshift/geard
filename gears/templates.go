@@ -1,4 +1,4 @@
-package gear
+package gears
 
 import (
 	"text/template"

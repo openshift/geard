@@ -3,7 +3,7 @@ package jobs
 import (
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/gear"
+	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/systemd"
 	"log"
 	"os"
@@ -13,7 +13,7 @@ import (
 type StartedContainerStateJobRequest struct {
 	JobResponse
 	JobRequest
-	GearId gear.Identifier
+	GearId gears.Identifier
 	UserId string
 }
 
@@ -41,7 +41,7 @@ func (j *StartedContainerStateJobRequest) Execute() {
 type StoppedContainerStateJobRequest struct {
 	JobResponse
 	JobRequest
-	GearId gear.Identifier
+	GearId gears.Identifier
 	UserId string
 }
 
@@ -53,7 +53,7 @@ func (j *StoppedContainerStateJobRequest) Execute() {
 
 	ioerr := make(chan error)
 	go func() {
-		ioerr <- gear.WriteLogsTo(w, unitName, done)
+		ioerr <- gears.WriteLogsTo(w, unitName, done)
 	}()
 
 	joberr := make(chan error)
