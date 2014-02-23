@@ -15,7 +15,7 @@ type ContainerUnit struct {
 	HomeDir         string
 	EnvironmentPath string
 	Prestart        bool
-	Poststart        bool
+	Poststart       bool
 }
 
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`

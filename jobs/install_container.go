@@ -10,18 +10,44 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"syscall"
 )
 
-type CreateContainerJobRequest struct {
+// Installing a Container
+//
+// This job will install a given container definition as a systemd service unit,
+// or update the existing definition if one already exists.
+//
+// Preconditions for starting a gear:
+//
+// 1) Reserve external ports and define port mappings
+// 2) Create gear user and set quota
+// 3) Ensure gear volumes (persistent data) are assigned proper UID
+// 4) Map the gear user to the appropriate user inside the image
+// 5) Download the image locally
+//
+// Operations that require a started gear:
+//
+// 1) Set any internal iptable mappings to other gears (requires namespace)
+//
+// Operations that can occur after the gear is created but do not block creation:
+//
+// 1) Enable SSH access to the gear
+//
+// Operations that can occur on startup or afterwards
+//
+// 1) Publicly exposing ports
+
+type InstallContainerJobRequest struct {
 	JobResponse
 	JobRequest
 	GearId gears.Identifier
 	UserId string
 	Image  string
-	Data   *ExtendedCreateContainerData
+	Data   *ExtendedInstallContainerData
 }
 
-type ExtendedCreateContainerData struct {
+type ExtendedInstallContainerData struct {
 	Ports       PortPairs
 	Environment *ExtendedEnvironmentData
 }
@@ -41,7 +67,7 @@ func (p PortPairs) ToHeader() string {
 	return pairs.String()
 }
 
-func (j *CreateContainerJobRequest) Execute() {
+func (j *InstallContainerJobRequest) Execute() {
 	unitPath := j.GearId.UnitPathFor()
 
 	env := j.Data.Environment
@@ -52,16 +78,24 @@ func (j *CreateContainerJobRequest) Execute() {
 		}
 	}
 
-	unit, err := os.OpenFile(unitPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
-	if os.IsExist(err) {
-		j.Failure(ErrGearAlreadyExists)
-		return
-	} else if err != nil {
+	unit, err := os.OpenFile(unitPath, os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil && !os.IsExist(err) {
 		log.Print("job_create_container: Unable to create unit file: ", err)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
 	defer unit.Close()
+
+	if errl := syscall.Flock(int(unit.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); errl != nil {
+		if errl == syscall.EWOULDBLOCK {
+			log.Print("job_create_container: Another client is updating this container")
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
+		log.Print("job_create_container: Lock failed: ", err)
+		j.Failure(ErrGearCreateFailed)
+		return
+	}
 
 	var portSpec bytes.Buffer
 	if len(j.Data.Ports) > 0 {
@@ -109,7 +143,7 @@ func (j *CreateContainerJobRequest) Execute() {
 		j.GearId.HomePath(),
 		environmentPath,
 		gears.HasBinaries(),
-		gears.HasBinaries(),		
+		gears.HasBinaries(),
 	}); erre != nil {
 		log.Printf("job_create_container: Unable to output template: %+v", erre)
 		j.Failure(ErrGearCreateFailed)
@@ -144,8 +178,8 @@ func (j *CreateContainerJobRequest) Execute() {
 	//stdout.Close()
 }
 
-func (j *CreateContainerJobRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
-	if old, ok := job.(*CreateContainerJobRequest); !ok {
+func (j *InstallContainerJobRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
+	if old, ok := job.(*InstallContainerJobRequest); !ok {
 		if old == nil {
 			err = ErrRanToCompletion
 		} else {
