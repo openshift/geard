@@ -16,46 +16,46 @@ import (
 
 var ErrHandledResponse = errors.New("Request handled")
 
-func StartAPI(wg *sync.WaitGroup, dpatcher *dispatcher.Dispatcher) error {
+func StartAPI(wg *sync.WaitGroup, dispatch *dispatcher.Dispatcher) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
 		connect := ":8080"
 		log.Printf("Starting HTTP on %s ... ", connect)
-		http.Handle("/", newHttpApiHandler(dpatcher))
+		http.Handle("/", newHttpApiHandler(dispatch))
 		log.Fatal(http.ListenAndServe(connect, nil))
 	}()
 	return nil
 }
 
-func newHttpApiHandler(dpatcher *dispatcher.Dispatcher) *rest.ResourceHandler {
+func newHttpApiHandler(dispatch *dispatcher.Dispatcher) *rest.ResourceHandler {
 	handler := rest.ResourceHandler{
 		EnableRelaxedContentType: true,
 		EnableResponseStackTrace: true,
 		EnableGzip:               false,
 	}
 	handler.SetRoutes(
-		rest.Route{"GET", "/token/:token/images", jobRestHandler(dpatcher, apiListImages)},
-		rest.Route{"GET", "/token/:token/containers", jobRestHandler(dpatcher, apiListContainers)},
-		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dpatcher, apiPutContainer)},
-		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dpatcher, apiGetContainerLog)},
-		rest.Route{"PUT", "/token/:token/container/:action", jobRestHandler(dpatcher, apiPutContainerAction)},
-		rest.Route{"PUT", "/token/:token/repository", jobRestHandler(dpatcher, apiPutRepository)},
-		rest.Route{"PUT", "/token/:token/keys", jobRestHandler(dpatcher, apiPutKeys)},
-		rest.Route{"GET", "/token/:token/content", jobRestHandler(dpatcher, apiGetContent)},
-		rest.Route{"GET", "/token/:token/content/*", jobRestHandler(dpatcher, apiGetContent)},
-		rest.Route{"PUT", "/token/:token/build-image", jobRestHandler(dpatcher, apiPutBuildImageAction)},
-		rest.Route{"PUT", "/token/:token/environment", jobRestHandler(dpatcher, apiPutEnvironment)},
-		rest.Route{"PATCH", "/token/:token/environment", jobRestHandler(dpatcher, apiPatchEnvironment)},
-		rest.Route{"PUT", "/token/:token/linkcontainers", jobRestHandler(dpatcher, apiLinkContainers)},
+		rest.Route{"GET", "/token/:token/images", jobRestHandler(dispatch, apiListImages)},
+		rest.Route{"GET", "/token/:token/containers", jobRestHandler(dispatch, apiListContainers)},
+		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dispatch, apiPutContainer)},
+		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dispatch, apiGetContainerLog)},
+		rest.Route{"PUT", "/token/:token/container/:action", jobRestHandler(dispatch, apiPutContainerAction)},
+		rest.Route{"PUT", "/token/:token/repository", jobRestHandler(dispatch, apiPutRepository)},
+		rest.Route{"PUT", "/token/:token/keys", jobRestHandler(dispatch, apiPutKeys)},
+		rest.Route{"GET", "/token/:token/content", jobRestHandler(dispatch, apiGetContent)},
+		rest.Route{"GET", "/token/:token/content/*", jobRestHandler(dispatch, apiGetContent)},
+		rest.Route{"PUT", "/token/:token/build-image", jobRestHandler(dispatch, apiPutBuildImageAction)},
+		rest.Route{"PUT", "/token/:token/environment", jobRestHandler(dispatch, apiPutEnvironment)},
+		rest.Route{"PATCH", "/token/:token/environment", jobRestHandler(dispatch, apiPatchEnvironment)},
+		rest.Route{"PUT", "/token/:token/linkcontainers", jobRestHandler(dispatch, apiLinkContainers)},
 	)
 	return &handler
 }
 
 type jobHandler func(jobs.RequestIdentifier, *TokenData, *rest.ResponseWriter, *rest.Request) (jobs.Job, error)
 
-func jobRestHandler(dpatcher *dispatcher.Dispatcher, handler jobHandler) func(*rest.ResponseWriter, *rest.Request) {
+func jobRestHandler(dispatch *dispatcher.Dispatcher, handler jobHandler) func(*rest.ResponseWriter, *rest.Request) {
 	return func(w *rest.ResponseWriter, r *rest.Request) {
 		token, id, errt := extractToken(r.PathParam("token"), r.Request)
 		if errt != nil {
@@ -79,7 +79,7 @@ func jobRestHandler(dpatcher *dispatcher.Dispatcher, handler jobHandler) func(*r
 			return
 		}
 
-		wait, errd := dpatcher.Dispatch(job)
+		wait, errd := dispatch.Dispatch(job)
 		if errd == jobs.ErrRanToCompletion {
 			http.Error(w, errd.Error(), http.StatusNoContent)
 			return
@@ -100,7 +100,7 @@ func apiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Res
 		return nil, errors.New("A container must have an image identifier")
 	}
 
-	data := jobs.ExtendedCreateContainerData{}
+	data := jobs.ExtendedInstallContainerData{}
 	if r.Body != nil {
 		dec := json.NewDecoder(limitedBodyReader(r))
 		if err := dec.Decode(&data); err != nil && err != io.EOF {
@@ -118,7 +118,7 @@ func apiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Res
 		}
 	}
 
-	return &jobs.CreateContainerJobRequest{
+	return &jobs.InstallContainerJobRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		gearId,

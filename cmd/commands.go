@@ -100,13 +100,13 @@ func Execute() {
 				fail(1, "Argument 2 must be a valid gear identifier: %s\n", err.Error())
 			}
 			run(cmd, func(r jobs.JobResponse) jobs.Job {
-				return &jobs.CreateContainerJobRequest{
+				return &jobs.InstallContainerJobRequest{
 					r,
 					jobs.JobRequest{},
 					gearId,
 					"",
 					imageId,
-					&jobs.ExtendedCreateContainerData{},
+					&jobs.ExtendedInstallContainerData{},
 				}
 			})
 		},
