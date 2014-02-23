@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"github.com/smarterclayton/geard/config"
 	"github.com/smarterclayton/geard/dispatcher"
 	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/jobs"
@@ -16,27 +17,31 @@ import (
 
 var ErrHandledResponse = errors.New("Request handled")
 
-func StartAPI(wg *sync.WaitGroup, dispatch *dispatcher.Dispatcher) error {
+type HttpConfiguration struct {
+	config.DockerConfiguration
+	ListenAddr string
+}
+
+func StartAPI(wg *sync.WaitGroup, conf HttpConfiguration, dispatch *dispatcher.Dispatcher) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		connect := ":8080"
-		log.Printf("Starting HTTP on %s ... ", connect)
-		http.Handle("/", newHttpApiHandler(dispatch))
-		log.Fatal(http.ListenAndServe(connect, nil))
+		log.Printf("Starting HTTP on %s ... ", conf.ListenAddr)
+		http.Handle("/", newHttpApiHandler(conf, dispatch))
+		log.Fatal(http.ListenAndServe(conf.ListenAddr, nil))
 	}()
 	return nil
 }
 
-func newHttpApiHandler(dispatch *dispatcher.Dispatcher) *rest.ResourceHandler {
+func newHttpApiHandler(conf HttpConfiguration, dispatch *dispatcher.Dispatcher) *rest.ResourceHandler {
 	handler := rest.ResourceHandler{
 		EnableRelaxedContentType: true,
 		EnableResponseStackTrace: true,
 		EnableGzip:               false,
 	}
 	handler.SetRoutes(
-		rest.Route{"GET", "/token/:token/images", jobRestHandler(dispatch, apiListImages)},
+		rest.Route{"GET", "/token/:token/images", jobRestHandler(dispatch, conf.apiListImages)},
 		rest.Route{"GET", "/token/:token/containers", jobRestHandler(dispatch, apiListContainers)},
 		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dispatch, apiPutContainer)},
 		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dispatch, apiGetContainerLog)},
@@ -132,8 +137,8 @@ func apiListContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.R
 	return &jobs.ListContainersRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}}, nil
 }
 
-func apiListImages(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	return &jobs.ListImagesRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}}, nil
+func (conf HttpConfiguration) apiListImages(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+	return &jobs.ListImagesRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}, conf.DockerSocket}, nil
 }
 
 func apiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {

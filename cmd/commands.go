@@ -36,7 +36,11 @@ func fail(code int, format string, other ...interface{}) {
 }
 
 func Execute() {
-	daemon := false
+	var (
+		daemon bool
+		conf   http.HttpConfiguration
+	)
+
 	gearCmd := &cobra.Command{
 		Use:   "gear",
 		Short: "Gear(d) is a tool for installing Docker containers to systemd",
@@ -61,12 +65,15 @@ func Execute() {
 			dispatch.Start()
 			gears.StartPortAllocator(4000, 60000)
 			wg := &sync.WaitGroup{}
-			http.StartAPI(wg, &dispatch)
+
+			http.StartAPI(wg, conf, &dispatch)
 			wg.Wait()
 			log.Print("Exiting ...")
 		},
 	}
 	gearCmd.Flags().BoolVarP(&daemon, "daemon", "d", false, "Run as a server process")
+	gearCmd.Flags().StringVarP(&(conf.DockerSocket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
+	gearCmd.Flags().StringVarP(&(conf.ListenAddr), "listen-address", "A", ":8080", "Set the address for the http endpoint to listen on")
 
 	cleanCmd := &cobra.Command{
 		Use:   "clean",
