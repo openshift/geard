@@ -2,10 +2,6 @@
 
 package selinux
 
-func RestoreCon(path string) error {
-	return nil
-}
-
-func RestoreConRecursive(basePath string) error {
+func RestoreCon(path string, recursive bool) error {
 	return nil
 }

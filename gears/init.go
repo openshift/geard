@@ -46,7 +46,7 @@ func verifyDataPaths() error {
 		if err := checkPath(path, os.FileMode(0775), true); err != nil {
 			return err
 		}
-		if err := selinux.RestoreCon(path); err != nil {
+		if err := selinux.RestoreCon(path, false); err != nil {
 			return err
 		}
 	}
@@ -66,7 +66,7 @@ func verifyDataPaths() error {
 		if err := checkPath(path, os.FileMode(0770), true); err != nil {
 			return err
 		}
-		if err := selinux.RestoreCon(path); err != nil {
+		if err := selinux.RestoreCon(path, false); err != nil {
 			return err
 		}
 	}
@@ -237,7 +237,7 @@ func copyBinary(src string, dest string, setUid bool) error {
 func HasBinaries() bool {
 	for _,b := range []string{
 		path.Join(config.GearBasePath(), "bin", "switchns"),
-		path.Join(config.GearBasePath(), "bin", "gear-setup"),
+		path.Join(config.GearBasePath(), "bin", "gear"),
 	} {
 		if _, err := os.Stat(b) ; err != nil {
 			return false
@@ -247,13 +247,14 @@ func HasBinaries() bool {
 }
 
 func initializeBinaries() error {
-	srcDir := path.Join("/", "opt", "geard", "bin")
 	destDir := path.Join(config.GearBasePath(), "bin")
-
+	srcDir := path.Join("/", "opt", "geard", "bin")
 	if err := copyBinary(path.Join(srcDir, "switchns"), path.Join(destDir, "switchns"), true); err != nil {
 		return err
 	}
-	if err := copyBinary(path.Join(srcDir, "gear-setup"), path.Join(destDir, "gear-setup"), false); err != nil {
+	
+	srcDir = path.Join("/", "bin")	
+	if err := copyBinary(path.Join(srcDir, "gear"), path.Join(destDir, "gear"), false); err != nil {
 		return err
 	}
 	return nil

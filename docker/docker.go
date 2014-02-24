@@ -1,8 +1,9 @@
-package util
+package docker
 
 import (
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
+	"os"
 	"strings"
 	"time"
 )
@@ -17,7 +18,7 @@ func lookupContainer(containerName string, client *docker.Client, waitForContain
 	if waitForContainer {
 		timeout = 60
 	}
-	
+
 	for i := 0; i <= timeout; i++ {
 		if container, err := client.InspectContainer(containerName); err != nil {
 			if !strings.HasPrefix(err.Error(), "No such container") {
@@ -34,11 +35,18 @@ func lookupContainer(containerName string, client *docker.Client, waitForContain
 	return containerLookupResult{nil, fmt.Errorf("Container not active")}
 }
 
-func GetContainer(containerName string, waitForContainer bool) (*docker.Client, *docker.Container, error) {
-	endpoint := "unix:///var/run/docker.sock"
-	client, err := docker.NewClient(endpoint)
+func GetConnection(dockerSocket string) (*docker.Client, error) {
+	client, err := docker.NewClient(dockerSocket)
 	if err != nil {
 		fmt.Println("Unable to connect to docker server:", err.Error())
+		return nil, err
+	}
+	return client, nil
+}
+
+func GetContainer(dockerSocket string, containerName string, waitForContainer bool) (*docker.Client, *docker.Container, error) {
+	client, err := GetConnection(dockerSocket)
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -56,4 +64,23 @@ func GetContainer(containerName string, waitForContainer bool) (*docker.Client, 
 	}
 
 	return client, container, nil
+}
+
+func GetImage(dockerSocket string, imageName string) (*docker.Image, error) {
+	client, err := GetConnection(dockerSocket)
+	if err != nil {
+		return nil, err
+	}
+
+	if img, err := client.InspectImage(imageName); err != nil {
+		if err == docker.ErrNoSuchImage {
+			if err := client.PullImage(docker.PullImageOptions{imageName, "", os.Stdout}, docker.AuthConfiguration{}); err != nil {
+				return nil, err
+			}
+			return client.InspectImage(imageName)
+		}
+		return nil, err
+	} else {
+		return img, err
+	}
 }

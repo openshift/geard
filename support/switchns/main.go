@@ -65,6 +65,6 @@ func main() {
 		if err != nil {
 			os.Exit(4)
 		}
-		namespace.RunIn(u.Username, pid, []string{"/bin/bash"}, []string{})
+		namespace.RunIn(u.Username, pid, []string{"/bin/bash","-l"}, []string{})
 	}
 }

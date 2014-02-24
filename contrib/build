@@ -1,9 +1,9 @@
-#!/bin/bash -xe
-
-go get -d ./...
-go build -o gear
-go install ./support/gear-setup
+#!/bin/bash -x
+#GOOS=linux GOARCH=amd64 go build -o geard.linux64 geard/main.go
+go get ./...
+go build -o gear .
 go install ./support/switchns
 
 sudo mkdir -p /opt/geard/bin
-sudo /usr/bin/cp -f $GOPATH/bin/switchns $GOPATH/bin/gear-setup /opt/geard/bin
+sudo /usr/bin/cp -f $GOPATH/bin/switchns /opt/geard/bin
+sudo /usr/bin/cp -f gear /usr/bin/
