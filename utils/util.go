@@ -6,9 +6,10 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"path/filepath"	
 	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 var EmptyReader = ioutil.NopCloser(bytes.NewReader([]byte{}))
@@ -84,6 +85,22 @@ func AtomicWriteToContentPath(path string, mode os.FileMode, value []byte) error
 	return nil
 }
 
+var ErrLockTaken = errors.New("An exclusive lock already exists on the specified file.")
+
+func OpenFileExclusive(path string, mode os.FileMode) (*os.File, error) {
+	file, errf := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
+	if errf != nil {
+		return nil, errf
+	}
+	if errl := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); errl != nil {
+		if errl == syscall.EWOULDBLOCK {
+			return nil, ErrLockTaken
+		}
+		return nil, errl
+	}
+	return file, nil
+}
+
 func IsolateContentPathWithPerm(base, id, suffix string, perm os.FileMode) string {
 	var path string
 	if suffix == "" {
@@ -95,7 +112,7 @@ func IsolateContentPathWithPerm(base, id, suffix string, perm os.FileMode) strin
 	// fail silently, require startup to set paths, let consumers
 	// handle directory not found errors
 	os.MkdirAll(path, perm)
-	
+
 	return filepath.Join(path, suffix)
 }
 
