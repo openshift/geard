@@ -35,7 +35,7 @@ func (j *BuildImageJobRequest) Execute() {
 	fmt.Fprintf(w, "Processing build-image request:\n")
 	// TODO: download source, add bind-mount
 
-	unitName := j.RequestId.UnitNameForBuild()
+	unitName := gears.JobIdentifier(j.RequestId).UnitNameForBuild()
 	unitDescription := fmt.Sprintf("Builder for %s", j.Tag)
 
 	stdout, err := gears.ProcessLogsForUnit(unitName)
@@ -69,6 +69,7 @@ func (j *BuildImageJobRequest) Execute() {
 		})
 
 	fmt.Fprintf(w, "Running sti build unit: %s\n", unitName)
+	log.Printf("build_image: Running build %s", unitName)
 
 	startCmd := []string{
 		"/usr/bin/docker", "run",
@@ -78,6 +79,7 @@ func (j *BuildImageJobRequest) Execute() {
 		"sti", "build", j.Source, j.BaseImage, j.Tag,
 		"--url", "unix:///run/docker.sock",
 	}
+	log.Printf("build_image: Will execute %v", startCmd)
 
 	if j.Data.RuntimeImage != "" {
 		startCmd = append(startCmd, "--runtime-image")

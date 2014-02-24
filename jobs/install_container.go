@@ -72,7 +72,7 @@ func (j *InstallContainerJobRequest) Execute() {
 	}
 
 	unitPath := j.GearId.UnitPathFor()
-	unitVersionPath := j.RequestId.VersionedUnitPathFor(j.GearId)
+	unitVersionPath := j.GearId.VersionedUnitPathFor(j.RequestId.String())
 	unit, err := utils.CreateFileExclusive(unitVersionPath, 0666)
 	if err != nil {
 		log.Print("job_create_container: Unable to open unit file: ", err)
@@ -118,7 +118,7 @@ func (j *InstallContainerJobRequest) Execute() {
 		dockerPortSpec(reserved),
 		slice + ".slice",
 		j.UserId,
-		j.RequestId.ToShortName(),
+		j.RequestId.String(),
 		config.GearBasePath(),
 		j.GearId.HomePath(),
 		environmentPath,

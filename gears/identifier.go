@@ -1,6 +1,7 @@
 package gears
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/smarterclayton/geard/config"
@@ -33,6 +34,10 @@ func NewIdentifierFromUser(u *user.User) (Identifier, error) {
 
 func (i Identifier) UnitPathFor() string {
 	return filepath.Join(config.GearBasePath(), "units", i.UnitNameFor())
+}
+
+func (i Identifier) VersionedUnitPathFor(suffix string) string {
+	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "units"), string(i), suffix)
 }
 
 func (i Identifier) LoginFor() string {
@@ -83,4 +88,19 @@ func (i Identifier) HomePath() string {
 
 func (i Identifier) PortDescriptionPathFor() string {
 	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "ports", "descriptions"), string(i), "")
+}
+
+type JobIdentifier []byte
+
+// An identifier for an individual request
+func (j JobIdentifier) UnitNameFor() string {
+	return fmt.Sprintf("job-%s.service", safeUnitName(j))
+}
+
+func (j JobIdentifier) UnitNameForBuild() string {
+	return fmt.Sprintf("build-%s.service", safeUnitName(j))
+}
+
+func safeUnitName(b []byte) string {
+	return strings.Trim(base64.URLEncoding.EncodeToString(b), "=")
 }

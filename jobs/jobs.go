@@ -1,7 +1,9 @@
 package jobs
 
 import (
+	"encoding/base64"
 	"io"
+	"strings"
 )
 
 type Job interface {
@@ -41,6 +43,12 @@ type JobError interface {
 	error
 	ResponseFailure() JobResponseFailure
 	ResponseData() interface{} // May be nil if no data is returned to a client
+}
+
+type RequestIdentifier []byte
+
+func (r RequestIdentifier) String() string {
+	return strings.Trim(base64.URLEncoding.EncodeToString(r), "=")
 }
 
 type JobRequest struct {

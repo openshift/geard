@@ -166,15 +166,6 @@ func (p portReservations) reserve(path string) error {
 	return nil
 }
 
-func (p portReservations) writeTo(w io.Writer) error {
-	for i := range p {
-		if _, err := fmt.Fprintf(w, "%d\t%d\n", p[i].Internal, p[i].External); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 type device string
 
 func (d device) DevicePath() string {

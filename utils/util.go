@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -88,11 +87,9 @@ func AtomicWriteToContentPath(path string, mode os.FileMode, value []byte) error
 
 func AtomicReplaceLink(from, target string) error {
 	newpath := from + ".replace.tmp"
-	log.Printf("util: New %s to %s", from, newpath)
 	if err := os.Link(from, newpath); err != nil {
 		return err
 	}
-	log.Printf("util: Rename %s to %s", newpath, target)
 	return os.Rename(newpath, target)
 }
 
