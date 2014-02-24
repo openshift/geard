@@ -9,11 +9,12 @@ import (
 type ListImagesRequest struct {
 	JobResponse
 	JobRequest
+	DockerSocket string
 }
 
 func (j *ListImagesRequest) Execute() {
 	// TODO: config item for docker port
-	dockerClient, err := docker.NewClient("unix:///var/run/docker.sock")
+	dockerClient, err := docker.NewClient(j.DockerSocket)
 
 	if err != nil {
 		log.Printf("job_list_images: Couldn't connect to docker: %+v", err)
