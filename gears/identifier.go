@@ -26,33 +26,33 @@ func NewIdentifier(s string) (Identifier, error) {
 	return Identifier(s), nil
 }
 
-func NewIdentifierFromUser(u *user.User) (Identifier, error){
+func NewIdentifierFromUser(u *user.User) (Identifier, error) {
 	id := strings.TrimLeft(u.Username, "gear-")
 	return NewIdentifier(id)
 }
 
-func (g Identifier) UnitPathFor() string {
-	return filepath.Join(config.GearBasePath(), "units", g.UnitNameFor())
+func (i Identifier) UnitPathFor() string {
+	return filepath.Join(config.GearBasePath(), "units", i.UnitNameFor())
 }
 
-func (g Identifier) LoginFor() string {
-	return fmt.Sprintf("gear-%s", g)
+func (i Identifier) LoginFor() string {
+	return fmt.Sprintf("gear-%s", i)
 }
 
-func (g Identifier) UnitNameFor() string {
-	return fmt.Sprintf("gear-%s.service", g)
+func (i Identifier) UnitNameFor() string {
+	return fmt.Sprintf("gear-%s.service", i)
 }
 
-func (g Identifier) UnitNameForJob() string {
-	return fmt.Sprintf("job-%s.service", g)
+func (i Identifier) UnitNameForJob() string {
+	return fmt.Sprintf("job-%s.service", i)
 }
 
-func (g Identifier) RepositoryPathFor() string {
-	return filepath.Join(config.GearBasePath(), "git", string(g))
+func (i Identifier) RepositoryPathFor() string {
+	return filepath.Join(config.GearBasePath(), "git", string(i))
 }
 
-func (g Identifier) EnvironmentPathFor() string {
-	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "env", "contents"), string(g), "")
+func (i Identifier) EnvironmentPathFor() string {
+	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "env", "contents"), string(i), "")
 }
 
 func (i Identifier) GitAccessPathFor(f utils.Fingerprint, write bool) string {

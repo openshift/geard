@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -85,6 +86,16 @@ func AtomicWriteToContentPath(path string, mode os.FileMode, value []byte) error
 	return nil
 }
 
+func AtomicReplaceLink(from, target string) error {
+	newpath := from + ".replace.tmp"
+	log.Printf("util: New %s to %s", from, newpath)
+	if err := os.Link(from, newpath); err != nil {
+		return err
+	}
+	log.Printf("util: Rename %s to %s", newpath, target)
+	return os.Rename(newpath, target)
+}
+
 var ErrLockTaken = errors.New("An exclusive lock already exists on the specified file.")
 
 func OpenFileExclusive(path string, mode os.FileMode) (*os.File, error) {
@@ -97,6 +108,14 @@ func OpenFileExclusive(path string, mode os.FileMode) (*os.File, error) {
 			return nil, ErrLockTaken
 		}
 		return nil, errl
+	}
+	return file, nil
+}
+
+func CreateFileExclusive(path string, mode os.FileMode) (*os.File, error) {
+	file, errf := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+	if errf != nil {
+		return nil, errf
 	}
 	return file, nil
 }

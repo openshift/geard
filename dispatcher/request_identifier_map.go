@@ -2,8 +2,8 @@ package dispatcher
 
 import (
 	"container/list"
-	"sync"
 	"github.com/smarterclayton/geard/jobs"
+	"sync"
 )
 
 type RequestIdentifierMap struct {

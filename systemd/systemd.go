@@ -45,8 +45,8 @@ func StartAndEnableUnit(systemd Systemd, name, path, mode string) (string, error
 			return "", err
 		}
 		if ok, err := IsUnitProperty(systemd, name, func(p map[string]interface{}) bool {
-			log.Printf("systemd: NeedsDaemonReload %v", p["NeedsDaemonReload"])
-			return p["LoadState"] == "not-found" || p["NeedsDaemonReload"] == true
+			log.Printf("systemd: NeedDaemonReload %v", p["NeedDaemonReload"])
+			return p["LoadState"] == "not-found" || p["NeedDaemonReload"] == true
 		}); err == nil && ok {
 			// The daemon needs to be reloaded to pick up the changed configuration
 			log.Printf("systemd: Reloading daemon")

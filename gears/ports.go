@@ -1,17 +1,18 @@
 package gears
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
 	"github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/utils"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 type Port uint
@@ -45,56 +46,32 @@ func (p PortPairs) ToHeader() string {
 
 type portReservations []portReservation
 
-type portFile struct {
-	*os.File
-}
-
-func (p *portFile) ReadPorts() (PortPairs, error) {
-	if _, err := p.Seek(0, 0); err != nil {
-		return PortPairs{}, err
-	}
-	return readPortsFrom(p)
-}
-
-func (p *portFile) WritePorts(ports PortPairs) error {
-	if _, err := p.Seek(0, 0); err != nil {
-		return err
-	}
-	if err := p.Truncate(0); err != nil {
-		return err
-	}
-	return ports.writeTo(p)
-}
-
-func (p *portFile) Swap(from PortPairs, to PortPairs) error {
-	if err := p.WritePorts(to); err != nil {
-		p.WritePorts(from)
-		return err
-	}
-	return nil
-}
-
-func readPortsFrom(r io.Reader) (PortPairs, error) {
+func ReadPortsFromUnitFile(r io.Reader) (PortPairs, error) {
 	pairs := make(PortPairs, 0, 4)
-	var internal int
-	var external int
-	for {
-		if _, errf := fmt.Fscanf(r, "%d\t%d\n", &internal, &external); errf != nil {
-			if errf == io.EOF {
-				break
+	scan := bufio.NewScanner(r)
+	for scan.Scan() {
+		line := scan.Text()
+		if strings.HasPrefix(line, "X-PortMapping=") {
+			ports := strings.TrimPrefix(line, "X-PortMapping=")
+			var internal int
+			var external int
+			if _, err := fmt.Sscanf(ports, "%d,%d", &internal, &external); err != nil {
+				continue
 			}
-			return nil, errf
+			if internal > 0 && internal < 65536 && external > 0 && external < 65536 {
+				pairs = append(pairs, PortPair{Port(internal), Port(external)})
+			}
 		}
-		if internal > 0 && internal < 65536 && external > 0 && external < 65536 {
-			pairs = append(pairs, PortPair{Port(internal), Port(external)})
-		}
+	}
+	if scan.Err() != nil {
+		return pairs, scan.Err()
 	}
 	return pairs, nil
 }
 
-func (p PortPairs) writeTo(w io.Writer) error {
+func (p PortPairs) WritePortsToUnitFile(w io.Writer) error {
 	for i := range p {
-		if _, err := fmt.Fprintf(w, "%d\t%d\n", p[i].Internal, p[i].External); err != nil {
+		if _, err := fmt.Fprintf(w, "X-PortMapping=%d,%d\n", p[i].Internal, p[i].External); err != nil {
 			return err
 		}
 	}
@@ -108,13 +85,6 @@ func (p PortPairs) reserve() (portReservations, error) {
 	for i := range p {
 		res := &reservation[i]
 		res.PortPair = p[i]
-		if res.External == 0 {
-			res.External = AllocatePort()
-			if res.External == 0 {
-				return reservation, ErrAllocationFailed
-			}
-			res.reserved = true
-		}
 	}
 	return reservation, nil
 }
@@ -131,8 +101,8 @@ func (p portReservations) reuse(existing PortPairs) ([]Port, error) {
 				if res.exists {
 					return unreserve, errors.New(fmt.Sprintf("The internal port %d is allocated to more than one external port.", res.Internal))
 				}
-				if res.reserved {
-					// Use the already allocated reservation
+				if res.External == 0 {
+					// Use an already allocated port
 					res.External = ex.External
 					res.exists = true
 				} else if res.External != ex.External {
@@ -145,6 +115,16 @@ func (p portReservations) reuse(existing PortPairs) ([]Port, error) {
 		}
 		if !matched {
 			unreserve = append(unreserve, ex.External)
+		}
+	}
+	for i := range p {
+		res := &p[i]
+		if res.External == 0 {
+			res.External = AllocatePort()
+			if res.External == 0 {
+				return unreserve, ErrAllocationFailed
+			}
+			res.reserved = true
 		}
 	}
 	return unreserve, nil
@@ -211,26 +191,12 @@ func (p Port) PortPathsFor() (base string, path string) {
 
 var ErrAllocationFailed = errors.New("A port could not be allocated.")
 
-func AtomicReserveExternalPorts(path string, ports PortPairs) (PortPairs, error) {
+func AtomicReserveExternalPorts(path string, ports, existing PortPairs) (PortPairs, error) {
 	reservations, errp := ports.reserve()
 	if errp != nil {
 		return ports, errp
 	}
 	log.Printf("ports: Reserved %v", reservations)
-
-	f, erre := utils.OpenFileExclusive(path, 0770)
-	if erre != nil {
-		log.Print("ports: Unable to open port description file exclusively: ", erre)
-		return ports, erre
-	}
-	defer f.Close()
-
-	file := portFile{f}
-
-	existing, errp := file.ReadPorts()
-	if errp != nil {
-		return ports, errp
-	}
 	log.Printf("ports: Existing %v", existing)
 	unreserve, erru := reservations.reuse(existing)
 	if erru != nil {
@@ -244,13 +210,7 @@ func AtomicReserveExternalPorts(path string, ports PortPairs) (PortPairs, error)
 		reserved[i] = reservations[i].PortPair
 	}
 
-	if err := file.Swap(existing, reserved); err != nil {
-		// REPAIR: port file could be inconsistent with reserved ports
-		return ports, err
-	}
-
 	if err := reservations.reserve(path); err != nil {
-		file.WritePorts(existing) // REPAIR: port file could be inconsistent with reserved ports
 		return ports, err
 	}
 
