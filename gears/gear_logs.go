@@ -2,7 +2,6 @@ package gears
 
 import (
 	"errors"
-	"github.com/smarterclayton/geard/systemd"
 	"io"
 	"log"
 	"os/exec"
@@ -11,10 +10,6 @@ import (
 
 var ErrLogWriteTimeout = errors.New("gear_logs: Maximum duration exceeded, timeout")
 var ErrLogComplete = errors.New("gear_logs: Closed by caller")
-
-func ProcessLogsFor(id systemd.ProvidesUnitName) (io.ReadCloser, error) {
-	return ProcessLogsForUnit(id.UnitNameFor())
-}
 
 func ProcessLogsForUnit(unit string) (io.ReadCloser, error) {
 	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-f", "--unit", unit)

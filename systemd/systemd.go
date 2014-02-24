@@ -1,12 +1,14 @@
 package systemd
 
 import (
+	"encoding/base64"
 	"fmt"
 	db "github.com/guelfey/go.dbus"
 	"github.com/smarterclayton/go-systemd/dbus"
 	"log"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -75,8 +77,8 @@ func StartAndEnableUnit(systemd Systemd, name, path, mode string) (string, error
 // 	return systemd.StartUnit(name, mode)
 // }
 
-type ProvidesUnitName interface {
-	UnitNameFor() string
+func SafeUnitName(r []byte) string {
+	return strings.Trim(base64.URLEncoding.EncodeToString(r), "=")
 }
 
 var connection Systemd

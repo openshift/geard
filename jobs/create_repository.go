@@ -27,7 +27,7 @@ const repositoryOwnerGid = 1001
 
 func (j *CreateRepositoryJobRequest) Execute() {
 	repositoryPath := j.RepositoryId.RepositoryPathFor()
-	unitName := j.RepositoryId.UnitNameForJob()
+	unitName := gears.JobIdentifier(j.RepositoryId).UnitNameFor()
 	cloneUrl := j.CloneUrl
 
 	if err := os.Mkdir(repositoryPath, 0770); err != nil {
