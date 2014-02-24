@@ -44,8 +44,12 @@ func StartAndEnableUnit(systemd Systemd, name, path, mode string) (string, error
 		if _, _, err := systemd.EnableUnitFiles([]string{path}, false, true); err != nil {
 			return "", err
 		}
-		if ok, err := IsUnitLoadState(systemd, name, "not-found"); err == nil && ok {
+		if ok, err := IsUnitProperty(systemd, name, func(p map[string]interface{}) bool {
+			log.Printf("systemd: NeedsDaemonReload %v", p["NeedsDaemonReload"])
+			return p["LoadState"] == "not-found" || p["NeedsDaemonReload"] == true
+		}); err == nil && ok {
 			// The daemon needs to be reloaded to pick up the changed configuration
+			log.Printf("systemd: Reloading daemon")
 			if errr := systemd.Reload(); errr != nil {
 				log.Printf("systemd: Contents changed on disk and reload failed, subsequent start will likely fail: %v", errr)
 			}
@@ -54,6 +58,22 @@ func StartAndEnableUnit(systemd Systemd, name, path, mode string) (string, error
 	}
 	return status, err
 }
+
+// May not be needed - we may want to leave daemon not reloaded?
+// func StartOrRefreshUnit(systemd Systemd, name, path, mode string) (string, error) {
+// 	properties, err := systemd.GetUnitProperties(name)
+// 	if IsNoSuchUnit(err) || IsLoadFailed(err) {
+// 		return StartAndEnableUnit(systemd, name, path, mode)
+// 	}
+// 	if properties["LoadState"] == "not-found" || properties["NeedDaemonReload"] == true {
+// 		// The daemon needs to be reloaded to pick up the changed configuration
+// 		log.Printf("systemd: Reloading daemon")
+// 		if errr := systemd.Reload(); errr != nil {
+// 			log.Printf("systemd: Contents changed on disk and reload failed, subsequent start will likely fail: %v", errr)
+// 		}
+// 	}
+// 	return systemd.StartUnit(name, mode)
+// }
 
 type ProvidesUnitName interface {
 	UnitNameFor() string
@@ -116,13 +136,19 @@ func SprintSystemdError(err error) string {
 
 var ErrNoSuchUnit = db.Error{Name: "org.freedesktop.systemd1.NoSuchUnit"}
 
-func IsUnitLoadState(systemd Systemd, unit string, state string) (bool, error) {
+func IsUnitProperty(systemd Systemd, unit string, f func(p map[string]interface{}) bool) (bool, error) {
 	p, err := systemd.GetUnitProperties(unit)
 	if err != nil {
 		log.Printf("debug: Found error while checking unit state %s: %v", unit, err)
 		return false, err
 	}
-	return p["LoadState"] == state, nil
+	return f(p), nil
+}
+
+func IsUnitLoadState(systemd Systemd, unit string, state string) (bool, error) {
+	return IsUnitProperty(systemd, unit, func(p map[string]interface{}) bool {
+		return p["LoadState"] == state
+	})
 }
 
 func IsNoSuchUnit(err error) bool {

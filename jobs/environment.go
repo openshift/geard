@@ -145,7 +145,7 @@ func (j *ExtendedEnvironmentData) Fetch() error {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Printf("job_environment: fetch status code is %d from %s", resp.StatusCode, j.Source)
-		return err
+		return errors.New("Unable to retrieve environment file from remote server.")
 	}
 
 	env := j.Variables

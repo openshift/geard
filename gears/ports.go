@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/smarterclayton/geard/config"
 	"github.com/smarterclayton/geard/utils"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -18,6 +19,180 @@ type Port uint
 type PortPair struct {
 	Internal Port
 	External Port
+}
+
+type portReservation struct {
+	PortPair
+	reserved  bool
+	allocated bool
+	exists    bool
+}
+
+type PortPairs []PortPair
+
+func (p PortPairs) ToHeader() string {
+	var pairs bytes.Buffer
+	for i := range p {
+		if i != 0 {
+			pairs.WriteString(",")
+		}
+		pairs.WriteString(strconv.Itoa(int(p[i].Internal)))
+		pairs.WriteString("=")
+		pairs.WriteString(strconv.Itoa(int(p[i].External)))
+	}
+	return pairs.String()
+}
+
+type portReservations []portReservation
+
+type portFile struct {
+	*os.File
+}
+
+func (p *portFile) ReadPorts() (PortPairs, error) {
+	if _, err := p.Seek(0, 0); err != nil {
+		return PortPairs{}, err
+	}
+	return readPortsFrom(p)
+}
+
+func (p *portFile) WritePorts(ports PortPairs) error {
+	if _, err := p.Seek(0, 0); err != nil {
+		return err
+	}
+	if err := p.Truncate(0); err != nil {
+		return err
+	}
+	return ports.writeTo(p)
+}
+
+func (p *portFile) Swap(from PortPairs, to PortPairs) error {
+	if err := p.WritePorts(to); err != nil {
+		p.WritePorts(from)
+		return err
+	}
+	return nil
+}
+
+func readPortsFrom(r io.Reader) (PortPairs, error) {
+	pairs := make(PortPairs, 0, 4)
+	var internal int
+	var external int
+	for {
+		if _, errf := fmt.Fscanf(r, "%d\t%d\n", &internal, &external); errf != nil {
+			if errf == io.EOF {
+				break
+			}
+			return nil, errf
+		}
+		if internal > 0 && internal < 65536 && external > 0 && external < 65536 {
+			pairs = append(pairs, PortPair{Port(internal), Port(external)})
+		}
+	}
+	return pairs, nil
+}
+
+func (p PortPairs) writeTo(w io.Writer) error {
+	for i := range p {
+		if _, err := fmt.Fprintf(w, "%d\t%d\n", p[i].Internal, p[i].External); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Reserve any unspecified external ports or return an error
+// if no ports are available.
+func (p PortPairs) reserve() (portReservations, error) {
+	reservation := make(portReservations, len(p))
+	for i := range p {
+		res := &reservation[i]
+		res.PortPair = p[i]
+		if res.External == 0 {
+			res.External = AllocatePort()
+			if res.External == 0 {
+				return reservation, ErrAllocationFailed
+			}
+			res.reserved = true
+		}
+	}
+	return reservation, nil
+}
+
+// Use existing port pairs where possible instead of allocating new ports.
+func (p portReservations) reuse(existing PortPairs) ([]Port, error) {
+	unreserve := make([]Port, 0, 4)
+	for j := range existing {
+		ex := &existing[j]
+		matched := false
+		for i := range p {
+			res := &p[i]
+			if res.Internal == ex.Internal {
+				if res.exists {
+					return unreserve, errors.New(fmt.Sprintf("The internal port %d is allocated to more than one external port.", res.Internal))
+				}
+				if res.reserved {
+					// Use the already allocated reservation
+					res.External = ex.External
+					res.exists = true
+				} else if res.External != ex.External {
+					unreserve = append(unreserve, ex.External)
+				} else {
+					res.exists = true
+				}
+				matched = true
+			}
+		}
+		if !matched {
+			unreserve = append(unreserve, ex.External)
+		}
+	}
+	return unreserve, nil
+}
+
+// Write reservations to disk or return an error.  Will
+// attempt to clean up after a failure by removing partially
+// created links.
+func (p portReservations) reserve(path string) error {
+	var err error
+	for i := range p {
+		res := &p[i]
+		if !res.exists {
+			parent, direct := res.External.PortPathsFor()
+			os.MkdirAll(parent, 0770)
+			err := os.Symlink(path, direct)
+			if err != nil {
+				log.Printf("ports: Failed to reserve %d, rolling back: %v", res.External, err)
+				break
+			}
+			res.allocated = true
+		}
+	}
+
+	if err != nil {
+		for i := range p {
+			res := &p[i]
+			if res.allocated {
+				_, direct := res.External.PortPathsFor()
+				if errr := os.Remove(direct); errr == nil {
+					log.Printf("ports: Unable to rollback allocation %d: %v", res.External, err)
+					res.allocated = false
+				}
+			}
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (p portReservations) writeTo(w io.Writer) error {
+	for i := range p {
+		if _, err := fmt.Fprintf(w, "%d\t%d\n", p[i].Internal, p[i].External); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type device string
@@ -34,30 +209,57 @@ func (p Port) PortPathsFor() (base string, path string) {
 	return
 }
 
-func AtomicReserveExternalPorts(path string, pairs []PortPair) error {
-	var contents bytes.Buffer
-	for _, pair := range pairs {
-		if pair.External == 0 {
-			return errors.New("External port must be non-zero")
-		}
-		contents.WriteString(fmt.Sprintf("%d\t%d\n", pair.Internal, pair.External))
+var ErrAllocationFailed = errors.New("A port could not be allocated.")
+
+func AtomicReserveExternalPorts(path string, ports PortPairs) (PortPairs, error) {
+	reservations, errp := ports.reserve()
+	if errp != nil {
+		return ports, errp
+	}
+	log.Printf("ports: Reserved %v", reservations)
+
+	f, erre := utils.OpenFileExclusive(path, 0770)
+	if erre != nil {
+		log.Print("ports: Unable to open port description file exclusively: ", erre)
+		return ports, erre
+	}
+	defer f.Close()
+
+	file := portFile{f}
+
+	existing, errp := file.ReadPorts()
+	if errp != nil {
+		return ports, errp
+	}
+	log.Printf("ports: Existing %v", existing)
+	unreserve, erru := reservations.reuse(existing)
+	if erru != nil {
+		return ports, erru
+	}
+	log.Printf("ports: Reusing %v", reservations)
+	log.Printf("ports: Unreserve %v", unreserve)
+
+	reserved := make(PortPairs, len(reservations))
+	for i := range reservations {
+		reserved[i] = reservations[i].PortPair
 	}
 
-	if erra := utils.AtomicWriteToContentPath(path, 0770, contents.Bytes()); erra != nil {
-		log.Print("ports: Unable to write port description: ", erra)
-		return erra
+	if err := file.Swap(existing, reserved); err != nil {
+		// REPAIR: port file could be inconsistent with reserved ports
+		return ports, err
 	}
 
-	for _, ports := range pairs {
-		parent, direct := Port(ports.External).PortPathsFor()
-		os.MkdirAll(parent, 0770)
-		if errs := os.Symlink(path, direct); errs != nil {
-			log.Print("ports: Unable to reserve port on disk: ", errs)
-			return errs
-		}
+	if err := reservations.reserve(path); err != nil {
+		file.WritePorts(existing) // REPAIR: port file could be inconsistent with reserved ports
+		return ports, err
 	}
 
-	return nil
+	for _, port := range unreserve {
+		_, direct := port.PortPathsFor()
+		os.Remove(direct) // REPAIR: reserved ports may not be properly released
+	}
+
+	return reserved, nil
 }
 
 const portsPerBlock = Port(100) // changing this breaks disk structure... don't do it!

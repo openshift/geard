@@ -7,10 +7,8 @@ import (
 	"github.com/smarterclayton/geard/config"
 	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/systemd"
+	"github.com/smarterclayton/geard/utils"
 	"log"
-	"os"
-	"strconv"
-	"syscall"
 )
 
 // Installing a Container
@@ -48,23 +46,19 @@ type InstallContainerJobRequest struct {
 }
 
 type ExtendedInstallContainerData struct {
-	Ports       PortPairs
+	Ports       gears.PortPairs
 	Environment *ExtendedEnvironmentData
 }
 
-type PortPairs []gears.PortPair
-
-func (p PortPairs) ToHeader() string {
-	var pairs bytes.Buffer
-	for i := range p {
-		if i != 0 {
-			pairs.WriteString(",")
+func dockerPortSpec(p gears.PortPairs) string {
+	var portSpec bytes.Buffer
+	if len(p) > 0 {
+		portSpec.WriteString("-p")
+		for i := range p {
+			portSpec.WriteString(fmt.Sprintf(" %d:%d", p[i].External, p[i].Internal))
 		}
-		pairs.WriteString(strconv.Itoa(int(p[i].Internal)))
-		pairs.WriteString("=")
-		pairs.WriteString(strconv.Itoa(int(p[i].External)))
 	}
-	return pairs.String()
+	return portSpec.String()
 }
 
 func (j *InstallContainerJobRequest) Execute() {
@@ -78,48 +72,22 @@ func (j *InstallContainerJobRequest) Execute() {
 		}
 	}
 
-	unit, err := os.OpenFile(unitPath, os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil && !os.IsExist(err) {
-		log.Print("job_create_container: Unable to create unit file: ", err)
+	unit, err := utils.OpenFileExclusive(unitPath, 0666)
+	if err != nil {
+		log.Print("job_create_container: Unable to open unit file: ", err)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
 	defer unit.Close()
 
-	if errl := syscall.Flock(int(unit.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); errl != nil {
-		if errl == syscall.EWOULDBLOCK {
-			log.Print("job_create_container: Another client is updating this container")
-			j.Failure(ErrGearCreateFailed)
-			return
-		}
-		log.Print("job_create_container: Lock failed: ", err)
+	reserved, erra := gears.AtomicReserveExternalPorts(j.GearId.PortDescriptionPathFor(), j.Data.Ports)
+	if erra != nil {
+		log.Printf("job_create_container: Unable to reserve external ports: %+v", erra)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
-
-	var portSpec bytes.Buffer
-	if len(j.Data.Ports) > 0 {
-		portSpec.WriteString("-p")
-		for i := range j.Data.Ports {
-			ports := &j.Data.Ports[i]
-			if ports.External < 1 {
-				ports.External = gears.AllocatePort()
-				if ports.External == 0 {
-					log.Printf("job_create_container: Unable to allocate external port for %d", ports.Internal)
-					j.Failure(ErrGearCreateFailed)
-					return
-				}
-			}
-			portSpec.WriteString(fmt.Sprintf(" %d:%d", ports.External, ports.Internal))
-		}
-
-		if erra := gears.AtomicReserveExternalPorts(j.GearId.PortDescriptionPathFor(), j.Data.Ports); erra != nil {
-			log.Printf("job_create_container: Unable to reserve external ports: %+v", erra)
-			j.Failure(ErrGearCreateFailed)
-			return
-		}
-
-		j.WritePendingSuccess("PortMapping", j.Data.Ports)
+	if len(reserved) > 0 {
+		j.WritePendingSuccess("PortMapping", reserved)
 	}
 
 	var environmentPath string
@@ -135,7 +103,7 @@ func (j *InstallContainerJobRequest) Execute() {
 	if erre := gears.ContainerUnitTemplate.Execute(unit, gears.ContainerUnit{
 		j.GearId,
 		j.Image,
-		portSpec.String(),
+		dockerPortSpec(reserved),
 		slice + ".slice",
 		j.UserId,
 		j.RequestId.ToShortName(),
@@ -148,16 +116,7 @@ func (j *InstallContainerJobRequest) Execute() {
 		log.Printf("job_create_container: Unable to output template: %+v", erre)
 		j.Failure(ErrGearCreateFailed)
 	}
-	//fmt.Fprintf(unit, "\n\n# Gear information\nX-GearId=%s\nX-ContainerImage=%s\nX-ContainerUserId=%s\nX-ContainerRequestId=%s\nX-ExposesPorts=%s\n", j.GearId, j.Image, j.UserId, j.Id().ToShortName())
 	unit.Close()
-
-	// FIXME check for j.StreamResult before attempting this
-	// stdout, err := ProcessLogsFor(j.GearId)
-	// if err != nil {
-	// 	stdout = emptyReader
-	// 	log.Printf("job_create_container: Unable to fetch journal logs: %+v", err)
-	// }
-	// defer stdout.Close()
 
 	unitName := j.GearId.UnitNameFor()
 	status, err := systemd.StartAndEnableUnit(systemd.SystemdConnection(), unitName, unitPath, "fail")
@@ -173,9 +132,6 @@ func (j *InstallContainerJobRequest) Execute() {
 
 	w := j.SuccessWithWrite(JobResponseAccepted, true)
 	fmt.Fprintf(w, "Gear %s is starting\n", j.GearId)
-	// FIXME check for j.StreamResult
-	//go io.Copy(w, stdout)
-	//stdout.Close()
 }
 
 func (j *InstallContainerJobRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
