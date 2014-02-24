@@ -9,6 +9,7 @@ import (
 	"github.com/smarterclayton/geard/systemd"
 	"github.com/smarterclayton/geard/utils"
 	"log"
+	"os"
 )
 
 // Installing a Container
@@ -62,8 +63,6 @@ func dockerPortSpec(p gears.PortPairs) string {
 }
 
 func (j *InstallContainerJobRequest) Execute() {
-	unitPath := j.GearId.UnitPathFor()
-
 	env := j.Data.Environment
 	if env != nil {
 		if err := env.Fetch(); err != nil {
@@ -72,7 +71,9 @@ func (j *InstallContainerJobRequest) Execute() {
 		}
 	}
 
-	unit, err := utils.OpenFileExclusive(unitPath, 0666)
+	unitPath := j.GearId.UnitPathFor()
+	unitVersionPath := j.RequestId.VersionedUnitPathFor(j.GearId)
+	unit, err := utils.CreateFileExclusive(unitVersionPath, 0666)
 	if err != nil {
 		log.Print("job_create_container: Unable to open unit file: ", err)
 		j.Failure(ErrGearCreateFailed)
@@ -80,7 +81,18 @@ func (j *InstallContainerJobRequest) Execute() {
 	}
 	defer unit.Close()
 
-	reserved, erra := gears.AtomicReserveExternalPorts(j.GearId.PortDescriptionPathFor(), j.Data.Ports)
+	existingPorts := gears.PortPairs{}
+	if existing, err := os.OpenFile(unitPath, os.O_RDONLY, 0660); err == nil {
+		existingPorts, err = gears.ReadPortsFromUnitFile(existing)
+		existing.Close()
+		if err != nil {
+			log.Print("job_create_container: Unable to read existing ports from file: ", err)
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
+	}
+
+	reserved, erra := gears.AtomicReserveExternalPorts(unitVersionPath, j.Data.Ports, existingPorts)
 	if erra != nil {
 		log.Printf("job_create_container: Unable to reserve external ports: %+v", erra)
 		j.Failure(ErrGearCreateFailed)
@@ -115,8 +127,27 @@ func (j *InstallContainerJobRequest) Execute() {
 	}); erre != nil {
 		log.Printf("job_create_container: Unable to output template: %+v", erre)
 		j.Failure(ErrGearCreateFailed)
+		defer os.Remove(unitVersionPath)
+		return
 	}
-	unit.Close()
+	if errw := reserved.WritePortsToUnitFile(unit); errw != nil {
+		log.Printf("job_create_container: Unable to write ports to unit: %+v", errw)
+		j.Failure(ErrGearCreateFailed)
+		defer os.Remove(unitVersionPath)
+		return
+	}
+	if err := unit.Close(); err != nil {
+		log.Printf("job_create_container: Unable to finish writing unit: %+v", err)
+		j.Failure(ErrGearCreateFailed)
+		defer os.Remove(unitVersionPath)
+		return
+	}
+
+	if err := utils.AtomicReplaceLink(unitVersionPath, unitPath); err != nil {
+		log.Printf("job_create_container: Failed to activate new unit: %+v", err)
+		j.Failure(ErrGearCreateFailed)
+		return
+	}
 
 	unitName := j.GearId.UnitNameFor()
 	status, err := systemd.StartAndEnableUnit(systemd.SystemdConnection(), unitName, unitPath, "fail")
