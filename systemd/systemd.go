@@ -83,7 +83,7 @@ func SafeUnitName(r []byte) string {
 
 var connection Systemd
 
-func NewSystemdConnection() (Systemd, error) {
+func NewConnection() (Systemd, error) {
 	conn, err := dbus.New()
 	if err != nil {
 		return NewStubSystemd(), err
@@ -91,9 +91,9 @@ func NewSystemdConnection() (Systemd, error) {
 	return conn, nil
 }
 
-func StartSystemdConnection() error {
+func StartConnection() error {
 	if connection == nil {
-		conn, err := NewSystemdConnection()
+		conn, err := NewConnection()
 		if err != nil {
 			connection = conn
 			return err
@@ -104,7 +104,7 @@ func StartSystemdConnection() error {
 }
 
 func Start() error {
-	if err := StartSystemdConnection(); err != nil {
+	if err := StartConnection(); err != nil {
 		log.Println("WARNING: No systemd connection available via dbus: ", err)
 		log.Println("  You may need to run as root or check that /var/run/dbus/system_bus_socket is bind mounted.")
 		return err
@@ -118,7 +118,7 @@ func Require() {
 	}
 }
 
-func SystemdConnection() Systemd {
+func Connection() Systemd {
 	return connection
 }
 

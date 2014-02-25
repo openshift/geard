@@ -18,7 +18,7 @@ type StartedContainerStateJobRequest struct {
 }
 
 func (j *StartedContainerStateJobRequest) Execute() {
-	status, err := systemd.StartAndEnableUnit(systemd.SystemdConnection(), j.GearId.UnitNameFor(), j.GearId.UnitPathFor(), "fail")
+	status, err := systemd.StartAndEnableUnit(systemd.Connection(), j.GearId.UnitNameFor(), j.GearId.UnitPathFor(), "fail")
 
 	switch {
 	case systemd.IsNoSuchUnit(err):
@@ -58,7 +58,7 @@ func (j *StoppedContainerStateJobRequest) Execute() {
 
 	joberr := make(chan error)
 	go func() {
-		status, err := systemd.SystemdConnection().StopUnit(unitName, "fail")
+		status, err := systemd.Connection().StopUnit(unitName, "fail")
 		if err == nil && status != "done" {
 			err = errors.New(fmt.Sprintf("Job status 'done' != %s", status))
 		}

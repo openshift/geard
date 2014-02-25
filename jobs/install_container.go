@@ -150,7 +150,7 @@ func (j *InstallContainerJobRequest) Execute() {
 	}
 
 	unitName := j.GearId.UnitNameFor()
-	status, err := systemd.StartAndEnableUnit(systemd.SystemdConnection(), unitName, unitPath, "fail")
+	status, err := systemd.StartAndEnableUnit(systemd.Connection(), unitName, unitPath, "fail")
 	if err != nil {
 		log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
 		j.Failure(ErrGearCreateFailed)

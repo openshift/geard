@@ -45,7 +45,7 @@ func (j *BuildImageJobRequest) Execute() {
 	}
 	defer stdout.Close()
 
-	conn, errc := systemd.NewSystemdConnection()
+	conn, errc := systemd.NewConnection()
 	if errc != nil {
 		log.Print("job_build_image:", errc)
 		fmt.Fprintf(w, "Unable to watch start status", errc)
@@ -95,7 +95,7 @@ func (j *BuildImageJobRequest) Execute() {
 		startCmd = append(startCmd, "DEBUG")
 	}
 
-	status, err := systemd.SystemdConnection().StartTransientUnit(
+	status, err := systemd.Connection().StartTransientUnit(
 		unitName,
 		"fail",
 		dbus.PropExecStart(startCmd, true),

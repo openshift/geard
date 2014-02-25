@@ -42,6 +42,7 @@ func newHttpApiHandler(conf HttpConfiguration, dispatch *dispatcher.Dispatcher) 
 	}
 	handler.SetRoutes(
 		rest.Route{"GET", "/token/:token/images", jobRestHandler(dispatch, conf.apiListImages)},
+		rest.Route{"GET", "/token/:token/builds", jobRestHandler(dispatch, apiListBuilds)},
 		rest.Route{"GET", "/token/:token/containers", jobRestHandler(dispatch, apiListContainers)},
 		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dispatch, apiPutContainer)},
 		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dispatch, apiGetContainerLog)},
@@ -131,6 +132,10 @@ func apiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Res
 		token.ResourceType(),
 		&data,
 	}, nil
+}
+
+func apiListBuilds(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+	return &jobs.ListBuildsRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}}, nil
 }
 
 func apiListContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
