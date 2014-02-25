@@ -2,9 +2,8 @@
 #GOOS=linux GOARCH=amd64 go build -o geard.linux64 geard/main.go
 go get -tags selinux ./...
 go build -tags selinux -o gear .
-
-go install -tags selinux ./support/gear-setup
 go install -tags selinux ./support/switchns
 
 sudo mkdir -p /opt/geard/bin
-sudo /usr/bin/cp -f $GOPATH/bin/switchns $GOPATH/bin/gear-setup /opt/geard/bin
+sudo /usr/bin/cp -f $GOPATH/bin/switchns /opt/geard/bin
+sudo /usr/bin/cp -f gear /usr/bin/
