@@ -96,7 +96,7 @@ func initializeTargets() error {
 			continue
 		}
 
-		if _, errs := systemd.StartAndEnableUnit(systemd.SystemdConnection(), name+".target", path, "fail"); errs != nil {
+		if _, errs := systemd.StartAndEnableUnit(systemd.Connection(), name+".target", path, "fail"); errs != nil {
 			log.Printf("gear: Unable to start and enable target %s: %v", name, errs)
 			continue
 		}
@@ -130,7 +130,7 @@ func initializeSlices() error {
 			continue
 		}
 
-		if _, errs := systemd.StartAndEnableUnit(systemd.SystemdConnection(), name+".slice", path, "fail"); errs != nil {
+		if _, errs := systemd.StartAndEnableUnit(systemd.Connection(), name+".slice", path, "fail"); errs != nil {
 			log.Printf("gear: Unable to start and enable slice %s: %v", name, errs)
 			continue
 		}
@@ -154,7 +154,7 @@ func checkPath(path string, mode os.FileMode, dir bool) error {
 }
 
 func disableAllUnits() {
-	systemd := systemd.SystemdConnection()
+	systemd := systemd.Connection()
 
 	for _, path := range []string{
 		filepath.Join(config.GearBasePath(), "units"),
@@ -235,11 +235,11 @@ func copyBinary(src string, dest string, setUid bool) error {
 }
 
 func HasBinaries() bool {
-	for _,b := range []string{
+	for _, b := range []string{
 		path.Join(config.GearBasePath(), "bin", "switchns"),
 		path.Join(config.GearBasePath(), "bin", "gear"),
 	} {
-		if _, err := os.Stat(b) ; err != nil {
+		if _, err := os.Stat(b); err != nil {
 			return false
 		}
 	}

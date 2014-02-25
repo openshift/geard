@@ -43,7 +43,7 @@ func (j *CreateRepositoryJobRequest) Execute() {
 		log.Printf("job_create_repository: Unable to set owner for repository path %s: %s", repositoryPath, err.Error())
 	}
 
-	conn, errc := systemd.NewSystemdConnection()
+	conn, errc := systemd.NewConnection()
 	if errc != nil {
 		log.Print("job_create_repository: systemd: ", errc)
 		j.Failure(ErrSubscribeToUnit)
@@ -75,7 +75,7 @@ func (j *CreateRepositoryJobRequest) Execute() {
 
 	// Start unit after subscription and logging has begun, since
 	// we don't want to miss extremely fast events
-	status, err := systemd.SystemdConnection().StartTransientUnit(
+	status, err := systemd.Connection().StartTransientUnit(
 		unitName,
 		"fail",
 		dbus.PropExecStart([]string{

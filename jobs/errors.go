@@ -11,6 +11,7 @@ var (
 	ErrGearStartFailed         = SimpleJobError{JobResponseError, "Unable to start this gear."}
 	ErrEnvironmentUpdateFailed = SimpleJobError{JobResponseError, "Unable to update the specified environment."}
 	ErrListImagesFailed        = SimpleJobError{JobResponseError, "Unable to list docker images."}
+	ErrListContainersFailed    = SimpleJobError{JobResponseError, "Unable to list the installed containers."}
 )
 
 const (
