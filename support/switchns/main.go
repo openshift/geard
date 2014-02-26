@@ -30,7 +30,6 @@ func main() {
 	uid := os.Getuid()
 
 	if uid == 0 {
-		var containerNsPID string
 		if arguments, err = docopt.Parse(usage, nil, true, "switchns", false); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -42,37 +41,31 @@ func main() {
 			env = (arguments["--env"]).([]string)
 		}
 
-		if container, err = docker.GetContainer("unix:///var/run/docker.sock", containerName, false); err != nil {
+		_, container, errc := docker.GetContainer("unix:///var/run/docker.sock", containerName, false)
+		if errc != nil {
 			fmt.Printf("Unable to locate container named %v", containerName)
 			os.Exit(3)
 		}
-		if containerNsPID, err = docker.ChildProcessForContainer(container); err != nil {
+		containerNsPID, err := docker.ChildProcessForContainer(container)
+		if err != nil {
 			fmt.Printf("Unable to locate process for container named %v", containerName)
 			os.Exit(3)
 		}
-		pid, err := strconv.Atoi(containerNsPID)
-		if err != nil {
-			fmt.Printf("Unable to find container PID %v: %v", containerName, err)
-			os.Exit(4)
-		}
-		namespace.RunIn(string(containerName), pid, command, env)
+		namespace.RunIn(string(containerName), containerNsPID, command, env)
 	} else {
 		var u *user.User
-		var containerNsPID string
 		if u, err = user.LookupId(strconv.Itoa(uid)); err != nil {
 			os.Exit(2)
 		}
-		if container, err = docker.GetContainer("unix:///var/run/docker.sock", u.Username, false); err != nil {
-			fmt.Printf("Unable to locate container named %v", containerName)
-			os.Exit(3)
-		}
-		if containerNsPID, err = docker.ChildProcessForContainer(container); err != nil {
-			os.Exit(3)
-		}
-		pid, err := strconv.Atoi(containerNsPID)
+		_, container, err := docker.GetContainer("unix:///var/run/docker.sock", u.Username, false)
 		if err != nil {
-			os.Exit(4)
+			fmt.Printf("Unable to locate container named %v", u.Username)
+			os.Exit(3)
 		}
-		namespace.RunIn(u.Username, pid, []string{"/bin/bash", "-l"}, []string{})
+		containerNsPID, err := docker.ChildProcessForContainer(container)
+		if err != nil {
+			os.Exit(3)
+		}
+		namespace.RunIn(u.Username, containerNsPID, []string{"/bin/bash", "-l"}, []string{})
 	}
 }
