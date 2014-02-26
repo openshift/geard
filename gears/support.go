@@ -10,6 +10,7 @@ import (
 	"github.com/smarterclayton/geard/utils"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -44,7 +45,6 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		return err
 	}
 	defer file.Close()
-	log.Println("Writing gear-init.sh to ", path)
 
 	volumes := make([]string, 0, 10)
 	for volPath, _ := range imgInfo.Config.Volumes {
@@ -101,6 +101,19 @@ func InitPostStart(dockerSocket string, gearId Identifier) error {
 	if err = generateAuthorizedKeys(gearId, u, container, true); err != nil {
 		return err
 	}
+
+	if file, err := os.Open(gearId.NetworkLinksPathFor()); err == nil {
+		defer file.Close()
+		pid, err := docker.ChildProcessForContainer(container)
+		if err != nil {
+			return err
+		}
+		log.Printf("PID %d", pid)
+		if err := updateNamespaceNetworkLinks(pid, "127.0.0.2", file); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -202,4 +215,87 @@ func getContainerPorts(container *d.Container) (string, []string, error) {
 	}
 
 	return ipAddr, ports, nil
+}
+
+func getHostIPFromNamespace(name string) (*net.IPAddr, error) {
+	// Resolve the containers local IP
+	cmd := exec.Command("ip", "netns", "exec", name, "hostname", "-I")
+	cmd.Stderr = os.Stderr
+	source, erro := cmd.Output()
+	if erro != nil {
+		log.Printf("network_links: Could not read IP for container: %v", erro)
+		return nil, erro
+	}
+	sourceAddr, errr := net.ResolveIPAddr("ip", strings.TrimSpace(string(source)))
+	if errr != nil {
+		log.Printf("network_links: Host source IP %s does not resolve %v", sourceAddr, errr)
+		return nil, errr
+	}
+	return sourceAddr, nil
+}
+
+func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) error {
+	name := "netlink-" + strconv.Itoa(pid)
+	nsPath := fmt.Sprintf("/proc/%d/ns/net", pid)
+	path := fmt.Sprintf("/var/run/netns/%s", name)
+	if err := os.Symlink(nsPath, path); err != nil && !os.IsExist(err) {
+		return err
+	}
+	defer func() {
+		os.Remove(path)
+	}()
+
+	sourceAddr, errs := getHostIPFromNamespace(name)
+	if errs != nil {
+		return errs
+	}
+
+	// Restore a set of rules to the table
+	cmd := exec.Command("ip", "netns", "exec", name, "iptables-restore")
+	stdin, errp := cmd.StdinPipe()
+	if errp != nil {
+		log.Printf("network_links: Could not open pipe to iptables-restore: %v", errp)
+		return errp
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	defer stdin.Close()
+	if err := cmd.Start(); err != nil {
+		log.Printf("network_links: Could not start iptables-restore: %v", errp)
+		return err
+	}
+
+	for {
+		link := NetworkLink{}
+		if _, err := fmt.Fscanf(ports, "%v\t%v\t%s\n", &link.FromPort, &link.ToPort, &link.ToHost); err != nil {
+			if err == io.EOF {
+				break
+			}
+			log.Printf("network_links: Could not read from network links file: %v", err)
+			continue
+		}
+		if err := link.Check(); err != nil {
+			log.Printf("network_links: Link in file is not valid: %v", err)
+			continue
+		}
+		if link.Complete() {
+			destAddr, err := net.ResolveIPAddr("ip", link.ToHost)
+			if err != nil {
+				log.Printf("network_links: Link destination host does not resolve %v", err)
+				continue
+			}
+
+			data := OutboundNetworkIptables{sourceAddr.String(), localAddr, link.FromPort, destAddr.IP.String(), link.ToPort}
+			if err := OutboundNetworkIptablesTemplate.Execute(stdin, &data); err != nil {
+				log.Printf("network_links: Unable to write network link rules: %v", err)
+				return err
+			}
+		}
+	}
+	stdin.Close()
+	if err := cmd.Wait(); err != nil {
+		log.Printf("network_links: iptables-restore did not successfully complete: %v", err)
+		return err
+	}
+	return nil
 }

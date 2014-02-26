@@ -56,19 +56,39 @@ type GearInitScript struct {
 	Volumes       string
 }
 
-var GearInitTemplate = template.Must(template.New("gear-init.sh").Parse("#!/bin/bash\n" +
-	"{{ if .CreateUser }}\n" +
-	"groupadd -g {{.Gid}} {{.ContainerUser}}\n" +
-	"useradd -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}\n" +
-	"{{ else }}\n" +
-	"old_id=`id -u {{.ContainerUser}}`\n" +
-	"old_gid=`id -g {{.ContainerUser}}`\n" +
-	"/usr/sbin/usermod {{.ContainerUser}} --uid {{.Uid}}\n" +
-	"/usr/sbin/groupmod {{.ContainerUser}} --gid {{.Gid}}\n" +
-	"for i in `find / -uid ${old_id}`; do /usr/bin/chgrp -R {{.Uid}} $i; done\n" +
-	"for i in `find / -gid ${old_gid}`; do /usr/bin/chgrp -R {{.Gid}} $i; done\n" +
-	"{{ end }}\n" +
-	"{{ if .HasVolumes }}\n" +
-	"chown -R {{.Uid}}:{{.Gid}} {{.Volumes}}\n" +
-	"{{ end }}\n" +
-	"exec su {{.ContainerUser}} -c -- {{.Command}}\n"))
+var GearInitTemplate = template.Must(template.New("gear-init.sh").Parse(`#!/bin/bash
+{{ if .CreateUser }}
+groupadd -g {{.Gid}} {{.ContainerUser}}
+useradd -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}
+{{ else }}
+old_id=$(id -u {{.ContainerUser}})
+old_gid=$(id -g {{.ContainerUser}})
+/usr/sbin/usermod {{.ContainerUser}} --uid {{.Uid}}
+/usr/sbin/groupmod {{.ContainerUser}} --gid {{.Gid}}
+for i in $(find / -uid ${old_id}); do /usr/bin/chgrp -R {{.Uid}} $i; done
+for i in $(find / -gid ${old_gid}); do /usr/bin/chgrp -R {{.Gid}} $i; done
+{{ end }}
+{{ if .HasVolumes }}
+chown -R {{.Uid}}:{{.Gid}} {{.Volumes}}
+{{ end }}
+exec su {{.ContainerUser}} -c -- {{.Command}}
+`))
+
+type OutboundNetworkIptables struct {
+	// The IP address for inbound source NAT
+	SourceAddr string
+	// The local IP and port to connect to
+	LocalAddr string
+	LocalPort Port
+	// The remote IP and port to connect to
+	DestAddr string
+	DestPort Port
+}
+
+var OutboundNetworkIptablesTemplate = template.Must(template.New("outbound_network.iptables").Parse(`
+*nat
+-A PREROUTING -d {{.LocalAddr}}/32 -p tcp -m tcp --dport {{.LocalPort}} -j DNAT --to-destination {{.DestAddr}}:{{.DestPort}}
+-A OUTPUT -d {{.LocalAddr}}/32 -p tcp -m tcp --dport {{.LocalPort}} -j DNAT --to-destination {{.DestAddr}}:{{.DestPort}}
+-A POSTROUTING -o eth0 -j SNAT --to-source {{.SourceAddr}}
+COMMIT
+`))
