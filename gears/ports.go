@@ -120,7 +120,7 @@ func (p portReservations) reuse(existing PortPairs) ([]Port, error) {
 	for i := range p {
 		res := &p[i]
 		if res.External == 0 {
-			res.External = AllocatePort()
+			res.External = allocatePort()
 			if res.External == 0 {
 				return unreserve, ErrAllocationFailed
 			}
@@ -222,7 +222,7 @@ const maxReadFailures = 3
 // available at a later time, but are unlikely to
 // come open now.
 //
-func AllocatePort() Port {
+func allocatePort() Port {
 	p := <-internalPortAllocator.ports
 	log.Printf("ports: Reserved port %d", p)
 	return p

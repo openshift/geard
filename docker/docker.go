@@ -1,9 +1,13 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -83,4 +87,29 @@ func GetImage(dockerSocket string, imageName string) (*docker.Image, error) {
 	} else {
 		return img, err
 	}
+}
+
+func ChildProcessForContainer(container *docker.Container) (int, error) {
+	//Parent pid (LXC or N-Spawn)
+	ppid := strconv.Itoa(container.State.Pid)
+
+	//Lookup any child of parent pid
+	files, _ := filepath.Glob(filepath.Join("/proc", "*", "stat"))
+	for _, file := range files {
+		bytes, err := ioutil.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		pids := strings.Split(string(bytes), " ")
+		if pids[3] == ppid {
+			child := strings.Split(file, "/")[2]
+			pid, err := strconv.Atoi(child)
+			if err != nil {
+				return 0, err
+			}
+			return pid, nil
+		}
+	}
+
+	return 0, errors.New(fmt.Sprintf("Unable to find child process for container", container.ID))
 }

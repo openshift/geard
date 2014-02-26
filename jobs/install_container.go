@@ -47,8 +47,9 @@ type InstallContainerJobRequest struct {
 }
 
 type ExtendedInstallContainerData struct {
-	Ports       gears.PortPairs
-	Environment *ExtendedEnvironmentData
+	Ports        gears.PortPairs
+	Environment  *ExtendedEnvironmentData
+	NetworkLinks *gears.NetworkLinks `json:"network_links"`
 }
 
 func dockerPortSpec(p gears.PortPairs) string {
@@ -109,6 +110,13 @@ func (j *InstallContainerJobRequest) Execute() {
 			return
 		}
 		environmentPath = env.Id.EnvironmentPathFor()
+	}
+
+	if j.Data.NetworkLinks != nil {
+		if errw := j.Data.NetworkLinks.Write(j.GearId.NetworkLinksPathFor(), false); errw != nil {
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
 	}
 
 	slice := "gear-small"

@@ -124,6 +124,12 @@ func apiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Res
 		}
 	}
 
+	if data.NetworkLinks != nil {
+		if err := data.NetworkLinks.Check(); err != nil {
+			return nil, err
+		}
+	}
+
 	return &jobs.InstallContainerJobRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},

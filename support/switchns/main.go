@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/docopt/docopt.go"
-	"github.com/smarterclayton/geard/support/switchns/docker"
+	"github.com/smarterclayton/geard/docker"
 	"github.com/smarterclayton/geard/support/switchns/namespace"
 	"os"
 	"os/user"
@@ -30,7 +30,6 @@ func main() {
 	uid := os.Getuid()
 
 	if uid == 0 {
-		var containerNsPID string
 		if arguments, err = docopt.Parse(usage, nil, true, "switchns", false); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -42,29 +41,31 @@ func main() {
 			env = (arguments["--env"]).([]string)
 		}
 
-		if containerNsPID, err = docker.MapContainerName(containerName); err != nil {
+		_, container, errc := docker.GetContainer("unix:///var/run/docker.sock", containerName, false)
+		if errc != nil {
 			fmt.Printf("Unable to locate container named %v", containerName)
 			os.Exit(3)
 		}
-		pid, err := strconv.Atoi(containerNsPID)
+		containerNsPID, err := docker.ChildProcessForContainer(container)
 		if err != nil {
-			fmt.Printf("Unable to find container PID %v: %v", containerName, err)
-			os.Exit(4)
+			fmt.Printf("Unable to locate process for container named %v", containerName)
+			os.Exit(3)
 		}
-		namespace.RunIn(string(containerName), pid, command, env)
+		namespace.RunIn(string(containerName), containerNsPID, command, env)
 	} else {
 		var u *user.User
-		var containerNsPID string
 		if u, err = user.LookupId(strconv.Itoa(uid)); err != nil {
 			os.Exit(2)
 		}
-		if containerNsPID, err = docker.MapContainerName(u.Username); err != nil {
+		_, container, err := docker.GetContainer("unix:///var/run/docker.sock", u.Username, false)
+		if err != nil {
+			fmt.Printf("Unable to locate container named %v", u.Username)
 			os.Exit(3)
 		}
-		pid, err := strconv.Atoi(containerNsPID)
+		containerNsPID, err := docker.ChildProcessForContainer(container)
 		if err != nil {
-			os.Exit(4)
+			os.Exit(3)
 		}
-		namespace.RunIn(u.Username, pid, []string{"/bin/bash","-l"}, []string{})
+		namespace.RunIn(u.Username, containerNsPID, []string{"/bin/bash", "-l"}, []string{})
 	}
 }
