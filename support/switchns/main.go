@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/docopt/docopt.go"
-	"github.com/smarterclayton/geard/support/switchns/docker"
+	"github.com/smarterclayton/geard/docker"
 	"github.com/smarterclayton/geard/support/switchns/namespace"
 	"os"
 	"os/user"
@@ -42,8 +42,12 @@ func main() {
 			env = (arguments["--env"]).([]string)
 		}
 
-		if containerNsPID, err = docker.MapContainerName(containerName); err != nil {
+		if container, err = docker.GetContainer("unix:///var/run/docker.sock", containerName, false); err != nil {
 			fmt.Printf("Unable to locate container named %v", containerName)
+			os.Exit(3)
+		}
+		if containerNsPID, err = docker.ChildProcessForContainer(container); err != nil {
+			fmt.Printf("Unable to locate process for container named %v", containerName)
 			os.Exit(3)
 		}
 		pid, err := strconv.Atoi(containerNsPID)
@@ -58,13 +62,17 @@ func main() {
 		if u, err = user.LookupId(strconv.Itoa(uid)); err != nil {
 			os.Exit(2)
 		}
-		if containerNsPID, err = docker.MapContainerName(u.Username); err != nil {
+		if container, err = docker.GetContainer("unix:///var/run/docker.sock", u.Username, false); err != nil {
+			fmt.Printf("Unable to locate container named %v", containerName)
+			os.Exit(3)
+		}
+		if containerNsPID, err = docker.ChildProcessForContainer(container); err != nil {
 			os.Exit(3)
 		}
 		pid, err := strconv.Atoi(containerNsPID)
 		if err != nil {
 			os.Exit(4)
 		}
-		namespace.RunIn(u.Username, pid, []string{"/bin/bash","-l"}, []string{})
+		namespace.RunIn(u.Username, pid, []string{"/bin/bash", "-l"}, []string{})
 	}
 }

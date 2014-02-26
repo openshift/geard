@@ -36,15 +36,17 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		return err
 	}
 
+	path := path.Join(gearId.HomePath(), "gear-init.sh")
 	u, _ := user.Lookup(gearId.LoginFor())
-	scriptFile, err := utils.OpenFileExclusive(path.Join(gearId.HomePath(), "gear-init.sh"), 0700)
+	file, err := utils.OpenFileExclusive(path, 0700)
 	if err != nil {
 		fmt.Errorf("gear init pre-start: Unable to open script file: ", err)
 		return err
 	}
-	defer scriptFile.Close()
+	defer file.Close()
+	log.Println("Writing gear-init.sh to ", path)
 
-	volumes := make([]string,0,10)
+	volumes := make([]string, 0, 10)
 	for volPath, _ := range imgInfo.Config.Volumes {
 		volumes = append(volumes, volPath)
 	}
@@ -54,7 +56,7 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		gearUser = "gear"
 	}
 
-	if erre := GearInitTemplate.Execute(scriptFile, GearInitScript{
+	if erre := GearInitTemplate.Execute(file, GearInitScript{
 		imgInfo.Config.User == "",
 		gearUser,
 		u.Uid,
@@ -64,8 +66,11 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		strings.Join(volumes, " "),
 	}); erre != nil {
 		log.Printf("gear init pre-start: Unable to output template: %+v", erre)
+		return erre
 	}
-	scriptFile.Close()
+	if err := file.Close(); err != nil {
+		return err
+	}
 
 	return nil
 }

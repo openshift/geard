@@ -33,7 +33,7 @@ ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear
 ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -a stdout -a stderr {{.PortSpec}} -rm "{{.Image}}"
 {{ end }}
 {{ if .Poststart }}
-ExecStartPost={{.GearBasePath}}/bin/gear init --post "{{.Gear}}" "{{.Image}}"
+ExecStartPost=-{{.GearBasePath}}/bin/gear init --post "{{.Gear}}" "{{.Image}}"
 {{ end }}
 
 [Install]

@@ -10,10 +10,17 @@ import (
 	"github.com/smarterclayton/geard/systemd"
 	"log"
 	"os"
-	"os/user"	
+	"os/user"
+	"strconv"
 	"strings"
 	"sync"
-	"strconv"
+)
+
+var (
+	daemon bool
+	conf   http.HttpConfiguration
+	pre    bool
+	post   bool
 )
 
 func run(cmd *cobra.Command, init func(jobs.JobResponse) jobs.Job) {
@@ -36,11 +43,6 @@ func fail(code int, format string, other ...interface{}) {
 	}
 	os.Exit(code)
 }
-
-var (
-	daemon bool
-	conf   http.HttpConfiguration
-)
 
 func Execute() {
 	gearCmd := &cobra.Command{
@@ -65,24 +67,24 @@ func Execute() {
 	}
 	gearCmd.AddCommand(cleanCmd)
 
-	createCmd := &cobra.Command{
+	installImageCmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install a docker image as a systemd service",
 		Long:  ``,
 		Run:   installImage,
 	}
-	gearCmd.AddCommand(createCmd)
+	gearCmd.AddCommand(installImageCmd)
 
 	initGearCmd := &cobra.Command{
 		Use:   "init",
 		Short: `Setup the environment for a gear`,
 		Long:  ``,
-		Run:   gearInit,
+		Run:   initGear,
 	}
-	initGearCmd.Flags().Bool("pre", false, "Perform pre-start initialization")
-	initGearCmd.Flags().Bool("post", false, "Perform post-start initialization")
+	initGearCmd.Flags().BoolVarP(&pre, "pre", "", false, "Perform pre-start initialization")
+	initGearCmd.Flags().BoolVarP(&post, "post", "", false, "Perform post-start initialization")
 	gearCmd.AddCommand(initGearCmd)
-	
+
 	genAuthKeysCmd := &cobra.Command{
 		Use:   "gen-auth-keys",
 		Short: `Generate .ssh/authorized_keys file for the specified gear id or (if gear id is ommitted) for the current gear user`,
@@ -149,12 +151,8 @@ func installImage(cmd *cobra.Command, args []string) {
 	})
 }
 
-func gearInit(cmd *cobra.Command, args []string) {
-	flags := cmd.Flags()
-	fPre := flags.Lookup("pre").Value.String() == "true"
-	fPost := flags.Lookup("post").Value.String() == "true"
-
-	if len(args) != 2 || !(fPre || fPost) || (fPre && fPost) {
+func initGear(cmd *cobra.Command, args []string) {
+	if len(args) != 2 || !(pre || post) || (pre && post) {
 		fail(1, "Valid arguments: <gear_id> <image_name> (--pre|--post)\n")
 	}
 	gearId, err := gears.NewIdentifier(args[0])
@@ -162,13 +160,13 @@ func gearInit(cmd *cobra.Command, args []string) {
 		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 	}
 
-	switch{
-	case fPre:
-		if err := gears.InitPreStart(conf.DockerSocket, gearId, args[1]); err != nil{
+	switch {
+	case pre:
+		if err := gears.InitPreStart(conf.DockerSocket, gearId, args[1]); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
-	case fPost:
-		if err := gears.InitPostStart(conf.DockerSocket, gearId); err != nil{
+	case post:
+		if err := gears.InitPostStart(conf.DockerSocket, gearId); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	}
@@ -178,25 +176,25 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 	if len(args) > 1 {
 		fail(1, "Valid arguments: [<gear_id>]\n")
 	}
-	
+
 	var u *user.User
 	var err error
-	
-	if(len(args) == 1){
+
+	if len(args) == 1 {
 		gearId, err := gears.NewIdentifier(args[0])
 		if err != nil {
 			fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 		}
 		if u, err = user.Lookup(gearId.LoginFor()); err != nil {
 			fail(2, "Unable to lookup user: %s", err.Error())
-		}		
-	}else{
+		}
+	} else {
 		if u, err = user.LookupId(strconv.Itoa(os.Getuid())); err != nil {
 			fail(2, "Unable to lookup user")
 		}
 	}
-	
-	if err := gears.GenerateAuthorizedKeys(conf.DockerSocket, u); err != nil{
+
+	if err := gears.GenerateAuthorizedKeys(conf.DockerSocket, u); err != nil {
 		fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 	}
 }

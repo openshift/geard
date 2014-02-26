@@ -33,7 +33,8 @@ func NewIdentifierFromUser(u *user.User) (Identifier, error) {
 }
 
 func (i Identifier) UnitPathFor() string {
-	return filepath.Join(config.GearBasePath(), "units", i.UnitNameFor())
+	base := utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "units"), string(i), "")
+	return filepath.Join(filepath.Dir(base), i.UnitNameFor())
 }
 
 func (i Identifier) VersionedUnitPathFor(suffix string) string {
@@ -58,6 +59,10 @@ func (i Identifier) RepositoryPathFor() string {
 
 func (i Identifier) EnvironmentPathFor() string {
 	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "env", "contents"), string(i), "")
+}
+
+func (i Identifier) NetworkLinksPathFor() string {
+	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "ports", "links"), string(i), "")
 }
 
 func (i Identifier) GitAccessPathFor(f utils.Fingerprint, write bool) string {

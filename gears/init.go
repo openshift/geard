@@ -247,13 +247,12 @@ func HasBinaries() bool {
 }
 
 func initializeBinaries() error {
+	srcDir := path.Dir(os.Args[0])
 	destDir := path.Join(config.GearBasePath(), "bin")
-	srcDir := path.Join("/", "opt", "geard", "bin")
 	if err := copyBinary(path.Join(srcDir, "switchns"), path.Join(destDir, "switchns"), true); err != nil {
 		return err
 	}
-	
-	srcDir = path.Join("/", "bin")	
+
 	if err := copyBinary(path.Join(srcDir, "gear"), path.Join(destDir, "gear"), false); err != nil {
 		return err
 	}
