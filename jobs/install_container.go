@@ -100,7 +100,7 @@ func (j *InstallContainerJobRequest) Execute() {
 	defer unit.Close()
 
 	existingPorts := gears.PortPairs{}
-	if existing, err := os.Open(unitPath); err == nil {
+	if existing, err := os.Open(unitDefinitionPath); err == nil {
 		existingPorts, err = gears.ReadPortsFromUnitFile(existing)
 		existing.Close()
 		if err != nil {
