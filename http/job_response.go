@@ -113,6 +113,8 @@ func (s *httpJobResponse) Failure(e jobs.JobError) {
 		code = http.StatusNotFound
 	case jobs.JobResponseInvalidRequest:
 		code = http.StatusBadRequest
+	case jobs.JobResponseRateLimit:
+		code = 429 // http.statusTooManyRequests
 	default:
 		code = http.StatusInternalServerError
 	}

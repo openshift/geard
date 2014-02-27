@@ -33,5 +33,5 @@ MemoryLimit=512M
 {{ if .Parent }}Slice={{.Parent}}{{ end }}
 
 [Install]
-WantedBy=gear.target
+WantedBy=gear.target,gear-active.target
 `))

@@ -37,6 +37,10 @@ func (i Identifier) UnitPathFor() string {
 	return filepath.Join(filepath.Dir(base), i.UnitNameFor())
 }
 
+func (i Identifier) UnitDefinitionPathFor() string {
+	return i.VersionedUnitPathFor("definition")
+}
+
 func (i Identifier) VersionedUnitPathFor(suffix string) string {
 	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "units"), string(i), suffix)
 }

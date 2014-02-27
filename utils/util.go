@@ -85,6 +85,21 @@ func AtomicWriteToContentPath(path string, mode os.FileMode, value []byte) error
 	return nil
 }
 
+func CreateFileOnce(path string, data []byte, perm os.FileMode) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm)
+	if os.IsExist(err) {
+		file.Close()
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	return err
+}
+
 func AtomicReplaceLink(from, target string) error {
 	newpath := from + ".replace.tmp"
 	if err := os.Link(from, newpath); err != nil {

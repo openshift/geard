@@ -9,9 +9,12 @@ var (
 	ErrSubscribeToUnit         = SimpleJobError{JobResponseError, "Unable to watch for the completion of this action."}
 	ErrRepositoryCreateFailed  = SimpleJobError{JobResponseError, "Unable to create the repository."}
 	ErrGearStartFailed         = SimpleJobError{JobResponseError, "Unable to start this gear."}
+	ErrGearStopFailed          = SimpleJobError{JobResponseError, "Unable to stop this gear."}
 	ErrEnvironmentUpdateFailed = SimpleJobError{JobResponseError, "Unable to update the specified environment."}
 	ErrListImagesFailed        = SimpleJobError{JobResponseError, "Unable to list docker images."}
 	ErrListContainersFailed    = SimpleJobError{JobResponseError, "Unable to list the installed containers."}
+	ErrStartRequestThrottled   = SimpleJobError{JobResponseRateLimit, "It has been too soon since the last request to start."}
+	ErrStopRequestThrottled    = SimpleJobError{JobResponseRateLimit, "It has been too soon since the last request to stop."}
 )
 
 const (
@@ -24,6 +27,7 @@ const (
 	JobResponseAlreadyExists
 	JobResponseNotFound
 	JobResponseInvalidRequest
+	JobResponseRateLimit
 )
 
 // An error with a code and message to user

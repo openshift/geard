@@ -15,6 +15,7 @@ import (
 type Systemd interface {
 	LoadUnit(name string) (string, error)
 	StartUnit(name string, mode string) (string, error)
+	StartUnitJob(name string, mode string) error
 	StopUnit(name string, mode string) (string, error)
 	ReloadUnit(name string, mode string) (string, error)
 	RestartUnit(name string, mode string) (string, error)
@@ -24,6 +25,7 @@ type Systemd interface {
 	StartTransientUnit(name string, mode string, properties ...dbus.Property) (string, error)
 	KillUnit(name string, signal int32)
 	GetUnitProperties(unit string) (map[string]interface{}, error)
+	SetUnitProperties(name string, runtime bool, properties ...dbus.Property) error
 	ListUnits() ([]dbus.UnitStatus, error)
 	EnableUnitFiles(files []string, runtime bool, force bool) (bool, []dbus.EnableUnitFileChange, error)
 	DisableUnitFiles(files []string, runtime bool) ([]dbus.DisableUnitFileChange, error)
@@ -43,39 +45,29 @@ func StartAndEnableUnit(systemd Systemd, name, path, mode string) (string, error
 		if _, err := os.Stat(path); err != nil {
 			return "", ErrNoSuchUnit
 		}
-		if _, _, err := systemd.EnableUnitFiles([]string{path}, false, true); err != nil {
+		if err := EnableAndReloadUnit(systemd, name, path); err != nil {
 			return "", err
-		}
-		if ok, err := IsUnitProperty(systemd, name, func(p map[string]interface{}) bool {
-			log.Printf("systemd: NeedDaemonReload %v", p["NeedDaemonReload"])
-			return p["LoadState"] == "not-found" || p["NeedDaemonReload"] == true
-		}); err == nil && ok {
-			// The daemon needs to be reloaded to pick up the changed configuration
-			log.Printf("systemd: Reloading daemon")
-			if errr := systemd.Reload(); errr != nil {
-				log.Printf("systemd: Contents changed on disk and reload failed, subsequent start will likely fail: %v", errr)
-			}
 		}
 		return systemd.StartUnit(name, mode)
 	}
 	return status, err
 }
 
-// May not be needed - we may want to leave daemon not reloaded?
-// func StartOrRefreshUnit(systemd Systemd, name, path, mode string) (string, error) {
-// 	properties, err := systemd.GetUnitProperties(name)
-// 	if IsNoSuchUnit(err) || IsLoadFailed(err) {
-// 		return StartAndEnableUnit(systemd, name, path, mode)
-// 	}
-// 	if properties["LoadState"] == "not-found" || properties["NeedDaemonReload"] == true {
-// 		// The daemon needs to be reloaded to pick up the changed configuration
-// 		log.Printf("systemd: Reloading daemon")
-// 		if errr := systemd.Reload(); errr != nil {
-// 			log.Printf("systemd: Contents changed on disk and reload failed, subsequent start will likely fail: %v", errr)
-// 		}
-// 	}
-// 	return systemd.StartUnit(name, mode)
-// }
+func EnableAndReloadUnit(systemd Systemd, name, path string) error {
+	if _, _, err := systemd.EnableUnitFiles([]string{path}, false, true); err != nil {
+		return err
+	}
+	if ok, err := IsUnitProperty(systemd, name, func(p map[string]interface{}) bool {
+		return p["LoadState"] == "not-found" || p["NeedDaemonReload"] == true
+	}); err == nil && ok {
+		// The daemon needs to be reloaded to pick up the changed configuration
+		log.Printf("systemd: Reloading daemon")
+		if errr := systemd.Reload(); errr != nil {
+			log.Printf("systemd: Contents changed on disk and reload failed, subsequent start will likely fail: %v", errr)
+		}
+	}
+	return nil
+}
 
 func SafeUnitName(r []byte) string {
 	return strings.Trim(base64.URLEncoding.EncodeToString(r), "=")

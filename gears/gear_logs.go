@@ -38,11 +38,13 @@ func WriteLogsTo(w io.Writer, unit string, until <-chan time.Time) error {
 	go func() {
 		_, err := io.Copy(w, stdout)
 		outch <- err
+		close(outch)
 	}()
 	prcch := make(chan error, 1)
 	go func() {
 		err := cmd.Wait()
 		prcch <- err
+		close(prcch)
 	}()
 
 	var err error
@@ -64,6 +66,13 @@ func WriteLogsTo(w io.Writer, unit string, until <-chan time.Time) error {
 
 	stdout.Close()
 	cmd.Process.Kill()
+
+	select {
+	case <-prcch:
+	}
+	select {
+	case <-outch:
+	}
 
 	return err
 }

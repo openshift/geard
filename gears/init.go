@@ -76,7 +76,8 @@ func verifyDataPaths() error {
 
 func initializeTargets() error {
 	for _, target := range [][]string{
-		[]string{"gear", "multi-user.target"},
+		[]string{"gear", ""},
+		[]string{"gear-active", "multi-user.target"},
 	} {
 		name, wants := target[0], target[1]
 		path := filepath.Join(config.GearBasePath(), "targets", name+".target")
