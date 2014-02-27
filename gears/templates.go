@@ -28,9 +28,10 @@ Type=simple
 {{ if .Slice }}Slice={{.Slice}}{{ end }}
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
 ExecStart=/bin/sh -c '/usr/bin/docker inspect -format="Reusing {{"{{.ID}}"}}" "gear-{{.Gear}}" 2>/dev/null && \
-                      exec /usr/bin/docker start -a "/gear-{{.Gear}}" || \
+                      exec /usr/bin/docker start -a "gear-{{.Gear}}" || \
                       exec /usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
-
+ExecReload=/usr/bin/docker stop "gear-{{.Gear}}"
+ExecReload=/usr/bin/docker rm "gear-{{.Gear}}"
 
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
