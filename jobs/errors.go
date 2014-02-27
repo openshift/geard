@@ -15,6 +15,7 @@ var (
 	ErrListContainersFailed    = SimpleJobError{JobResponseError, "Unable to list the installed containers."}
 	ErrStartRequestThrottled   = SimpleJobError{JobResponseRateLimit, "It has been too soon since the last request to start."}
 	ErrStopRequestThrottled    = SimpleJobError{JobResponseRateLimit, "It has been too soon since the last request to stop."}
+	ErrLinkContainersFailed    = SimpleJobError{JobResponseError, "Not all links could be set."}
 )
 
 const (
