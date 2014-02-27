@@ -187,14 +187,10 @@ func AtomicReserveExternalPorts(path string, ports, existing PortPairs) (PortPai
 	if errp != nil {
 		return ports, errp
 	}
-	log.Printf("ports: Reserved %v", reservations)
-	log.Printf("ports: Existing %v", existing)
 	unreserve, erru := reservations.reuse(existing)
 	if erru != nil {
 		return ports, erru
 	}
-	log.Printf("ports: Reusing %v", reservations)
-	log.Printf("ports: Unreserve %v", unreserve)
 
 	reserved := make(PortPairs, len(reservations))
 	for i := range reservations {
@@ -205,6 +201,9 @@ func AtomicReserveExternalPorts(path string, ports, existing PortPairs) (PortPai
 		return ports, err
 	}
 
+	if len(unreserve) > 0 {
+		log.Printf("ports: Releasing %v", unreserve)
+	}
 	for _, port := range unreserve {
 		_, direct := port.PortPathsFor()
 		os.Remove(direct) // REPAIR: reserved ports may not be properly released

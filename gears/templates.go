@@ -5,18 +5,42 @@ import (
 )
 
 type ContainerUnit struct {
-	Gear            Identifier
-	Image           string
-	PortSpec        string
-	Slice           string
-	User            string
-	ReqId           string
-	GearBasePath    string
-	HomeDir         string
-	EnvironmentPath string
-	Prestart        bool
-	Poststart       bool
+	Gear             Identifier
+	Image            string
+	PortSpec         string
+	Slice            string
+	Isolate          bool
+	User             string
+	ReqId            string
+	HomeDir          string
+	EnvironmentPath  string
+	ExecutablePath   string
+	IncludePath      string
+	DynamicWantsPath string
 }
+
+var SimpleContainerUnitTemplate = template.Must(template.New("simple_unit.service").Parse(`
+[Unit]
+Description=Gear container {{.Gear}}
+
+[Service]
+Type=simple
+{{ if .Slice }}Slice={{.Slice}}{{ end }}
+{{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
+ExecStart=/usr/bin/docker run \
+            -name "gear-{{.Gear}}" -rm \
+            -volumes-from "gear-{{.Gear}}" \
+            -a stdout -a stderr {{.PortSpec}} \
+            "{{.Image}}"
+
+{{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
+
+# Gear information
+X-GearId={{.Gear}}
+X-ContainerImage={{.Image}}
+X-ContainerUserId={{.User}}
+X-ContainerRequestId={{.ReqId}}
+`))
 
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
 [Unit]
@@ -24,20 +48,27 @@ Description=Gear container {{.Gear}}
 
 [Service]
 Type=simple
-Slice={{.Slice}}
+{{ if .Slice }}Slice={{.Slice}}{{ end }}
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
-{{ if .Prestart }}
-ExecStartPre={{.GearBasePath}}/bin/gear init --pre "{{.Gear}}" "{{.Image}}"
-ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -v {{.HomeDir}}/gear-init.sh:/.gear.init:ro -u root -a stdout -a stderr {{.PortSpec}} -rm "{{.Image}}" /.gear.init
+{{ if .Isolate }}
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Gear}}" "{{.Image}}"
+ExecStart=/usr/bin/docker run \
+            -name "gear-{{.Gear}}" -rm \
+            -volumes-from "gear-{{.Gear}}" \
+            -a stdout -a stderr {{.PortSpec}} \
+            -v {{.HomeDir}}/gear-init.sh:/.gear.init:ro -u root \
+            "{{.Image}}" /.gear.init
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Gear}}" "{{.Image}}"
 {{else}}
-ExecStart=/usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -a stdout -a stderr {{.PortSpec}} -rm "{{.Image}}"
-{{ end }}
-{{ if .Poststart }}
-ExecStartPost=-{{.GearBasePath}}/bin/gear init --post "{{.Gear}}" "{{.Image}}"
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Gear}}" "{{.Image}}"
+ExecStart=/usr/bin/docker run \
+            -name "gear-{{.Gear}}" -rm \
+            -volumes-from "gear-{{.Gear}}" \
+            -a stdout -a stderr {{.PortSpec}} \
+            "{{.Image}}"
 {{ end }}
 
-[Install]
-WantedBy=gear.target
+{{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
 # Gear information
 X-GearId={{.Gear}}

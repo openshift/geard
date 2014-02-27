@@ -2,6 +2,7 @@ package gears
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os/exec"
@@ -23,8 +24,14 @@ func ProcessLogsForUnit(unit string) (io.ReadCloser, error) {
 	return stdout, nil
 }
 
-func WriteLogsTo(w io.Writer, unit string, until <-chan time.Time) error {
-	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-f", "--unit", unit)
+func WriteLogsTo(w io.Writer, unit string, previous int, until <-chan time.Time) error {
+	var arg string
+	if previous == 0 {
+		arg = "--since=now"
+	} else {
+		arg = fmt.Sprintf("--since=-%d", previous)
+	}
+	cmd := exec.Command("/usr/bin/journalctl", arg, "-f", "--unit", unit)
 	stdout, errp := cmd.StdoutPipe()
 	if errp != nil {
 		return errp
@@ -38,11 +45,13 @@ func WriteLogsTo(w io.Writer, unit string, until <-chan time.Time) error {
 	go func() {
 		_, err := io.Copy(w, stdout)
 		outch <- err
+		close(outch)
 	}()
 	prcch := make(chan error, 1)
 	go func() {
 		err := cmd.Wait()
 		prcch <- err
+		close(prcch)
 	}()
 
 	var err error
@@ -64,6 +73,13 @@ func WriteLogsTo(w io.Writer, unit string, until <-chan time.Time) error {
 
 	stdout.Close()
 	cmd.Process.Kill()
+
+	select {
+	case <-prcch:
+	}
+	select {
+	case <-outch:
+	}
 
 	return err
 }

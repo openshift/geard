@@ -24,6 +24,11 @@ func (c *StubSystemd) StartUnit(name string, mode string) (string, error) {
 	return "done", nil
 }
 
+func (c *StubSystemd) StartUnitJob(name string, mode string) error {
+	log.Print("stub_systemd: StartUnitJob", name, mode)
+	return nil
+}
+
 func (c *StubSystemd) StopUnit(name string, mode string) (string, error) {
 	return "", errors.New("Not implemented")
 }
@@ -57,6 +62,10 @@ func (c *StubSystemd) KillUnit(name string, signal int32) {
 
 func (c *StubSystemd) GetUnitProperties(unit string) (map[string]interface{}, error) {
 	return nil, errors.New("Not implemented")
+}
+
+func (c *StubSystemd) SetUnitProperties(unit string, runtime bool, properties ...dbus.Property) error {
+	return errors.New("Not implemented")
 }
 
 func (c *StubSystemd) ListUnits() ([]dbus.UnitStatus, error) {

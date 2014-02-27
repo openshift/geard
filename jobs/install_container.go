@@ -10,6 +10,8 @@ import (
 	"github.com/smarterclayton/geard/utils"
 	"log"
 	"os"
+	"path/filepath"
+	"text/template"
 )
 
 // Installing a Container
@@ -47,9 +49,20 @@ type InstallContainerJobRequest struct {
 }
 
 type ExtendedInstallContainerData struct {
+	// A simple container is allowed to default to normal Docker
+	// options like -P.  If simple is true no user or home
+	// directory is created and SSH is not available
+	Simple bool
+	// Should this container be run in an isolated fashion
+	// (separate user, permission changes)
+	Isolate bool
+
 	Ports        gears.PortPairs
 	Environment  *ExtendedEnvironmentData
 	NetworkLinks *gears.NetworkLinks `json:"network_links"`
+
+	// Should the container be started by default
+	Started bool
 }
 
 func dockerPortSpec(p gears.PortPairs) string {
@@ -64,7 +77,8 @@ func dockerPortSpec(p gears.PortPairs) string {
 }
 
 func (j *InstallContainerJobRequest) Execute() {
-	env := j.Data.Environment
+	data := j.Data
+	env := data.Environment
 	if env != nil {
 		if err := env.Fetch(); err != nil {
 			j.Failure(ErrGearCreateFailed)
@@ -72,9 +86,12 @@ func (j *InstallContainerJobRequest) Execute() {
 		}
 	}
 
+	unitName := j.GearId.UnitNameFor()
 	unitPath := j.GearId.UnitPathFor()
+	unitDefinitionPath := j.GearId.UnitDefinitionPathFor()
 	unitVersionPath := j.GearId.VersionedUnitPathFor(j.RequestId.String())
-	unit, err := utils.CreateFileExclusive(unitVersionPath, 0666)
+
+	unit, err := utils.CreateFileExclusive(unitVersionPath, 0660)
 	if err != nil {
 		log.Print("job_create_container: Unable to open unit file: ", err)
 		j.Failure(ErrGearCreateFailed)
@@ -83,7 +100,7 @@ func (j *InstallContainerJobRequest) Execute() {
 	defer unit.Close()
 
 	existingPorts := gears.PortPairs{}
-	if existing, err := os.OpenFile(unitPath, os.O_RDONLY, 0660); err == nil {
+	if existing, err := os.Open(unitPath); err == nil {
 		existingPorts, err = gears.ReadPortsFromUnitFile(existing)
 		existing.Close()
 		if err != nil {
@@ -93,7 +110,7 @@ func (j *InstallContainerJobRequest) Execute() {
 		}
 	}
 
-	reserved, erra := gears.AtomicReserveExternalPorts(unitVersionPath, j.Data.Ports, existingPorts)
+	reserved, erra := gears.AtomicReserveExternalPorts(unitVersionPath, data.Ports, existingPorts)
 	if erra != nil {
 		log.Printf("job_create_container: Unable to reserve external ports: %+v", erra)
 		j.Failure(ErrGearCreateFailed)
@@ -101,6 +118,13 @@ func (j *InstallContainerJobRequest) Execute() {
 	}
 	if len(reserved) > 0 {
 		j.WritePendingSuccess("PortMapping", reserved)
+	}
+
+	var portSpec string
+	if data.Simple && len(reserved) == 0 {
+		portSpec = "-P"
+	} else {
+		portSpec = dockerPortSpec(reserved)
 	}
 
 	var environmentPath string
@@ -112,27 +136,39 @@ func (j *InstallContainerJobRequest) Execute() {
 		environmentPath = env.Id.EnvironmentPathFor()
 	}
 
-	if j.Data.NetworkLinks != nil {
-		if errw := j.Data.NetworkLinks.Write(j.GearId.NetworkLinksPathFor(), false); errw != nil {
+	if data.NetworkLinks != nil {
+		if errw := data.NetworkLinks.Write(j.GearId.NetworkLinksPathFor(), false); errw != nil {
 			j.Failure(ErrGearCreateFailed)
 			return
 		}
 	}
 
 	slice := "gear-small"
-	if erre := gears.ContainerUnitTemplate.Execute(unit, gears.ContainerUnit{
-		j.GearId,
-		j.Image,
-		dockerPortSpec(reserved),
-		slice + ".slice",
-		j.UserId,
-		j.RequestId.String(),
-		config.GearBasePath(),
-		j.GearId.HomePath(),
-		environmentPath,
-		gears.HasBinaries(),
-		gears.HasBinaries(),
-	}); erre != nil {
+	args := gears.ContainerUnit{
+		Gear:     j.GearId,
+		Image:    j.Image,
+		PortSpec: portSpec,
+		Slice:    slice + ".slice",
+
+		Isolate: data.Isolate,
+
+		User:  j.UserId,
+		ReqId: j.RequestId.String(),
+
+		HomeDir:         j.GearId.HomePath(),
+		EnvironmentPath: environmentPath,
+		ExecutablePath:  filepath.Join(config.GearBasePath(), "bin", "gear"),
+		IncludePath:     "",
+	}
+
+	var unitTemplate *template.Template
+	if data.Simple {
+		unitTemplate = gears.SimpleContainerUnitTemplate
+	} else {
+		unitTemplate = gears.ContainerUnitTemplate
+	}
+
+	if erre := unitTemplate.Execute(unit, args); erre != nil {
 		log.Printf("job_create_container: Unable to output template: %+v", erre)
 		j.Failure(ErrGearCreateFailed)
 		defer os.Remove(unitVersionPath)
@@ -151,26 +187,38 @@ func (j *InstallContainerJobRequest) Execute() {
 		return
 	}
 
-	if err := utils.AtomicReplaceLink(unitVersionPath, unitPath); err != nil {
+	if err := utils.AtomicReplaceLink(unitVersionPath, unitDefinitionPath); err != nil {
 		log.Printf("job_create_container: Failed to activate new unit: %+v", err)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
 
-	unitName := j.GearId.UnitNameFor()
-	status, err := systemd.StartAndEnableUnit(systemd.Connection(), unitName, unitPath, "fail")
-	if err != nil {
-		log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
-		j.Failure(ErrGearCreateFailed)
-		return
-	} else if status != "done" {
-		log.Printf("job_create_container: Unit did not return 'done': %s", status)
+	if errs := gears.WriteGearState(j.GearId, data.Started); errs != nil {
+		log.Print("job_create_container: Unable to write state file: ", err)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
 
+	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {
+		log.Printf("job_create_container: Could not enable gear %s: %v", unitName, err)
+		j.Failure(ErrGearCreateFailed)
+		return
+	}
+
+	if data.Started {
+		if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
+			log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
+	}
+
 	w := j.SuccessWithWrite(JobResponseAccepted, true)
-	fmt.Fprintf(w, "Gear %s is starting\n", j.GearId)
+	if data.Started {
+		fmt.Fprintf(w, "Gear %s is starting\n", j.GearId)
+	} else {
+		fmt.Fprintf(w, "Gear %s is installed\n", j.GearId)
+	}
 }
 
 func (j *InstallContainerJobRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
