@@ -98,6 +98,11 @@ func (c *Conn) StartUnit(name string, mode string) (string, error) {
 	return c.runJob("StartUnit", name, mode)
 }
 
+func (c *Conn) StartUnitJob(name string, mode string) error {
+	_, err := c.startJob("StartUnit", name, mode)
+	return err
+}
+
 // StopUnit is similar to StartUnit but stops the specified unit rather
 // than starting it.
 func (c *Conn) StopUnit(name string, mode string) (string, error) {
@@ -173,6 +178,17 @@ func (c *Conn) GetUnitProperties(unit string) (map[string]interface{}, error) {
 	}
 
 	return out, nil
+}
+
+// SetUnitProperties() may be used to modify certain unit properties at runtime.
+// Not all properties may be changed at runtime, but many resource management
+// settings (primarily those in systemd.cgroup(5)) may. The changes are applied
+// instantly, and stored on disk for future boots, unless runtime is true, in which
+// case the settings only apply until the next reboot. name is the name of the unit
+// to modify. properties are the settings to set, encoded as an array of property
+// name and value pairs.
+func (c *Conn) SetUnitProperties(name string, runtime bool, properties ...Property) error {
+	return c.sysobj.Call("SetUnitProperties", 0, name, runtime, properties).Store()
 }
 
 // ListUnits returns an array with all currently loaded units. Note that
