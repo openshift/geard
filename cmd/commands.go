@@ -37,7 +37,7 @@ func run(cmd *cobra.Command, init func(jobs.JobResponse) jobs.Job) {
 }
 
 func fail(code int, format string, other ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, other)
+	fmt.Fprintf(os.Stderr, format, other...)
 	if !strings.HasSuffix(format, "\n") {
 		fmt.Fprintln(os.Stderr)
 	}
@@ -74,6 +74,22 @@ func Execute() {
 		Run:   installImage,
 	}
 	gearCmd.AddCommand(installImageCmd)
+
+	startCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Invoke systemd to start a gear",
+		Long:  ``,
+		Run:   startContainer,
+	}
+	gearCmd.AddCommand(startCmd)
+
+	stopCmd := &cobra.Command{
+		Use:   "stop",
+		Short: "Invoke systemd to stop a gear",
+		Long:  ``,
+		Run:   stopContainer,
+	}
+	gearCmd.AddCommand(stopCmd)
 
 	initGearCmd := &cobra.Command{
 		Use:   "init",
@@ -129,7 +145,7 @@ func installImage(cmd *cobra.Command, args []string) {
 	gears.InitializeData()
 
 	if len(args) != 2 {
-		fail(1, "Valid arguments: <gear_id> <image_name>\n")
+		fail(1, "Valid arguments: <image_name> <id>\n")
 	}
 	imageId := args[0]
 	if imageId == "" {
@@ -139,14 +155,56 @@ func installImage(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fail(1, "Argument 2 must be a valid gear identifier: %s\n", err.Error())
 	}
+
 	run(cmd, func(r jobs.JobResponse) jobs.Job {
 		return &jobs.InstallContainerJobRequest{
-			r,
-			jobs.JobRequest{},
-			gearId,
-			"",
-			imageId,
-			&jobs.ExtendedInstallContainerData{},
+			JobResponse: r,
+			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
+			GearId:      gearId,
+			Image:       imageId,
+			Data:        &jobs.ExtendedInstallContainerData{},
+		}
+	})
+}
+
+func startContainer(cmd *cobra.Command, args []string) {
+	systemd.Require()
+
+	if len(args) != 1 {
+		fail(1, "Valid arguments: <id>\n")
+	}
+	gearId, err := gears.NewIdentifier(args[0])
+	if err != nil {
+		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
+	}
+
+	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", gearId.UnitNameFor())
+	run(cmd, func(r jobs.JobResponse) jobs.Job {
+		return &jobs.StartedContainerStateJobRequest{
+			JobResponse: r,
+			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
+			GearId:      gearId,
+		}
+	})
+}
+
+func stopContainer(cmd *cobra.Command, args []string) {
+	systemd.Require()
+
+	if len(args) != 1 {
+		fail(1, "Valid arguments: <id>\n")
+	}
+	gearId, err := gears.NewIdentifier(args[0])
+	if err != nil {
+		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
+	}
+
+	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", gearId.UnitNameFor())
+	run(cmd, func(r jobs.JobResponse) jobs.Job {
+		return &jobs.StoppedContainerStateJobRequest{
+			JobResponse: r,
+			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
+			GearId:      gearId,
 		}
 	})
 }
