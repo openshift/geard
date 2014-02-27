@@ -43,6 +43,7 @@ func newHttpApiHandler(conf HttpConfiguration, dispatch *dispatcher.Dispatcher) 
 		rest.Route{"GET", "/token/:token/images", jobRestHandler(dispatch, conf.apiListImages)},
 		rest.Route{"GET", "/token/:token/builds", jobRestHandler(dispatch, apiListBuilds)},
 		rest.Route{"GET", "/token/:token/containers", jobRestHandler(dispatch, apiListContainers)},
+		rest.Route{"PUT", "/token/:token/containers/links", jobRestHandler(dispatch, apiPutContainerLinks)},
 		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dispatch, apiPutContainer)},
 		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dispatch, apiGetContainerLog)},
 		rest.Route{"PUT", "/token/:token/container/:action", jobRestHandler(dispatch, apiPutContainerAction)},
@@ -53,7 +54,6 @@ func newHttpApiHandler(conf HttpConfiguration, dispatch *dispatcher.Dispatcher) 
 		rest.Route{"PUT", "/token/:token/build-image", jobRestHandler(dispatch, apiPutBuildImageAction)},
 		rest.Route{"PUT", "/token/:token/environment", jobRestHandler(dispatch, apiPutEnvironment)},
 		rest.Route{"PATCH", "/token/:token/environment", jobRestHandler(dispatch, apiPatchEnvironment)},
-		rest.Route{"PUT", "/token/:token/linkcontainers", jobRestHandler(dispatch, apiLinkContainers)},
 	)
 	return &handler
 }
@@ -322,12 +322,7 @@ func apiGetContent(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Respo
 	}, nil
 }
 
-func apiLinkContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	id, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-
+func apiPutContainerLinks(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
 	data := jobs.ExtendedLinkContainersData{}
 	if r.Body != nil {
 		dec := json.NewDecoder(limitedBodyReader(r))
@@ -336,10 +331,13 @@ func apiLinkContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.R
 		}
 	}
 
+	if err := data.Check(); err != nil {
+		return nil, err
+	}
+
 	return &jobs.LinkContainersJobRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
-		id,
 		&data,
 	}, nil
 }

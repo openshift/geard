@@ -1,68 +1,61 @@
 package jobs
 
 import (
-	"fmt"
-	//switchns "github.com/kraman/geard-switchns/switchns"
+	"errors"
 	"github.com/smarterclayton/geard/gears"
-	"log"
-	"os/exec"
-	"strconv"
 )
 
+type GearLink struct {
+	Gear         gears.Identifier
+	NetworkLinks gears.NetworkLinks `json:"network_links"`
+}
+
+func (g *GearLink) Check() error {
+	if g.Gear == "" {
+		return errors.New("Gear identifier may not be empty")
+	}
+	if _, err := gears.NewIdentifier(string(g.Gear)); err != nil {
+		return err
+	}
+	for i := range g.NetworkLinks {
+		if err := g.NetworkLinks[i].Check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type ExtendedLinkContainersData struct {
-	LocalIP    string
-	LocalPort  int
-	RemoteIP   string
-	RemotePort int
+	Links []GearLink
+}
+
+func (g *ExtendedLinkContainersData) Check() error {
+	if len(g.Links) == 0 {
+		return errors.New("One or more gear links must be specified.")
+	}
+	for i := range g.Links {
+		if err := g.Links[i].Check(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type LinkContainersJobRequest struct {
 	JobResponse
 	JobRequest
-	LocalGearId gears.Identifier
-	Data        *ExtendedLinkContainersData
-}
-
-func executeCommandInContainer(containerName string, args []string) (string, error) {
-	log.Printf("Executing %v in container %v\n", args, containerName)
-	//switchns.JoinContainer(containerName, args, nil)
-	cmdArgs := append([]string{containerName}, args...)
-	out, err := exec.Command("/var/lib/gears/bin/geard-switchns", cmdArgs...).Output()
-	if err != nil {
-		log.Printf("Failed to execute: %v\n", err)
-		return "", err
-	}
-	log.Printf("Output: %v\n", string(out))
-	return string(out), nil
+	Data *ExtendedLinkContainersData
 }
 
 func (j *LinkContainersJobRequest) Execute() {
-	containerName := fmt.Sprintf("gear-%v", j.LocalGearId)
-	log.Println(containerName)
-	cmdArgs := []string{"SNAT"}
-	ipaddr, err := executeCommandInContainer(containerName, cmdArgs)
-	if err != nil {
-		return
+	data := j.Data
+
+	for i := range data.Links {
+		if errw := data.Links[i].NetworkLinks.Write(data.Links[i].Gear.NetworkLinksPathFor(), false); errw != nil {
+			j.Failure(ErrLinkContainersFailed)
+			return
+		}
 	}
-	cmdArgs = []string{"iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0", "-j", "SNAT", "--to-source", ipaddr}
-	_, err = executeCommandInContainer(containerName, cmdArgs)
-	if err != nil {
-		return
-	}
-	cmdArgs = []string{"iptables", "-t", "nat", "-L"}
-	_, err = executeCommandInContainer(containerName, cmdArgs)
-	if err != nil {
-		return
-	}
-	dest := fmt.Sprintf("%v:%v", j.Data.RemoteIP, j.Data.RemotePort)
-	cmdArgs = []string{"iptables", "-t", "nat", "-A", "PREROUTING", "-d", j.Data.LocalIP, "-m", "tcp", "-p", "tcp", "--dport", strconv.Itoa(j.Data.LocalPort), "-j", "DNAT", "--to-destination", dest}
-	_, err = executeCommandInContainer(containerName, cmdArgs)
-	if err != nil {
-		return
-	}
-	cmdArgs = []string{"iptables", "-t", "nat", "-A", "OUTPUT", "-d", j.Data.LocalIP, "-m", "tcp", "-p", "tcp", "--dport", strconv.Itoa(j.Data.LocalPort), "-j", "DNAT", "--to-destination", dest}
-	_, err = executeCommandInContainer(containerName, cmdArgs)
-	if err != nil {
-		return
-	}
+
+	j.Success(JobResponseOk)
 }
