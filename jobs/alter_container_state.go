@@ -13,15 +13,24 @@ import (
 var rateLimitChanges uint64 = 400 * 1000 /* in microseconds */
 
 func inStateOrTooSoon(unit string, active bool, rateLimit uint64) (bool, bool) {
-	var prop string
-	if active {
-		prop = "Active"
-	} else {
-		prop = "Inactive"
-	}
 	if props, erru := systemd.Connection().GetUnitProperties(unit); erru == nil {
-		if props[prop+"State"] == prop {
-			return true, false
+		switch props["ActiveState"] {
+		case "active", "activating":
+			if active {
+				return true, false
+			}
+		case "inactive", "deactivating", "failed":
+			if !active {
+				return true, false
+			}
+		}
+		if arr, ok := props["Job"].([]interface{}); ok {
+			if i, ok := arr[0].(int); ok {
+				if i != 0 {
+					log.Printf("alter_container_state: There is an enqueued job against unit %s: %d", unit, i)
+					return true, false
+				}
+			}
 		}
 		now := time.Now().UnixNano() / 1000
 		if act, ok := props["ActiveEnterTimestamp"]; ok {
@@ -51,7 +60,10 @@ type StartedContainerStateJobRequest struct {
 }
 
 func (j *StartedContainerStateJobRequest) Execute() {
-	in_state, too_soon := inStateOrTooSoon(j.GearId.UnitNameFor(), true, rateLimitChanges)
+	unitName := j.GearId.UnitNameFor()
+	unitPath := j.GearId.UnitPathFor()
+
+	in_state, too_soon := inStateOrTooSoon(unitName, true, rateLimitChanges)
 	if in_state {
 		w := j.SuccessWithWrite(JobResponseAccepted, true)
 		fmt.Fprintf(w, "Gear %s starting\n", j.GearId)
@@ -68,19 +80,15 @@ func (j *StartedContainerStateJobRequest) Execute() {
 		return
 	}
 
-	status, err := systemd.StartAndEnableUnit(systemd.Connection(), j.GearId.UnitNameFor(), j.GearId.UnitPathFor(), "fail")
-
-	switch {
-	case systemd.IsNoSuchUnit(err):
-		j.Failure(ErrGearNotFound)
-		return
-	case err != nil:
-		log.Printf("job_alter_container_state: Gear did not start: %+v", err)
+	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {
+		log.Printf("job_alter_container_state: Could not enable gear %s: %v", unitName, err)
 		j.Failure(ErrGearStartFailed)
 		return
-	case status != "done":
-		log.Printf("job_alter_container_state: Unit did not return 'done' (%s)", status)
-		j.Failure(ErrStartRequestThrottled)
+	}
+
+	if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
+		log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
+		j.Failure(ErrGearStartFailed)
 		return
 	}
 
@@ -120,7 +128,7 @@ func (j *StoppedContainerStateJobRequest) Execute() {
 
 	ioerr := make(chan error)
 	go func() {
-		ioerr <- gears.WriteLogsTo(w, unitName, done)
+		ioerr <- gears.WriteLogsTo(w, unitName, 0, done)
 	}()
 
 	joberr := make(chan error)
