@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"io"
 	"strings"
@@ -49,6 +50,12 @@ type RequestIdentifier []byte
 
 func (r RequestIdentifier) String() string {
 	return strings.Trim(base64.URLEncoding.EncodeToString(r), "=")
+}
+
+func NewRequestIdentifier() RequestIdentifier {
+	i := make(RequestIdentifier, 16)
+	rand.Read(i)
+	return i
 }
 
 type JobRequest struct {

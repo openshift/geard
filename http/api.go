@@ -1,7 +1,6 @@
 package http
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"github.com/smarterclayton/geard/config"
@@ -367,13 +366,7 @@ func extractToken(segment string, r *http.Request) (token *TokenData, id jobs.Re
 	}
 
 	if token.I == "" {
-		i := make(jobs.RequestIdentifier, 16)
-		_, errr := rand.Read(i)
-		if errr != nil {
-			rerr = &apiRequestError{errr, "Unable to generate token for this request: " + errr.Error(), http.StatusBadRequest}
-			return
-		}
-		id = i
+		id = jobs.NewRequestIdentifier()
 	} else {
 		i, errr := token.RequestId()
 		if errr != nil {
