@@ -200,14 +200,28 @@ The on disk structure of geard is exploratory at the moment.  The major componen
       All content is located under this root
 
       units/
-        gear-<gearid>.service  # systemd unit file
+        ab/
+          gear-abcdef.service  # systemd unit file that points to the definition
+          abcdef/
+            definition         # hardlink with the full spec for this service
+            <requestid>        # a particular version of the unit file.
 
-        A gear is considered present on this system if a service file exists in this directory.  Creation attempts
-        to exclusively create this file and will fail otherwise.
+        A gear is considered present on this system if a service file exists inside the namespaced gear directory.
 
         The unit file is "enabled" in systemd (symlinked to systemd's unit directory) upon creation, and "disabled"
-        (unsymlinked) on the stop operation.  Disabled services are not automatically started on reboot.  The "start"
-        operation against a gear will reenable the service.
+        (unsymlinked) on the remove operation.  The definition can be updated atomically (write new definition,
+        update hardlink) when a new version of the gear is deployed to the system.
+
+      targets/
+        gear.target         # default target
+        gear-active.target  # active target
+
+        All gears are assigned to one of these two targets - on create or start, they have
+        "WantedBy=gear-active.target".  If a gear is stopped via the API it is altered to be 
+        "WantedBy=gear.target".  In this fashion the disk structure for each unit reflects whether the gear
+        should be started on reboot vs. being explicitly idled.  Also, assuming the /var/lib/gears directory
+        is an attached disk, on node recovery each *.service file is enabled with systemd and then the
+        "gear-active.target" can be started.
 
       slices/
         gear.slice        # default slice
@@ -230,26 +244,27 @@ The on disk structure of geard is exploratory at the moment.  The major componen
         TBD (reserved for gear unique volumes)
 
       ports/
-        descriptions/
+        links/
           3f/
-            3fabc98341ac3fe...24  # text file describing internal->external ports
+            3fabc98341ac3fe...24  # text file describing internal->external links to other networks
 
-            Each entry is a text file with one line per port pair, internal port first, a tab, then external port.
-            These files are symlinked from the interfaces directory.
-
-            A gear that has no port description file should have no ports exposed.
+            Each gear has one file with one line per network link, internal port first, a tab, then 
+            external port, then external host IP / DNS.
+            
+            On startup, gear init --post attempts to convert this file to a set of iptables rules in
+            the container to outbound traffic.
 
         interfaces/
           1/
             49/
-              4900  # softlink to a port description file for a gear
+              4900  # softlink to the gear's unit file
 
               To allocate a port, the daemon scans a block (49) of 100 ports for a set of free ports.  If no ports
               are found, it continues to the next block.  Currently the daemon starts at the low end of the port
               range and walks disk until it finds the first free port.  Worst case is that the daemon would do
               many directory reads (30-50) until it finds a gap.
 
-              To remove a gear, the port description is deleted, and then any broken softlinks can be deleted.
+              To remove a gear, the unit file is deleted, and then any broken softlinks can be deleted.
 
               The first subdirectory represents an interface, to allow future expansion of the external IP space
               onto multiple devices, or to allow multiple external ports to be bound to the same IP (for VPC)
