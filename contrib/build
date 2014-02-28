@@ -4,6 +4,6 @@ go get ./...
 go build -o gear .
 go install ./support/switchns
 
-sudo mkdir -p /opt/geard/bin
-sudo /usr/bin/cp -f $GOPATH/bin/switchns /opt/geard/bin
+sudo /usr/bin/cp -f $GOPATH/bin/switchns .
 sudo /usr/bin/cp -f gear /usr/bin/
+

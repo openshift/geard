@@ -74,7 +74,13 @@ func (j *StartedContainerStateJobRequest) Execute() {
 		return
 	}
 
-	if errs := gears.WriteGearState(j.GearId, true); errs != nil {
+	isSocketActivated, _, err := gears.SocketActivation(j.GearId)
+	if err != nil {
+		log.Print("job_alter_container_state: Error while parsing unit file: ", err)
+		j.Failure(ErrGearStartFailed)
+		return
+	}
+	if errs := gears.WriteGearState(j.GearId, true, isSocketActivated); errs != nil {
 		log.Print("job_alter_container_state: Unable to write state file: ", errs)
 		j.Failure(ErrGearStartFailed)
 		return
@@ -115,7 +121,14 @@ func (j *StoppedContainerStateJobRequest) Execute() {
 		return
 	}
 
-	if errs := gears.WriteGearState(j.GearId, false); errs != nil {
+	var err error
+	isSocketActivated, _, err := gears.SocketActivation(j.GearId)
+	if err != nil {
+		log.Print("job_alter_container_state: Error while parsing unit file: ", err)
+		j.Failure(ErrGearStartFailed)
+		return
+	}
+	if errs := gears.WriteGearState(j.GearId, false, isSocketActivated); errs != nil {
 		log.Print("job_alter_container_state: Unable to write state file: ", errs)
 		j.Failure(ErrGearStopFailed)
 		return
@@ -140,7 +153,6 @@ func (j *StoppedContainerStateJobRequest) Execute() {
 		joberr <- err
 	}()
 
-	var err error
 	select {
 	case err = <-ioerr:
 		log.Printf("job_alter_container_state: Client hung up")

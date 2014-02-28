@@ -8,7 +8,6 @@ import (
 	"github.com/smarterclayton/geard/utils"
 	"log"
 	"os"
-	pathlib "path"
 )
 
 type CreateKeysJobRequest struct {
@@ -128,8 +127,10 @@ func (j *CreateKeysJobRequest) Execute() {
 			if err := os.Symlink(path, p.Id.SshAccessPathFor(fingerprint)); err != nil && !os.IsExist(err) {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
 			}
-			if err := os.Remove(pathlib.Join(p.Id.HomePath(), ".ssh", "authorized_keys")); err != nil {
-				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+			if _, err := os.Stat(p.Id.AuthKeysPathFor()); err == nil {
+				if err := os.Remove(p.Id.AuthKeysPathFor()); err != nil {
+					failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+				}
 			}
 		}
 		for k := range j.Data.Repositories {

@@ -45,12 +45,29 @@ func (i Identifier) VersionedUnitPathFor(suffix string) string {
 	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "units"), string(i), suffix)
 }
 
-func (i Identifier) LoginFor() string {
-	return fmt.Sprintf("gear-%s", i)
-}
-
 func (i Identifier) UnitNameFor() string {
 	return fmt.Sprintf("gear-%s.service", i)
+}
+
+func (i Identifier) SocketUnitPathFor() string {
+	base := utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "sockets"), string(i), "")
+	return filepath.Join(filepath.Dir(base), i.SocketUnitNameFor())
+}
+
+func (i Identifier) SocketUnitDefinitionPathFor() string {
+	return i.VersionedSocketUnitPathFor("definition")
+}
+
+func (i Identifier) VersionedSocketUnitPathFor(suffix string) string {
+	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "sockets"), string(i), suffix)
+}
+
+func (i Identifier) SocketUnitNameFor() string {
+	return fmt.Sprintf("gear-%s.socket", i)
+}
+
+func (i Identifier) LoginFor() string {
+	return fmt.Sprintf("gear-%s", i)
 }
 
 func (i Identifier) UnitNameForJob() string {
@@ -93,6 +110,10 @@ func (i Identifier) BaseHomePath() string {
 
 func (i Identifier) HomePath() string {
 	return utils.IsolateContentPathWithPerm(filepath.Join(config.GearBasePath(), "home"), string(i), "home", 0775)
+}
+
+func (i Identifier) AuthKeysPathFor() string {
+	return filepath.Join(i.HomePath(), ".ssh", "authorized_keys")
 }
 
 func (i Identifier) PortDescriptionPathFor() string {

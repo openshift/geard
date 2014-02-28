@@ -5,18 +5,21 @@ import (
 )
 
 type ContainerUnit struct {
-	Gear             Identifier
-	Image            string
-	PortSpec         string
-	Slice            string
-	Isolate          bool
-	User             string
-	ReqId            string
-	HomeDir          string
-	EnvironmentPath  string
-	ExecutablePath   string
-	IncludePath      string
-	DynamicWantsPath string
+	Gear                 Identifier
+	Image                string
+	PortSpec             string
+	Slice                string
+	Isolate              bool
+	User                 string
+	ReqId                string
+	HomeDir              string
+	EnvironmentPath      string
+	ExecutablePath       string
+	IncludePath          string
+	DynamicWantsPath     string
+	PortPairs            PortPairs
+	SocketUnitName       string
+	SocketActivationType string
 }
 
 var SimpleContainerUnitTemplate = template.Must(template.New("simple_unit.service").Parse(`
@@ -75,16 +78,63 @@ X-GearId={{.Gear}}
 X-ContainerImage={{.Image}}
 X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
+X-GearType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
+X-SocketActivation=disabled
+`))
+
+var ContainerSocketActivatedUnitTemplate = template.Must(template.New("unit.service").Parse(`
+[Unit]
+Description=Gear container {{.Gear}}
+BindsTo={{.SocketUnitName}}
+
+[Service]
+Type=simple
+{{ if .Slice }}Slice={{.Slice}}{{ end }}
+{{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Gear}}" "{{.Image}}"
+ExecStart=/usr/bin/docker run \
+            -name "gear-{{.Gear}}" \
+            -volumes-from "gear-{{.Gear}}" \
+            -a stdout -a stderr \
+            --env LISTEN_FDS \
+            -v {{.HomeDir}}/gear-init.sh:/.gear.init:ro \
+            -v /usr/sbin/systemd-socket-proxyd:/usr/sbin/systemd-socket-proxyd:ro \
+            -u root -f -rm \
+            "{{.Image}}" /.gear.init
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Gear}}" "{{.Image}}"
+
+{{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
+
+# Gear information
+X-GearId={{.Gear}}
+X-ContainerImage={{.Image}}
+X-ContainerUserId={{.User}}
+X-ContainerRequestId={{.ReqId}}
+X-GearType=isolated
+X-SocketActivated={{.SocketActivationType}}
+`))
+
+var ContainerSocketTemplate = template.Must(template.New("unit.socket").Parse(`
+[Unit]
+Description=Gear socket {{.Gear}}
+
+[Socket]
+{{range .PortPairs}}ListenStream={{.External}}{{end}}
+
+[Install]
+WantedBy=sockets.target
 `))
 
 type GearInitScript struct {
-	CreateUser    bool
-	ContainerUser string
-	Uid           string
-	Gid           string
-	Command       string
-	HasVolumes    bool
-	Volumes       string
+	CreateUser     bool
+	ContainerUser  string
+	Uid            string
+	Gid            string
+	Command        string
+	HasVolumes     bool
+	Volumes        string
+	PortPairs      PortPairs
+	UseSocketProxy bool
 }
 
 var GearInitTemplate = template.Must(template.New("gear-init.sh").Parse(`#!/bin/bash
@@ -101,6 +151,9 @@ for i in $(find / -gid ${old_gid}); do /usr/bin/chgrp -R {{.Gid}} $i; done
 {{ end }}
 {{ if .HasVolumes }}
 chown -R {{.Uid}}:{{.Gid}} {{.Volumes}}
+{{ end }}
+{{ if .UseSocketProxy }}
+bash -c 'LISTEN_PID=$$ exec /usr/sbin/systemd-socket-proxyd {{ range .PortPairs }}127.0.0.1:{{ .Internal }}{{ end }}' &
 {{ end }}
 exec su {{.ContainerUser}} -c -- {{.Command}}
 `))

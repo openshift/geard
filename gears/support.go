@@ -24,6 +24,12 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 	var err error
 	var imgInfo *d.Image
 
+	_, socketActivationType, err := SocketActivation(gearId)
+	if err != nil {
+		fmt.Printf("init_pre_start: Error while parsing unit file: %v\n", err)
+		return err
+	}
+
 	if _, err = user.Lookup(gearId.LoginFor()); err != nil {
 		if _, ok := err.(user.UnknownUserError); !ok {
 			return err
@@ -37,11 +43,15 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		return err
 	}
 
+	if err := os.MkdirAll(gearId.HomePath(), 0700) ; err != nil {
+		return err
+	}
+	
 	path := path.Join(gearId.HomePath(), "gear-init.sh")
 	u, _ := user.Lookup(gearId.LoginFor())
 	file, err := utils.OpenFileExclusive(path, 0700)
 	if err != nil {
-		fmt.Errorf("gear init pre-start: Unable to open script file: ", err)
+		fmt.Printf("gear init pre-start: Unable to open script file: %v\n", err)
 		return err
 	}
 	defer file.Close()
@@ -56,6 +66,12 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		gearUser = "gear"
 	}
 
+	ports, err := GetExistingPorts(gearId)
+	if err != nil {
+		fmt.Printf("gear init pre-start: Unable to retrieve port mapping\n")
+		return err
+	}
+
 	if erre := GearInitTemplate.Execute(file, GearInitScript{
 		imgInfo.Config.User == "",
 		gearUser,
@@ -64,8 +80,10 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		strings.Join(imgInfo.Config.Cmd, " "),
 		len(volumes) > 0,
 		strings.Join(volumes, " "),
+		ports,
+		socketActivationType == "proxied",
 	}); erre != nil {
-		log.Printf("gear init pre-start: Unable to output template: %+v", erre)
+		fmt.Printf("gear init pre-start: Unable to output template: ", erre)
 		return erre
 	}
 	if err := file.Close(); err != nil {
@@ -144,18 +162,20 @@ func generateAuthorizedKeys(id Identifier, u *user.User, container *d.Container,
 	var srcFile *os.File
 
 	var authorizedKeysPortSpec string
-	if ipAddr, ports, err := getContainerPorts(container); err != nil {
+	ports, err := GetExistingPorts(id)
+	if err != nil {
+		fmt.Errorf("gear init pre-start: Unable to retrieve port mapping")
 		return err
-	} else {
-		for _, p := range ports {
-			authorizedKeysPortSpec += fmt.Sprintf("permitopen=\"%v:%v\",", ipAddr, p)
-		}
+	}
+
+	for _, port := range ports {
+		authorizedKeysPortSpec += fmt.Sprintf("permitopen=\"127.0.0.1:%v\",", port.External)
 	}
 
 	sshKeys, err = filepath.Glob(path.Join(id.SshAccessBasePath(), "*"))
 	os.MkdirAll(id.HomePath(), 0700)
 	os.Mkdir(path.Join(id.HomePath(), ".ssh"), 0700)
-	authKeysPath := path.Join(id.HomePath(), ".ssh", "authorized_keys")
+	authKeysPath := id.AuthKeysPathFor()
 	if _, err = os.Stat(authKeysPath); err != nil {
 		if !os.IsNotExist(err) {
 			return err

@@ -46,7 +46,19 @@ func (p PortPairs) ToHeader() string {
 
 type portReservations []portReservation
 
-func ReadPortsFromUnitFile(r io.Reader) (PortPairs, error) {
+func GetExistingPorts(gearId Identifier) (PortPairs, error) {
+	var existing *os.File
+	var err error
+
+	if existing, err = os.Open(gearId.UnitDefinitionPathFor()); err != nil {
+		return nil, err
+	}
+
+	defer existing.Close()
+	return readPortsFromUnitFile(existing)
+}
+
+func readPortsFromUnitFile(r io.Reader) (PortPairs, error) {
 	pairs := make(PortPairs, 0, 4)
 	scan := bufio.NewScanner(r)
 	for scan.Scan() {
@@ -67,6 +79,36 @@ func ReadPortsFromUnitFile(r io.Reader) (PortPairs, error) {
 		return pairs, scan.Err()
 	}
 	return pairs, nil
+}
+
+func SocketActivation(gearId Identifier) (bool, string, error) {
+	var err error
+	var existing *os.File
+	if existing, err = os.Open(gearId.UnitDefinitionPathFor()); err != nil {
+		return false, "disabled", err
+	}
+
+	defer existing.Close()
+	return readSocketActivationFromUnitFile(existing)
+}
+
+func readSocketActivationFromUnitFile(r io.Reader) (bool, string, error) {
+	scan := bufio.NewScanner(r)
+	for scan.Scan() {
+		line := scan.Text()
+		if strings.HasPrefix(line, "X-SocketActivated=") {
+			sockActStr := strings.TrimPrefix(line, "X-SocketActivated=")
+			var val string
+			if _, err := fmt.Sscanf(sockActStr, "%s", &val); err != nil {
+				return false, "disabled", err
+			}
+			return val != "disabled", val, nil
+		}
+	}
+	if scan.Err() != nil {
+		return false, "disabled", scan.Err()
+	}
+	return false, "disabled", nil
 }
 
 func (p PortPairs) WritePortsToUnitFile(w io.Writer) error {

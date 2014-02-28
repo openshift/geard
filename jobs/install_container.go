@@ -56,6 +56,13 @@ type ExtendedInstallContainerData struct {
 	// Should this container be run in an isolated fashion
 	// (separate user, permission changes)
 	Isolate bool
+	// Should this container be run in a socket activated fashion
+	// Implies Isolated (separate user, permission changes,
+	// no port forwarding, socket activated).
+	// If UseSocketProxy then socket files are proxies to the
+	// appropriate port
+	SocketActivation bool `json:"socket_activation"`
+	SkipSocketProxy  bool `json:"dont_proxy_socket"`
 
 	Ports        gears.PortPairs
 	Environment  *ExtendedEnvironmentData
@@ -85,11 +92,31 @@ func (j *InstallContainerJobRequest) Execute() {
 			return
 		}
 	}
+	
+	var socketActivationType string
+	if data.SocketActivation && len(data.Ports) == 0 {
+		data.SocketActivation = false
+		data.Isolate = true
+	}
+	if data.SocketActivation {
+		socketActivationType = "enabled"
+		if !data.SkipSocketProxy {
+			socketActivationType = "proxied"
+		}
+	}
 
 	unitName := j.GearId.UnitNameFor()
 	unitPath := j.GearId.UnitPathFor()
 	unitDefinitionPath := j.GearId.UnitDefinitionPathFor()
 	unitVersionPath := j.GearId.VersionedUnitPathFor(j.RequestId.String())
+
+	socketUnitName := j.GearId.SocketUnitNameFor()
+	socketUnitPath := j.GearId.SocketUnitPathFor()
+	socketUnitDefinitionPath := j.GearId.SocketUnitDefinitionPathFor()
+	socketUnitVersionPath := j.GearId.VersionedSocketUnitPathFor(j.RequestId.String())
+
+	var socketUnit *os.File
+	var err error
 
 	unit, err := utils.CreateFileExclusive(unitVersionPath, 0660)
 	if err != nil {
@@ -99,11 +126,19 @@ func (j *InstallContainerJobRequest) Execute() {
 	}
 	defer unit.Close()
 
-	existingPorts := gears.PortPairs{}
-	if existing, err := os.Open(unitDefinitionPath); err == nil {
-		existingPorts, err = gears.ReadPortsFromUnitFile(existing)
-		existing.Close()
+	if data.SocketActivation {
+		socketUnit, err = utils.CreateFileExclusive(socketUnitVersionPath, 0660)
 		if err != nil {
+			log.Print("job_create_container: Unable to open socket file: ", err)
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
+		defer socketUnit.Close()
+	}
+
+	existingPorts, err := gears.GetExistingPorts(j.GearId)
+	if err != nil {
+		if _, ok := err.(*os.PathError); !ok {
 			log.Print("job_create_container: Unable to read existing ports from file: ", err)
 			j.Failure(ErrGearCreateFailed)
 			return
@@ -159,12 +194,19 @@ func (j *InstallContainerJobRequest) Execute() {
 		EnvironmentPath: environmentPath,
 		ExecutablePath:  filepath.Join(config.GearBasePath(), "bin", "gear"),
 		IncludePath:     "",
+
+		PortPairs:            reserved,
+		SocketUnitName:       socketUnitName,
+		SocketActivationType: socketActivationType,
 	}
 
 	var unitTemplate *template.Template
-	if data.Simple {
+	switch {
+	case data.Simple:
 		unitTemplate = gears.SimpleContainerUnitTemplate
-	} else {
+	case data.SocketActivation:
+		unitTemplate = gears.ContainerSocketActivatedUnitTemplate
+	default:
 		unitTemplate = gears.ContainerUnitTemplate
 	}
 
@@ -187,13 +229,38 @@ func (j *InstallContainerJobRequest) Execute() {
 		return
 	}
 
+	var socketTemplate *template.Template
+	switch {
+	case data.SocketActivation:
+		socketTemplate = gears.ContainerSocketTemplate
+	default:
+		socketTemplate = nil
+	}
+
+	if data.SocketActivation {
+		if erre := socketTemplate.Execute(socketUnit, args); erre != nil {
+			log.Printf("job_create_container: Unable to output socket template: %+v", erre)
+			j.Failure(ErrGearCreateFailed)
+			defer os.Remove(unitVersionPath)
+			defer os.Remove(socketUnitVersionPath)
+			return
+		}
+		if err := socketUnit.Close(); err != nil {
+			log.Printf("job_create_container: Unable to finish writing socket: %+v", err)
+			j.Failure(ErrGearCreateFailed)
+			defer os.Remove(unitVersionPath)
+			defer os.Remove(socketUnitVersionPath)
+			return
+		}
+	}
+
 	if err := utils.AtomicReplaceLink(unitVersionPath, unitDefinitionPath); err != nil {
 		log.Printf("job_create_container: Failed to activate new unit: %+v", err)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
 
-	if errs := gears.WriteGearState(j.GearId, data.Started); errs != nil {
+	if errs := gears.WriteGearState(j.GearId, data.Started, data.SocketActivation); errs != nil {
 		log.Print("job_create_container: Unable to write state file: ", err)
 		j.Failure(ErrGearCreateFailed)
 		return
@@ -203,6 +270,28 @@ func (j *InstallContainerJobRequest) Execute() {
 		log.Printf("job_create_container: Could not enable gear %s: %v", unitName, err)
 		j.Failure(ErrGearCreateFailed)
 		return
+	}
+
+	if data.SocketActivation {
+		if err := utils.AtomicReplaceLink(socketUnitVersionPath, socketUnitDefinitionPath); err != nil {
+			log.Printf("job_create_container: Failed to activate new socket: %+v", err)
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
+
+		if len(reserved) != 0 {
+			if err := systemd.EnableAndReloadUnit(systemd.Connection(), socketUnitName, socketUnitPath); err != nil {
+				log.Printf("job_create_container: Could not enable gear socket %s: %v", socketUnitName, err)
+				j.Failure(ErrGearCreateFailed)
+				return
+			}
+
+			if err := systemd.Connection().StartUnitJob(socketUnitName, "fail"); err != nil {
+				log.Printf("job_create_container: Could not start gear socket %s: %v", socketUnitName, err)
+				j.Failure(ErrGearCreateFailed)
+				return
+			}
+		}
 	}
 
 	if data.Started {
