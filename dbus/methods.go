@@ -109,6 +109,11 @@ func (c *Conn) StopUnit(name string, mode string) (string, error) {
 	return c.runJob("StopUnit", name, mode)
 }
 
+func (c *Conn) StopUnitJob(name string, mode string) error {
+	_, err := c.startJob("StopUnit", name, mode)
+	return err
+}
+
 // ReloadUnit reloads a unit.  Reloading is done only if the unit is already running and fails otherwise.
 func (c *Conn) ReloadUnit(name string, mode string) (string, error) {
 	return c.runJob("ReloadUnit", name, mode)
