@@ -46,6 +46,7 @@ func newHttpApiHandler(conf HttpConfiguration, dispatch *dispatcher.Dispatcher) 
 		rest.Route{"PUT", "/token/:token/containers/links", jobRestHandler(dispatch, apiPutContainerLinks)},
 		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dispatch, apiPutContainer)},
 		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dispatch, apiGetContainerLog)},
+		rest.Route{"GET", "/token/:token/container/ports", jobRestHandler(dispatch, apiGetContainerPorts)},
 		rest.Route{"PUT", "/token/:token/container/:action", jobRestHandler(dispatch, apiPutContainerAction)},
 		rest.Route{"PUT", "/token/:token/repository", jobRestHandler(dispatch, apiPutRepository)},
 		rest.Route{"PUT", "/token/:token/keys", jobRestHandler(dispatch, apiPutKeys)},
@@ -157,6 +158,19 @@ func apiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.
 		return nil, errg
 	}
 	return &jobs.ContainerLogJobRequest{
+		NewHttpJobResponse(w.ResponseWriter, false),
+		jobs.JobRequest{reqid},
+		gearId,
+		token.U,
+	}, nil
+}
+
+func apiGetContainerPorts(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
+	}
+	return &jobs.ContainerPortsJobRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		gearId,
