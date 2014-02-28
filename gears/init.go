@@ -77,6 +77,7 @@ func verifyDataPaths() error {
 func initializeTargets() error {
 	for _, target := range [][]string{
 		[]string{"gear", ""},
+		[]string{"gear-sockets", ""},
 		[]string{"gear-active", "multi-user.target"},
 	} {
 		name, wants := target[0], target[1]

@@ -157,7 +157,7 @@ func installImage(cmd *cobra.Command, args []string) {
 	}
 
 	run(cmd, func(r jobs.JobResponse) jobs.Job {
-		return &jobs.InstallContainerJobRequest{
+		return &jobs.InstallContainerRequest{
 			JobResponse: r,
 			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
 			GearId:      gearId,
@@ -180,7 +180,7 @@ func startContainer(cmd *cobra.Command, args []string) {
 
 	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", gearId.UnitNameFor())
 	run(cmd, func(r jobs.JobResponse) jobs.Job {
-		return &jobs.StartedContainerStateJobRequest{
+		return &jobs.StartedContainerStateRequest{
 			JobResponse: r,
 			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
 			GearId:      gearId,
@@ -201,7 +201,7 @@ func stopContainer(cmd *cobra.Command, args []string) {
 
 	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", gearId.UnitNameFor())
 	run(cmd, func(r jobs.JobResponse) jobs.Job {
-		return &jobs.StoppedContainerStateJobRequest{
+		return &jobs.StoppedContainerStateRequest{
 			JobResponse: r,
 			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
 			GearId:      gearId,

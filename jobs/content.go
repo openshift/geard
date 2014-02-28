@@ -12,7 +12,7 @@ import (
 const ContentTypeGitArchive = "gitarchive"
 const ContentTypeEnvironment = "env"
 
-type ContentJobRequest struct {
+type ContentRequest struct {
 	JobResponse
 	JobRequest
 	Type    string
@@ -20,11 +20,11 @@ type ContentJobRequest struct {
 	Subpath string
 }
 
-func (j *ContentJobRequest) Fast() bool {
+func (j *ContentRequest) Fast() bool {
 	return j.Type != ContentTypeGitArchive
 }
 
-func (j *ContentJobRequest) Execute() {
+func (j *ContentRequest) Execute() {
 	switch j.Type {
 	case ContentTypeEnvironment:
 		id, errr := gears.NewIdentifier(j.Locator)
@@ -63,6 +63,6 @@ func (j *ContentJobRequest) Execute() {
 //
 // A content retrieval job cannot be joined, and so should continue (we allow multiple inflight CR)
 //
-func (j *ContentJobRequest) Join(job Job, complete <-chan bool) (bool, <-chan bool, error) {
+func (j *ContentRequest) Join(job Job, complete <-chan bool) (bool, <-chan bool, error) {
 	return false, nil, nil
 }

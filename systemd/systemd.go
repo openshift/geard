@@ -17,6 +17,7 @@ type Systemd interface {
 	StartUnit(name string, mode string) (string, error)
 	StartUnitJob(name string, mode string) error
 	StopUnit(name string, mode string) (string, error)
+	StopUnitJob(name string, mode string) error
 	ReloadUnit(name string, mode string) (string, error)
 	RestartUnit(name string, mode string) (string, error)
 	TryRestartUnit(name string, mode string) (string, error)
@@ -53,8 +54,8 @@ func StartAndEnableUnit(systemd Systemd, name, path, mode string) (string, error
 	return status, err
 }
 
-func EnableAndReloadUnit(systemd Systemd, name, path string) error {
-	if _, _, err := systemd.EnableUnitFiles([]string{path}, false, true); err != nil {
+func EnableAndReloadUnit(systemd Systemd, name string, path ...string) error {
+	if _, _, err := systemd.EnableUnitFiles(path, false, true); err != nil {
 		return err
 	}
 	if ok, err := IsUnitProperty(systemd, name, func(p map[string]interface{}) bool {

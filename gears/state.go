@@ -2,31 +2,32 @@ package gears
 
 import (
 	"io/ioutil"
+	"os"
 )
 
-func WriteGearState(id Identifier, active bool, socketActivated bool) error {
-	var gearTarget string
-	var sockTarget string
-	if active {
-		if socketActivated {
-			sockTarget = "gear-active"
-			gearTarget = "gear"
-		} else {
-			gearTarget = "gear-active"
-		}
-	} else {
-		sockTarget = "gear"
-		gearTarget = "gear"
-	}
-
-	data := ".include " + id.UnitDefinitionPathFor() + "\n\n[Install]\nWantedBy=" + gearTarget + ".target\n"
-	if err := ioutil.WriteFile(id.UnitPathFor(), []byte(data), 0660); err != nil {
+func WriteGearState(id Identifier, active bool) error {
+	contents := []byte(unitStateContents(id.UnitDefinitionPathFor(), active))
+	if err := ioutil.WriteFile(id.UnitPathFor(), contents, 0660); err != nil {
 		return err
 	}
+	return nil
+}
 
-	if socketActivated {
-		data := ".include " + id.SocketUnitDefinitionPathFor() + "\n\n[Install]\nWantedBy=" + sockTarget + ".target\n"
-		return ioutil.WriteFile(id.SocketUnitPathFor(), []byte(data), 0660)
+func WriteGearStateTo(file *os.File, id Identifier, active bool) error {
+	contents := []byte(unitStateContents(id.UnitDefinitionPathFor(), active))
+	if _, err := file.Write(contents); err != nil {
+		return err
 	}
 	return nil
+}
+
+func unitStateContents(path string, active bool) string {
+	var target string
+	if active {
+		target = "gear-active"
+	} else {
+		target = "gear"
+	}
+
+	return ".include " + path + "\n\n[Install]\nWantedBy=" + target + ".target\n"
 }

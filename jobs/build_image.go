@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type BuildImageJobRequest struct {
+type BuildImageRequest struct {
 	JobResponse
 	JobRequest
 	Source    string
@@ -29,7 +29,7 @@ type ExtendedBuildImageData struct {
 
 const buildImage = "pmorie/sti-builder"
 
-func (j *BuildImageJobRequest) Execute() {
+func (j *BuildImageRequest) Execute() {
 	w := j.SuccessWithWrite(JobResponseAccepted, true)
 
 	fmt.Fprintf(w, "Processing build-image request:\n")

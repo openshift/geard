@@ -5,18 +5,19 @@ import (
 )
 
 type ContainerUnit struct {
-	Gear                 Identifier
-	Image                string
-	PortSpec             string
-	Slice                string
-	Isolate              bool
-	User                 string
-	ReqId                string
-	HomeDir              string
-	EnvironmentPath      string
-	ExecutablePath       string
-	IncludePath          string
-	DynamicWantsPath     string
+	Gear     Identifier
+	Image    string
+	PortSpec string
+	Slice    string
+	Isolate  bool
+	User     string
+	ReqId    string
+
+	HomeDir         string
+	EnvironmentPath string
+	ExecutablePath  string
+	IncludePath     string
+
 	PortPairs            PortPairs
 	SocketUnitName       string
 	SocketActivationType string
@@ -43,6 +44,8 @@ X-GearId={{.Gear}}
 X-ContainerImage={{.Image}}
 X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
+{{range .PortPairs}}X-PortMapping={{.Internal}},{{.External}}
+{{end}}
 `))
 
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
@@ -80,6 +83,8 @@ X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
 X-GearType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 X-SocketActivation=disabled
+{{range .PortPairs}}X-PortMapping={{.Internal}},{{.External}}
+{{end}}
 `))
 
 var ContainerSocketActivatedUnitTemplate = template.Must(template.New("unit.service").Parse(`
@@ -112,6 +117,8 @@ X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
 X-GearType=isolated
 X-SocketActivated={{.SocketActivationType}}
+{{range .PortPairs}}X-PortMapping={{.Internal}},{{.External}}
+{{end}}
 `))
 
 var ContainerSocketTemplate = template.Must(template.New("unit.socket").Parse(`
@@ -119,10 +126,11 @@ var ContainerSocketTemplate = template.Must(template.New("unit.socket").Parse(`
 Description=Gear socket {{.Gear}}
 
 [Socket]
-{{range .PortPairs}}ListenStream={{.External}}{{end}}
+{{range .PortPairs}}ListenStream={{.External}}
+{{end}}
 
 [Install]
-WantedBy=sockets.target
+WantedBy=gear-sockets.target
 `))
 
 type GearInitScript struct {

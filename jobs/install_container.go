@@ -39,7 +39,7 @@ import (
 //
 // 1) Publicly exposing ports
 
-type InstallContainerJobRequest struct {
+type InstallContainerRequest struct {
 	JobResponse
 	JobRequest
 	GearId gears.Identifier
@@ -83,16 +83,9 @@ func dockerPortSpec(p gears.PortPairs) string {
 	return portSpec.String()
 }
 
-func (j *InstallContainerJobRequest) Execute() {
+func (j *InstallContainerRequest) Execute() {
 	data := j.Data
-	env := data.Environment
-	if env != nil {
-		if err := env.Fetch(); err != nil {
-			j.Failure(ErrGearCreateFailed)
-			return
-		}
-	}
-	
+
 	var socketActivationType string
 	if data.SocketActivation && len(data.Ports) == 0 {
 		data.SocketActivation = false
@@ -112,11 +105,21 @@ func (j *InstallContainerJobRequest) Execute() {
 
 	socketUnitName := j.GearId.SocketUnitNameFor()
 	socketUnitPath := j.GearId.SocketUnitPathFor()
-	socketUnitDefinitionPath := j.GearId.SocketUnitDefinitionPathFor()
-	socketUnitVersionPath := j.GearId.VersionedSocketUnitPathFor(j.RequestId.String())
 
-	var socketUnit *os.File
-	var err error
+	env := data.Environment
+	if env != nil {
+		if err := env.Fetch(); err != nil {
+			j.Failure(ErrGearCreateFailed)
+			return
+		}
+	}
+
+	state, exists, err := utils.OpenFileExclusive(unitPath, 0660)
+	if err != nil {
+		log.Print("job_create_container: Unable to open unit file: ", err)
+		j.Failure(ErrGearCreateFailed)
+	}
+	defer state.Close()
 
 	unit, err := utils.CreateFileExclusive(unitVersionPath, 0660)
 	if err != nil {
@@ -126,22 +129,15 @@ func (j *InstallContainerJobRequest) Execute() {
 	}
 	defer unit.Close()
 
-	if data.SocketActivation {
-		socketUnit, err = utils.CreateFileExclusive(socketUnitVersionPath, 0660)
+	existingPorts := gears.PortPairs{}
+	if exists {
+		existingPorts, err = gears.GetExistingPorts(j.GearId)
 		if err != nil {
-			log.Print("job_create_container: Unable to open socket file: ", err)
-			j.Failure(ErrGearCreateFailed)
-			return
-		}
-		defer socketUnit.Close()
-	}
-
-	existingPorts, err := gears.GetExistingPorts(j.GearId)
-	if err != nil {
-		if _, ok := err.(*os.PathError); !ok {
-			log.Print("job_create_container: Unable to read existing ports from file: ", err)
-			j.Failure(ErrGearCreateFailed)
-			return
+			if _, ok := err.(*os.PathError); !ok {
+				log.Print("job_create_container: Unable to read existing ports from file: ", err)
+				j.Failure(ErrGearCreateFailed)
+				return
+			}
 		}
 	}
 
@@ -216,42 +212,11 @@ func (j *InstallContainerJobRequest) Execute() {
 		defer os.Remove(unitVersionPath)
 		return
 	}
-	if errw := reserved.WritePortsToUnitFile(unit); errw != nil {
-		log.Printf("job_create_container: Unable to write ports to unit: %+v", errw)
-		j.Failure(ErrGearCreateFailed)
-		defer os.Remove(unitVersionPath)
-		return
-	}
 	if err := unit.Close(); err != nil {
 		log.Printf("job_create_container: Unable to finish writing unit: %+v", err)
 		j.Failure(ErrGearCreateFailed)
 		defer os.Remove(unitVersionPath)
 		return
-	}
-
-	var socketTemplate *template.Template
-	switch {
-	case data.SocketActivation:
-		socketTemplate = gears.ContainerSocketTemplate
-	default:
-		socketTemplate = nil
-	}
-
-	if data.SocketActivation {
-		if erre := socketTemplate.Execute(socketUnit, args); erre != nil {
-			log.Printf("job_create_container: Unable to output socket template: %+v", erre)
-			j.Failure(ErrGearCreateFailed)
-			defer os.Remove(unitVersionPath)
-			defer os.Remove(socketUnitVersionPath)
-			return
-		}
-		if err := socketUnit.Close(); err != nil {
-			log.Printf("job_create_container: Unable to finish writing socket: %+v", err)
-			j.Failure(ErrGearCreateFailed)
-			defer os.Remove(unitVersionPath)
-			defer os.Remove(socketUnitVersionPath)
-			return
-		}
 	}
 
 	if err := utils.AtomicReplaceLink(unitVersionPath, unitDefinitionPath); err != nil {
@@ -260,38 +225,29 @@ func (j *InstallContainerJobRequest) Execute() {
 		return
 	}
 
-	if errs := gears.WriteGearState(j.GearId, data.Started, data.SocketActivation); errs != nil {
+	if errs := gears.WriteGearStateTo(state, j.GearId, data.Started); errs != nil {
 		log.Print("job_create_container: Unable to write state file: ", err)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
-
-	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {
-		log.Printf("job_create_container: Could not enable gear %s: %v", unitName, err)
+	if err := state.Close(); err != nil {
+		log.Print("job_create_container: Unable to close state file: ", err)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
 
+	// Generate the socket file and ignore failures
+	paths := []string{unitPath}
 	if data.SocketActivation {
-		if err := utils.AtomicReplaceLink(socketUnitVersionPath, socketUnitDefinitionPath); err != nil {
-			log.Printf("job_create_container: Failed to activate new socket: %+v", err)
-			j.Failure(ErrGearCreateFailed)
-			return
+		if err := writeSocketUnit(socketUnitPath, &args); err == nil {
+			paths = []string{unitPath, socketUnitPath}
 		}
+	}
 
-		if len(reserved) != 0 {
-			if err := systemd.EnableAndReloadUnit(systemd.Connection(), socketUnitName, socketUnitPath); err != nil {
-				log.Printf("job_create_container: Could not enable gear socket %s: %v", socketUnitName, err)
-				j.Failure(ErrGearCreateFailed)
-				return
-			}
-
-			if err := systemd.Connection().StartUnitJob(socketUnitName, "fail"); err != nil {
-				log.Printf("job_create_container: Could not start gear socket %s: %v", socketUnitName, err)
-				j.Failure(ErrGearCreateFailed)
-				return
-			}
-		}
+	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, paths...); err != nil {
+		log.Printf("job_create_container: Could not enable gear %s: %v", unitName, err)
+		j.Failure(ErrGearCreateFailed)
+		return
 	}
 
 	if data.Started {
@@ -299,6 +255,10 @@ func (j *InstallContainerJobRequest) Execute() {
 			log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
 			j.Failure(ErrGearCreateFailed)
 			return
+		}
+		// Start the socket file and ignore failures
+		if data.SocketActivation {
+			systemd.Connection().StartUnitJob(socketUnitName, "fail")
 		}
 	}
 
@@ -310,8 +270,32 @@ func (j *InstallContainerJobRequest) Execute() {
 	}
 }
 
-func (j *InstallContainerJobRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
-	if old, ok := job.(*InstallContainerJobRequest); !ok {
+func writeSocketUnit(path string, args *gears.ContainerUnit) error {
+	socketUnit, err := os.Create(path)
+	if err != nil {
+		log.Print("job_create_container: Unable to open socket file: ", err)
+		return err
+	}
+	defer socketUnit.Close()
+
+	socketTemplate := gears.ContainerSocketTemplate
+	if err := socketTemplate.Execute(socketUnit, args); err != nil {
+		log.Printf("job_create_container: Unable to output socket template: %+v", err)
+		defer os.Remove(path)
+		return err
+	}
+
+	if err := socketUnit.Close(); err != nil {
+		log.Printf("job_create_container: Unable to finish writing socket: %+v", err)
+		defer os.Remove(path)
+		return err
+	}
+
+	return nil
+}
+
+func (j *InstallContainerRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
+	if old, ok := job.(*InstallContainerRequest); !ok {
 		if old == nil {
 			err = ErrRanToCompletion
 		} else {
