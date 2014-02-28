@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-type CreateKeysJobRequest struct {
+type CreateKeysRequest struct {
 	JobResponse
 	JobRequest
 	UserId string
@@ -100,7 +100,7 @@ func KeyFingerprint(key ssh.PublicKey) utils.Fingerprint {
 	return utils.Fingerprint(bytes[:])
 }
 
-func (j *CreateKeysJobRequest) Execute() {
+func (j *CreateKeysRequest) Execute() {
 	failedKeys := []KeyFailure{}
 	for i := range j.Data.Keys {
 		key := j.Data.Keys[i]

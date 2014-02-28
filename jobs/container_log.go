@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-type ContainerLogJobRequest struct {
+type ContainerLogRequest struct {
 	JobResponse
 	JobRequest
 	GearId gears.Identifier
 	UserId string
 }
 
-func (j *ContainerLogJobRequest) Execute() {
+func (j *ContainerLogRequest) Execute() {
 	if _, err := os.Stat(j.GearId.UnitPathFor()); err != nil {
 		j.Failure(ErrGearNotFound)
 		return

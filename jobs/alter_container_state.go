@@ -52,14 +52,14 @@ func inStateOrTooSoon(unit string, active bool, rateLimit uint64) (bool, bool) {
 	return false, false
 }
 
-type StartedContainerStateJobRequest struct {
+type StartedContainerStateRequest struct {
 	JobResponse
 	JobRequest
 	GearId gears.Identifier
 	UserId string
 }
 
-func (j *StartedContainerStateJobRequest) Execute() {
+func (j *StartedContainerStateRequest) Execute() {
 	unitName := j.GearId.UnitNameFor()
 	unitPath := j.GearId.UnitPathFor()
 
@@ -74,13 +74,7 @@ func (j *StartedContainerStateJobRequest) Execute() {
 		return
 	}
 
-	isSocketActivated, _, err := gears.SocketActivation(j.GearId)
-	if err != nil {
-		log.Print("job_alter_container_state: Error while parsing unit file: ", err)
-		j.Failure(ErrGearStartFailed)
-		return
-	}
-	if errs := gears.WriteGearState(j.GearId, true, isSocketActivated); errs != nil {
+	if errs := gears.WriteGearState(j.GearId, true); errs != nil {
 		log.Print("job_alter_container_state: Unable to write state file: ", errs)
 		j.Failure(ErrGearStartFailed)
 		return
@@ -102,14 +96,14 @@ func (j *StartedContainerStateJobRequest) Execute() {
 	fmt.Fprintf(w, "Gear %s starting\n", j.GearId)
 }
 
-type StoppedContainerStateJobRequest struct {
+type StoppedContainerStateRequest struct {
 	JobResponse
 	JobRequest
 	GearId gears.Identifier
 	UserId string
 }
 
-func (j *StoppedContainerStateJobRequest) Execute() {
+func (j *StoppedContainerStateRequest) Execute() {
 	in_state, too_soon := inStateOrTooSoon(j.GearId.UnitNameFor(), false, rateLimitChanges)
 	if in_state {
 		w := j.SuccessWithWrite(JobResponseAccepted, true)
@@ -121,14 +115,7 @@ func (j *StoppedContainerStateJobRequest) Execute() {
 		return
 	}
 
-	var err error
-	isSocketActivated, _, err := gears.SocketActivation(j.GearId)
-	if err != nil {
-		log.Print("job_alter_container_state: Error while parsing unit file: ", err)
-		j.Failure(ErrGearStartFailed)
-		return
-	}
-	if errs := gears.WriteGearState(j.GearId, false, isSocketActivated); errs != nil {
+	if errs := gears.WriteGearState(j.GearId, false); errs != nil {
 		log.Print("job_alter_container_state: Unable to write state file: ", errs)
 		j.Failure(ErrGearStopFailed)
 		return
@@ -153,6 +140,7 @@ func (j *StoppedContainerStateJobRequest) Execute() {
 		joberr <- err
 	}()
 
+	var err error
 	select {
 	case err = <-ioerr:
 		log.Printf("job_alter_container_state: Client hung up")

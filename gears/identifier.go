@@ -50,16 +50,8 @@ func (i Identifier) UnitNameFor() string {
 }
 
 func (i Identifier) SocketUnitPathFor() string {
-	base := utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "sockets"), string(i), "")
+	base := utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "units"), string(i), "")
 	return filepath.Join(filepath.Dir(base), i.SocketUnitNameFor())
-}
-
-func (i Identifier) SocketUnitDefinitionPathFor() string {
-	return i.VersionedSocketUnitPathFor("definition")
-}
-
-func (i Identifier) VersionedSocketUnitPathFor(suffix string) string {
-	return utils.IsolateContentPath(filepath.Join(config.GearBasePath(), "sockets"), string(i), suffix)
 }
 
 func (i Identifier) SocketUnitNameFor() string {

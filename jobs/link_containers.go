@@ -41,13 +41,13 @@ func (g *ExtendedLinkContainersData) Check() error {
 	return nil
 }
 
-type LinkContainersJobRequest struct {
+type LinkContainersRequest struct {
 	JobResponse
 	JobRequest
 	Data *ExtendedLinkContainersData
 }
 
-func (j *LinkContainersJobRequest) Execute() {
+func (j *LinkContainersRequest) Execute() {
 	data := j.Data
 
 	for i := range data.Links {

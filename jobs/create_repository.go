@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-type CreateRepositoryJobRequest struct {
+type CreateRepositoryRequest struct {
 	JobResponse
 	JobRequest
 	RepositoryId gears.Identifier
@@ -25,7 +25,7 @@ type CreateRepositoryJobRequest struct {
 const repositoryOwnerUid = 1001
 const repositoryOwnerGid = 1001
 
-func (j *CreateRepositoryJobRequest) Execute() {
+func (j *CreateRepositoryRequest) Execute() {
 	repositoryPath := j.RepositoryId.RepositoryPathFor()
 	unitName := gears.JobIdentifier(j.RepositoryId).UnitNameFor()
 	cloneUrl := j.CloneUrl

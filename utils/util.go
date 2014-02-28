@@ -110,18 +110,26 @@ func AtomicReplaceLink(from, target string) error {
 
 var ErrLockTaken = errors.New("An exclusive lock already exists on the specified file.")
 
-func OpenFileExclusive(path string, mode os.FileMode) (*os.File, error) {
-	file, errf := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
+func OpenFileExclusive(path string, mode os.FileMode) (*os.File, bool, error) {
+	exists := false
+	file, errf := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, mode)
 	if errf != nil {
-		return nil, errf
+		if !os.IsExist(errf) {
+			return nil, false, errf
+		}
+		exists = true
+		file, errf = os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
+		if errf != nil {
+			return nil, false, errf
+		}
 	}
 	if errl := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); errl != nil {
 		if errl == syscall.EWOULDBLOCK {
-			return nil, ErrLockTaken
+			return nil, exists, ErrLockTaken
 		}
-		return nil, errl
+		return nil, exists, errl
 	}
-	return file, nil
+	return file, exists, nil
 }
 
 func CreateFileExclusive(path string, mode os.FileMode) (*os.File, error) {

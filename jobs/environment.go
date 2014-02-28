@@ -54,7 +54,7 @@ func (d *ExtendedEnvironmentData) Check() error {
 	return nil
 }
 
-type PutEnvironmentJobRequest struct {
+type PutEnvironmentRequest struct {
 	JobResponse
 	JobRequest
 	*ExtendedEnvironmentData
@@ -100,7 +100,7 @@ func NewEnvironmentScanner(r io.Reader) EnvironmentScanner {
 	return environmentScanner{Scanner: bufio.NewScanner(r)}
 }
 
-func (j *PutEnvironmentJobRequest) Execute() {
+func (j *PutEnvironmentRequest) Execute() {
 	if j.Source != "" {
 		if err := j.Fetch(); err != nil {
 			j.Failure(ErrEnvironmentUpdateFailed)
@@ -115,13 +115,13 @@ func (j *PutEnvironmentJobRequest) Execute() {
 	j.Success(JobResponseOk)
 }
 
-type PatchEnvironmentJobRequest struct {
+type PatchEnvironmentRequest struct {
 	JobResponse
 	JobRequest
 	*ExtendedEnvironmentData
 }
 
-func (j *PatchEnvironmentJobRequest) Execute() {
+func (j *PatchEnvironmentRequest) Execute() {
 	if err := j.Write(true); err != nil {
 		j.Failure(ErrEnvironmentUpdateFailed)
 		return

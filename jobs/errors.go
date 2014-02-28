@@ -16,6 +16,7 @@ var (
 	ErrStartRequestThrottled   = SimpleJobError{JobResponseRateLimit, "It has been too soon since the last request to start."}
 	ErrStopRequestThrottled    = SimpleJobError{JobResponseRateLimit, "It has been too soon since the last request to stop."}
 	ErrLinkContainersFailed    = SimpleJobError{JobResponseError, "Not all links could be set."}
+	ErrDeleteContainerFailed   = SimpleJobError{JobResponseError, "Unable to delete the container."}
 )
 
 const (

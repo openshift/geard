@@ -45,6 +45,7 @@ func newHttpApiHandler(conf HttpConfiguration, dispatch *dispatcher.Dispatcher) 
 		rest.Route{"GET", "/token/:token/containers", jobRestHandler(dispatch, apiListContainers)},
 		rest.Route{"PUT", "/token/:token/containers/links", jobRestHandler(dispatch, apiPutContainerLinks)},
 		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dispatch, apiPutContainer)},
+		rest.Route{"DELETE", "/token/:token/container", jobRestHandler(dispatch, apiDeleteContainer)},
 		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dispatch, apiGetContainerLog)},
 		rest.Route{"GET", "/token/:token/container/ports", jobRestHandler(dispatch, apiGetContainerPorts)},
 		rest.Route{"PUT", "/token/:token/container/:action", jobRestHandler(dispatch, apiPutContainerAction)},
@@ -130,7 +131,7 @@ func apiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Res
 		}
 	}
 
-	return &jobs.InstallContainerJobRequest{
+	return &jobs.InstallContainerRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		gearId,
@@ -138,6 +139,14 @@ func apiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Res
 		token.ResourceType(),
 		&data,
 	}, nil
+}
+
+func apiDeleteContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
+	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+	if errg != nil {
+		return nil, errg
+	}
+	return &jobs.DeleteContainerRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}, gearId}, nil
 }
 
 func apiListBuilds(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
@@ -157,7 +166,7 @@ func apiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.
 	if errg != nil {
 		return nil, errg
 	}
-	return &jobs.ContainerLogJobRequest{
+	return &jobs.ContainerLogRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		gearId,
@@ -189,7 +198,7 @@ func apiPutKeys(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Response
 	if err := data.Check(); err != nil {
 		return nil, err
 	}
-	return &jobs.CreateKeysJobRequest{
+	return &jobs.CreateKeysRequest{
 		NewHttpJobResponse(w.ResponseWriter, true),
 		jobs.JobRequest{reqid},
 		token.U,
@@ -203,7 +212,7 @@ func apiPutRepository(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Re
 		return nil, errg
 	}
 	// TODO: convert token into a safe clone spec and commit hash
-	return &jobs.CreateRepositoryJobRequest{
+	return &jobs.CreateRepositoryRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		repositoryId,
@@ -221,14 +230,14 @@ func apiPutContainerAction(reqid jobs.RequestIdentifier, token *TokenData, w *re
 	}
 	switch action {
 	case "started":
-		return &jobs.StartedContainerStateJobRequest{
+		return &jobs.StartedContainerStateRequest{
 			NewHttpJobResponse(w.ResponseWriter, false),
 			jobs.JobRequest{reqid},
 			gearId,
 			token.U,
 		}, nil
 	case "stopped":
-		return &jobs.StoppedContainerStateJobRequest{
+		return &jobs.StoppedContainerStateRequest{
 			NewHttpJobResponse(w.ResponseWriter, false),
 			jobs.JobRequest{reqid},
 			gearId,
@@ -259,7 +268,7 @@ func apiPutBuildImageAction(reqid jobs.RequestIdentifier, token *TokenData, w *r
 		}
 	}
 
-	return &jobs.BuildImageJobRequest{
+	return &jobs.BuildImageRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		source,
@@ -287,7 +296,7 @@ func apiPutEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.R
 	}
 	data.Id = id
 
-	return &jobs.PutEnvironmentJobRequest{
+	return &jobs.PutEnvironmentRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		&data,
@@ -312,7 +321,7 @@ func apiPatchEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest
 	}
 	data.Id = id
 
-	return &jobs.PatchEnvironmentJobRequest{
+	return &jobs.PatchEnvironmentRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		&data,
@@ -327,7 +336,7 @@ func apiGetContent(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Respo
 		return nil, errors.New("You must specify the type of the content you want to access")
 	}
 
-	return &jobs.ContentJobRequest{
+	return &jobs.ContentRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		token.ResourceType(),
@@ -349,7 +358,7 @@ func apiPutContainerLinks(reqid jobs.RequestIdentifier, token *TokenData, w *res
 		return nil, err
 	}
 
-	return &jobs.LinkContainersJobRequest{
+	return &jobs.LinkContainersRequest{
 		NewHttpJobResponse(w.ResponseWriter, false),
 		jobs.JobRequest{reqid},
 		&data,

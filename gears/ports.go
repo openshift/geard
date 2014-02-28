@@ -50,11 +50,12 @@ func GetExistingPorts(gearId Identifier) (PortPairs, error) {
 	var existing *os.File
 	var err error
 
-	if existing, err = os.Open(gearId.UnitDefinitionPathFor()); err != nil {
+	existing, err = os.Open(gearId.UnitDefinitionPathFor())
+	if err != nil {
 		return nil, err
 	}
-
 	defer existing.Close()
+
 	return readPortsFromUnitFile(existing)
 }
 
@@ -81,7 +82,7 @@ func readPortsFromUnitFile(r io.Reader) (PortPairs, error) {
 	return pairs, nil
 }
 
-func SocketActivation(gearId Identifier) (bool, string, error) {
+func GetSocketActivation(gearId Identifier) (bool, string, error) {
 	var err error
 	var existing *os.File
 	if existing, err = os.Open(gearId.UnitDefinitionPathFor()); err != nil {
@@ -111,15 +112,6 @@ func readSocketActivationFromUnitFile(r io.Reader) (bool, string, error) {
 	return false, "disabled", nil
 }
 
-func (p PortPairs) WritePortsToUnitFile(w io.Writer) error {
-	for i := range p {
-		if _, err := fmt.Fprintf(w, "X-PortMapping=%d,%d\n", p[i].Internal, p[i].External); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Reserve any unspecified external ports or return an error
 // if no ports are available.
 func (p PortPairs) reserve() (portReservations, error) {
@@ -132,8 +124,8 @@ func (p PortPairs) reserve() (portReservations, error) {
 }
 
 // Use existing port pairs where possible instead of allocating new ports.
-func (p portReservations) reuse(existing PortPairs) ([]Port, error) {
-	unreserve := make([]Port, 0, 4)
+func (p portReservations) reuse(existing PortPairs) (PortPairs, error) {
+	unreserve := make(PortPairs, 0, 4)
 	for j := range existing {
 		ex := &existing[j]
 		matched := false
@@ -148,15 +140,22 @@ func (p portReservations) reuse(existing PortPairs) ([]Port, error) {
 					res.External = ex.External
 					res.exists = true
 				} else if res.External != ex.External {
-					unreserve = append(unreserve, ex.External)
+					unreserve = append(unreserve, PortPair{0, ex.External})
 				} else {
 					res.exists = true
+				}
+				if res.exists {
+					_, direct := ex.External.PortPathsFor()
+					if _, err := os.Stat(direct); err != nil {
+						res.External = 0
+						res.exists = false
+					}
 				}
 				matched = true
 			}
 		}
 		if !matched {
-			unreserve = append(unreserve, ex.External)
+			unreserve = append(unreserve, *ex)
 		}
 	}
 	for i := range p {
@@ -246,12 +245,41 @@ func AtomicReserveExternalPorts(path string, ports, existing PortPairs) (PortPai
 	if len(unreserve) > 0 {
 		log.Printf("ports: Releasing %v", unreserve)
 	}
-	for _, port := range unreserve {
-		_, direct := port.PortPathsFor()
-		os.Remove(direct) // REPAIR: reserved ports may not be properly released
-	}
+	ReleaseExternalPorts(filepath.Dir(path), unreserve) // Ignore errors
 
 	return reserved, nil
+}
+
+func ReleaseExternalPorts(directory string, ports PortPairs) error {
+	var err error
+	log.Printf("ports: Releasing %v", ports)
+	for i := range ports {
+		_, direct := ports[i].External.PortPathsFor()
+		path, errl := os.Readlink(direct)
+		if errl != nil {
+			if !os.IsNotExist(errl) {
+				log.Printf("ports: Path cannot be checked: %v", errl)
+				err = errl
+			}
+			continue
+		}
+		if _, errs := os.Stat(path); errs != nil {
+			if os.IsNotExist(errs) {
+				os.Remove(direct)
+			}
+			continue
+		}
+		if directory != "" && filepath.Dir(path) != directory {
+			log.Printf("ports: Path %s is not under %s and will not be removed", path, directory)
+		}
+		if errr := os.Remove(direct); errr != nil {
+			log.Printf("ports: Unable to remove symlink %v", errr)
+			err = errr
+			// REPAIR: reserved ports may not be properly released
+			continue
+		}
+	}
+	return err
 }
 
 const portsPerBlock = Port(100) // changing this breaks disk structure... don't do it!

@@ -24,7 +24,7 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 	var err error
 	var imgInfo *d.Image
 
-	_, socketActivationType, err := SocketActivation(gearId)
+	_, socketActivationType, err := GetSocketActivation(gearId)
 	if err != nil {
 		fmt.Printf("init_pre_start: Error while parsing unit file: %v\n", err)
 		return err
@@ -43,13 +43,13 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		return err
 	}
 
-	if err := os.MkdirAll(gearId.HomePath(), 0700) ; err != nil {
+	if err := os.MkdirAll(gearId.HomePath(), 0700); err != nil {
 		return err
 	}
-	
+
 	path := path.Join(gearId.HomePath(), "gear-init.sh")
 	u, _ := user.Lookup(gearId.LoginFor())
-	file, err := utils.OpenFileExclusive(path, 0700)
+	file, _, err := utils.OpenFileExclusive(path, 0700)
 	if err != nil {
 		fmt.Printf("gear init pre-start: Unable to open script file: %v\n", err)
 		return err

@@ -33,6 +33,11 @@ func (c *StubSystemd) StopUnit(name string, mode string) (string, error) {
 	return "", errors.New("Not implemented")
 }
 
+func (c *StubSystemd) StopUnitJob(name string, mode string) error {
+	log.Print("stub_systemd: StopUnitJob", name, mode)
+	return nil
+}
+
 func (c *StubSystemd) ReloadUnit(name string, mode string) (string, error) {
 	return "", errors.New("Not implemented")
 }
