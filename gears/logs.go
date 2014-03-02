@@ -13,7 +13,7 @@ var ErrLogWriteTimeout = errors.New("gear_logs: Maximum duration exceeded, timeo
 var ErrLogComplete = errors.New("gear_logs: Closed by caller")
 
 func ProcessLogsForUnit(unit string) (io.ReadCloser, error) {
-	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-f", "--unit", unit)
+	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-q", "-f", "--unit", unit)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func WriteLogsTo(w io.Writer, unit string, previous int, until <-chan time.Time)
 	} else {
 		arg = fmt.Sprintf("--since=-%d", previous)
 	}
-	cmd := exec.Command("/usr/bin/journalctl", arg, "-f", "--unit", unit)
+	cmd := exec.Command("/usr/bin/journalctl", arg, "-f", "-q", "--unit", unit)
 	stdout, errp := cmd.StdoutPipe()
 	if errp != nil {
 		return errp
