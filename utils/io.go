@@ -7,8 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"syscall"
 )
 
@@ -41,22 +39,27 @@ func NewWriteFlusher(w io.Writer) io.Writer {
 	return w
 }
 
-func TakePrefix(s string, prefix string) (string, bool) {
-	if strings.HasPrefix(s, prefix) {
-		return s[len(prefix):], true
-	}
-	return s, false
+func LimitWriter(w io.Writer, n int64) io.Writer { return &LimitedWriter{w, n} }
+
+type LimitedWriter struct {
+	W io.Writer // underlying writer
+	N int64     // max bytes remaining
 }
 
-func TakeSegment(path string) (string, string, bool) {
-	segments := strings.SplitN(path, "/", 2)
-	if len(segments) > 1 {
-		if segments[0] == "/" {
-			return TakeSegment(segments[1])
-		}
-		return segments[0], segments[1], true
+func (l *LimitedWriter) Write(p []byte) (n int, err error) {
+	incoming := int64(len(p))
+	left := l.N
+	if left == 0 {
+		n = int(incoming)
+		return
+	} else if incoming <= left {
+		l.N = left - incoming
+		return l.W.Write(p)
 	}
-	return segments[0], "", (segments[0] != "")
+	l.N = 0
+	n = int(incoming)
+	_, err = l.W.Write(p[:left])
+	return
 }
 
 var ErrContentMismatch = errors.New("File content does not match expected value")
@@ -138,23 +141,4 @@ func CreateFileExclusive(path string, mode os.FileMode) (*os.File, error) {
 		return nil, errf
 	}
 	return file, nil
-}
-
-func IsolateContentPathWithPerm(base, id, suffix string, perm os.FileMode) string {
-	var path string
-	if suffix == "" {
-		path = filepath.Join(base, id[0:2])
-		suffix = id
-	} else {
-		path = filepath.Join(base, id[0:2], id)
-	}
-	// fail silently, require startup to set paths, let consumers
-	// handle directory not found errors
-	os.MkdirAll(path, perm)
-
-	return filepath.Join(path, suffix)
-}
-
-func IsolateContentPath(base, id, suffix string) string {
-	return IsolateContentPathWithPerm(base, id, suffix, 0770)
 }

@@ -7,5 +7,5 @@ func GearBasePath() string {
 }
 
 type DockerConfiguration struct {
-	DockerSocket string
+	Socket string
 }

@@ -89,7 +89,7 @@ func initializeTargets() error {
 			return err
 		}
 
-		if errs := systemd.TargetUnitTemplate.Execute(unit, systemd.TargetUnit{name, wants}); errs != nil {
+		if errs := TargetUnitTemplate.Execute(unit, TargetUnit{name, wants}); errs != nil {
 			log.Printf("gear: Unable to write target %s: %v", name, errs)
 			continue
 		}
@@ -123,7 +123,7 @@ func initializeSlices() error {
 		if name == "gear" {
 			parent = ""
 		}
-		if errs := systemd.SliceUnitTemplate.Execute(unit, systemd.SliceUnit{name, parent}); errs != nil {
+		if errs := SliceUnitTemplate.Execute(unit, SliceUnit{name, parent}); errs != nil {
 			log.Printf("gear: Unable to write slice %s: %v", name, errs)
 			continue
 		}
