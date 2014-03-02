@@ -11,58 +11,67 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"sync"
 )
 
 var ErrHandledResponse = errors.New("Request handled")
 
 type HttpConfiguration struct {
-	config.DockerConfiguration
-	ListenAddr string
+	Docker     config.DockerConfiguration
+	Dispatcher *dispatcher.Dispatcher
+	Extensions []HttpExtension
 }
 
-func StartAPI(wg *sync.WaitGroup, conf HttpConfiguration, dispatch *dispatcher.Dispatcher) error {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		log.Printf("Starting HTTP on %s ... ", conf.ListenAddr)
-		http.Handle("/", newHttpApiHandler(conf, dispatch))
-		log.Fatal(http.ListenAndServe(conf.ListenAddr, nil))
-	}()
-	return nil
+type RestRoute struct {
+	Method  string
+	Path    string
+	Handler JobHandler
 }
 
-func newHttpApiHandler(conf HttpConfiguration, dispatch *dispatcher.Dispatcher) *rest.ResourceHandler {
+type HttpExtension func() []RestRoute
+
+func (conf *HttpConfiguration) Handler() http.Handler {
 	handler := rest.ResourceHandler{
 		EnableRelaxedContentType: true,
 		EnableResponseStackTrace: true,
 		EnableGzip:               false,
 	}
-	handler.SetRoutes(
-		rest.Route{"GET", "/token/:token/images", jobRestHandler(dispatch, conf.apiListImages)},
-		rest.Route{"GET", "/token/:token/builds", jobRestHandler(dispatch, apiListBuilds)},
-		rest.Route{"GET", "/token/:token/containers", jobRestHandler(dispatch, apiListContainers)},
-		rest.Route{"PUT", "/token/:token/containers/links", jobRestHandler(dispatch, apiPutContainerLinks)},
-		rest.Route{"PUT", "/token/:token/container", jobRestHandler(dispatch, apiPutContainer)},
-		rest.Route{"DELETE", "/token/:token/container", jobRestHandler(dispatch, apiDeleteContainer)},
-		rest.Route{"GET", "/token/:token/container/log", jobRestHandler(dispatch, apiGetContainerLog)},
-		rest.Route{"GET", "/token/:token/container/ports", jobRestHandler(dispatch, apiGetContainerPorts)},
-		rest.Route{"PUT", "/token/:token/container/:action", jobRestHandler(dispatch, apiPutContainerAction)},
-		rest.Route{"PUT", "/token/:token/repository", jobRestHandler(dispatch, apiPutRepository)},
-		rest.Route{"PUT", "/token/:token/keys", jobRestHandler(dispatch, apiPutKeys)},
-		rest.Route{"GET", "/token/:token/content", jobRestHandler(dispatch, apiGetContent)},
-		rest.Route{"GET", "/token/:token/content/*", jobRestHandler(dispatch, apiGetContent)},
-		rest.Route{"PUT", "/token/:token/build-image", jobRestHandler(dispatch, apiPutBuildImageAction)},
-		rest.Route{"PUT", "/token/:token/environment", jobRestHandler(dispatch, apiPutEnvironment)},
-		rest.Route{"PATCH", "/token/:token/environment", jobRestHandler(dispatch, apiPatchEnvironment)},
-	)
+
+	handlers := []rest.Route{
+		rest.Route{"GET", "/token/:token/containers", conf.jobRestHandler(apiListContainers)},
+		rest.Route{"PUT", "/token/:token/containers/links", conf.jobRestHandler(apiPutContainerLinks)},
+		rest.Route{"PUT", "/token/:token/container", conf.jobRestHandler(apiPutContainer)},
+		rest.Route{"DELETE", "/token/:token/container", conf.jobRestHandler(apiDeleteContainer)},
+		rest.Route{"GET", "/token/:token/container/log", conf.jobRestHandler(apiGetContainerLog)},
+		rest.Route{"PUT", "/token/:token/container/:action", conf.jobRestHandler(apiPutContainerAction)},
+		rest.Route{"GET", "/token/:token/container/ports", conf.jobRestHandler(apiGetContainerPorts)},
+
+		rest.Route{"GET", "/token/:token/images", conf.jobRestHandler(conf.apiListImages)},
+
+		rest.Route{"GET", "/token/:token/content", conf.jobRestHandler(apiGetContent)},
+		rest.Route{"GET", "/token/:token/content/*", conf.jobRestHandler(apiGetContent)},
+
+		rest.Route{"PUT", "/token/:token/keys", conf.jobRestHandler(apiPutKeys)},
+
+		rest.Route{"PUT", "/token/:token/environment", conf.jobRestHandler(apiPutEnvironment)},
+		rest.Route{"PATCH", "/token/:token/environment", conf.jobRestHandler(apiPatchEnvironment)},
+
+		rest.Route{"GET", "/token/:token/builds", conf.jobRestHandler(apiListBuilds)},
+		rest.Route{"PUT", "/token/:token/build-image", conf.jobRestHandler(apiPutBuildImageAction)},
+	}
+
+	for i := range conf.Extensions {
+		routes := conf.Extensions[i]()
+		for j := range routes {
+			handlers = append(handlers, rest.Route{routes[j].Method, routes[j].Path, conf.jobRestHandler(routes[j].Handler)})
+		}
+	}
+	handler.SetRoutes(handlers...)
 	return &handler
 }
 
-type jobHandler func(jobs.RequestIdentifier, *TokenData, *rest.ResponseWriter, *rest.Request) (jobs.Job, error)
+type JobHandler func(jobs.RequestIdentifier, *TokenData, *rest.ResponseWriter, *rest.Request) (jobs.Job, error)
 
-func jobRestHandler(dispatch *dispatcher.Dispatcher, handler jobHandler) func(*rest.ResponseWriter, *rest.Request) {
+func (conf *HttpConfiguration) jobRestHandler(handler JobHandler) func(*rest.ResponseWriter, *rest.Request) {
 	return func(w *rest.ResponseWriter, r *rest.Request) {
 		token, id, errt := extractToken(r.PathParam("token"), r.Request)
 		if errt != nil {
@@ -86,7 +95,7 @@ func jobRestHandler(dispatch *dispatcher.Dispatcher, handler jobHandler) func(*r
 			return
 		}
 
-		wait, errd := dispatch.Dispatch(job)
+		wait, errd := conf.Dispatcher.Dispatch(job)
 		if errd == jobs.ErrRanToCompletion {
 			http.Error(w, errd.Error(), http.StatusNoContent)
 			return
@@ -158,7 +167,7 @@ func apiListContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.R
 }
 
 func (conf HttpConfiguration) apiListImages(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	return &jobs.ListImagesRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}, conf.DockerSocket}, nil
+	return &jobs.ListImagesRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}, conf.Docker.Socket}, nil
 }
 
 func apiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
@@ -203,22 +212,6 @@ func apiPutKeys(reqid jobs.RequestIdentifier, token *TokenData, w *rest.Response
 		jobs.JobRequest{reqid},
 		token.U,
 		&data,
-	}, nil
-}
-
-func apiPutRepository(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	repositoryId, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-	// TODO: convert token into a safe clone spec and commit hash
-	return &jobs.CreateRepositoryRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		repositoryId,
-		token.U,
-		"ccoleman/githost",
-		token.ResourceType(),
 	}, nil
 }
 

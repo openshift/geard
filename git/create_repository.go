@@ -1,23 +1,28 @@
-package jobs
+package git
 
 import (
 	"fmt"
 	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/systemd"
 	"github.com/smarterclayton/geard/utils"
 	"github.com/smarterclayton/go-systemd/dbus"
 	"io"
 	"log"
 	"os"
-	"strconv"
 	"time"
 )
 
+var (
+	ErrRepositoryAlreadyExists = jobs.SimpleJobError{jobs.JobResponseAlreadyExists, "A repository with this identifier already exists."}
+	ErrSubscribeToUnit         = jobs.SimpleJobError{jobs.JobResponseError, "Unable to watch for the completion of this action."}
+	ErrRepositoryCreateFailed  = jobs.SimpleJobError{jobs.JobResponseError, "Unable to create the repository."}
+)
+
 type CreateRepositoryRequest struct {
-	JobResponse
-	JobRequest
+	jobs.JobResponse
+	jobs.JobRequest
 	RepositoryId gears.Identifier
-	UserId       string
 	Image        string
 	CloneUrl     string
 }
@@ -27,7 +32,7 @@ const repositoryOwnerGid = 1001
 
 func (j *CreateRepositoryRequest) Execute() {
 	repositoryPath := j.RepositoryId.RepositoryPathFor()
-	unitName := gears.JobIdentifier(j.RepositoryId).UnitNameFor()
+	unitName := fmt.Sprintf("job-repo-create-%s.service", j.RepositoryId)
 	cloneUrl := j.CloneUrl
 
 	if err := os.Mkdir(repositoryPath, 0770); err != nil {
@@ -82,7 +87,7 @@ func (j *CreateRepositoryRequest) Execute() {
 			"/usr/bin/docker", "run",
 			"-rm",
 			"-a", "stderr", "-a", "stdout",
-			"-u", "\"" + strconv.Itoa(repositoryOwnerUid) + "\"", "-v", repositoryPath + ":" + "/home/git/repo:rw",
+			"-u", "git", "-v", repositoryPath + ":" + "/home/git/repo:rw",
 			j.Image,
 			cloneUrl,
 		}, true),
@@ -100,7 +105,7 @@ func (j *CreateRepositoryRequest) Execute() {
 		return
 	}
 
-	w := j.SuccessWithWrite(JobResponseAccepted, true)
+	w := j.SuccessWithWrite(jobs.JobResponseAccepted, true)
 	go io.Copy(w, stdout)
 
 wait:
@@ -109,7 +114,7 @@ wait:
 		case c := <-changes:
 			if changed, ok := c[unitName]; ok {
 				if changed.SubState != "running" {
-					fmt.Fprintf(w, "Repository completed\n", changed.SubState)
+					fmt.Fprintf(w, "Repository completed (%s)\n", changed.SubState)
 					break wait
 				}
 			}

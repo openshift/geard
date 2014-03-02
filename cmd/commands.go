@@ -5,43 +5,35 @@ import (
 	"github.com/smarterclayton/cobra"
 	"github.com/smarterclayton/geard/dispatcher"
 	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/git"
 	"github.com/smarterclayton/geard/http"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/systemd"
 	"log"
+	nethttp "net/http"
 	"os"
 	"os/user"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 var (
-	daemon bool
-	conf   http.HttpConfiguration
-	pre    bool
-	post   bool
+	daemon     bool
+	pre        bool
+	post       bool
+	listenAddr string
 )
 
-func run(cmd *cobra.Command, init func(jobs.JobResponse) jobs.Job) {
-	r := &CliJobResponse{cmd.Out(), cmd.Out(), false, false, 0, ""}
-	j := init(r)
-	j.Execute()
-	if r.exitCode != 0 {
-		if r.message == "" {
-			r.message = "Command failed"
-		}
-		fail(r.exitCode, r.message)
-	}
-	os.Exit(r.exitCode)
-}
-
-func fail(code int, format string, other ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, other...)
-	if !strings.HasSuffix(format, "\n") {
-		fmt.Fprintln(os.Stderr)
-	}
-	os.Exit(code)
+var conf = http.HttpConfiguration{
+	Dispatcher: &dispatcher.Dispatcher{
+		QueueFast:         10,
+		QueueSlow:         1,
+		Concurrent:        2,
+		TrackDuplicateIds: 1000,
+	},
+	Extensions: []http.HttpExtension{
+		git.Routes,
+	},
 }
 
 func Execute() {
@@ -52,11 +44,11 @@ func Execute() {
               be installed to Systemd in an opinionated and distributed
               fashion.
               Complete documentation is available at http://github.com/smarterclayton/geard`,
-		Run: runServer,
+		Run: gear,
 	}
 	gearCmd.Flags().BoolVarP(&daemon, "daemon", "d", false, "Run as a server process")
-	gearCmd.Flags().StringVarP(&(conf.DockerSocket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
-	gearCmd.Flags().StringVarP(&(conf.ListenAddr), "listen-address", "A", ":8080", "Set the address for the http endpoint to listen on")
+	gearCmd.Flags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
+	gearCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":8080", "Set the address for the http endpoint to listen on")
 
 	cleanCmd := &cobra.Command{
 		Use:   "clean",
@@ -112,7 +104,7 @@ func Execute() {
 	gearCmd.Execute()
 }
 
-func runServer(cmd *cobra.Command, args []string) {
+func gear(cmd *cobra.Command, args []string) {
 	if !daemon {
 		cmd.Usage()
 		return
@@ -120,19 +112,12 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	systemd.Start()
 	gears.InitializeData()
-	var dispatch = dispatcher.Dispatcher{
-		QueueFast:         10,
-		QueueSlow:         1,
-		Concurrent:        2,
-		TrackDuplicateIds: 1000,
-	}
-	dispatch.Start()
 	gears.StartPortAllocator(4000, 60000)
-	wg := &sync.WaitGroup{}
+	conf.Dispatcher.Start()
 
-	http.StartAPI(wg, conf, &dispatch)
-	wg.Wait()
-	log.Print("Exiting ...")
+	nethttp.Handle("/", conf.Handler())
+	log.Printf("Listening for HTTP on %s ...", listenAddr)
+	log.Fatal(nethttp.ListenAndServe(listenAddr, nil))
 }
 
 func clean(cmd *cobra.Command, args []string) {
@@ -220,11 +205,11 @@ func initGear(cmd *cobra.Command, args []string) {
 
 	switch {
 	case pre:
-		if err := gears.InitPreStart(conf.DockerSocket, gearId, args[1]); err != nil {
+		if err := gears.InitPreStart(conf.Docker.Socket, gearId, args[1]); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	case post:
-		if err := gears.InitPostStart(conf.DockerSocket, gearId); err != nil {
+		if err := gears.InitPostStart(conf.Docker.Socket, gearId); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	}
@@ -252,7 +237,28 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	if err := gears.GenerateAuthorizedKeys(conf.DockerSocket, u); err != nil {
+	if err := gears.GenerateAuthorizedKeys(conf.Docker.Socket, u); err != nil {
 		fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 	}
+}
+
+func run(cmd *cobra.Command, init func(jobs.JobResponse) jobs.Job) {
+	r := &CliJobResponse{cmd.Out(), cmd.Out(), false, false, 0, ""}
+	j := init(r)
+	j.Execute()
+	if r.exitCode != 0 {
+		if r.message == "" {
+			r.message = "Command failed"
+		}
+		fail(r.exitCode, r.message)
+	}
+	os.Exit(r.exitCode)
+}
+
+func fail(code int, format string, other ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, other...)
+	if !strings.HasSuffix(format, "\n") {
+		fmt.Fprintln(os.Stderr)
+	}
+	os.Exit(code)
 }

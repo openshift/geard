@@ -1,13 +1,37 @@
-package streams
+package git
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/jobs"
+	"github.com/smarterclayton/geard/utils"
 	"io"
+	"log"
 	"os/exec"
 	"regexp"
 )
+
+const ContentTypeGitArchive = "gitarchive"
+
+type GitArchiveContentRequest struct {
+	jobs.JobResponse
+	jobs.JobRequest
+	RepositoryId gears.Identifier
+	Ref          GitCommitRef
+}
+
+func (j *GitArchiveContentRequest) Fast() bool {
+	return false
+}
+
+func (j *GitArchiveContentRequest) Execute() {
+	w := j.SuccessWithWrite(jobs.JobResponseOk, false)
+	if err := writeGitRepositoryArchive(w, j.RepositoryId.RepositoryPathFor(), j.Ref); err != nil {
+		log.Printf("job_content: Invalid git repository stream: %v", err)
+	}
+}
 
 type GitCommitRef string
 
@@ -30,30 +54,7 @@ type Waiter interface {
 	Wait() error
 }
 
-func LimitWriter(w io.Writer, n int64) io.Writer { return &LimitedWriter{w, n} }
-
-type LimitedWriter struct {
-	W io.Writer // underlying writer
-	N int64     // max bytes remaining
-}
-
-func (l *LimitedWriter) Write(p []byte) (n int, err error) {
-	incoming := int64(len(p))
-	left := l.N
-	if left == 0 {
-		n = int(incoming)
-		return
-	} else if incoming <= left {
-		l.N = left - incoming
-		return l.W.Write(p)
-	}
-	l.N = 0
-	n = int(incoming)
-	_, err = l.W.Write(p[:left])
-	return
-}
-
-func WriteGitRepositoryArchive(w io.Writer, path string, ref GitCommitRef) error {
+func writeGitRepositoryArchive(w io.Writer, path string, ref GitCommitRef) error {
 	var cmd *exec.Cmd
 	// TODO: Stream as tar with gzip
 	if ref == EmptyGitCommitRef {
@@ -64,7 +65,7 @@ func WriteGitRepositoryArchive(w io.Writer, path string, ref GitCommitRef) error
 	cmd.Env = []string{}
 	cmd.Dir = path
 	var stderr bytes.Buffer
-	cmd.Stderr = LimitWriter(&stderr, 20*1024)
+	cmd.Stderr = utils.LimitWriter(&stderr, 20*1024)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

@@ -106,6 +106,7 @@ func (j *InstallContainerRequest) Execute() {
 	socketUnitName := j.GearId.SocketUnitNameFor()
 	socketUnitPath := j.GearId.SocketUnitPathFor()
 
+	// attempt to download the environment if it is remote
 	env := data.Environment
 	if env != nil {
 		if err := env.Fetch(); err != nil {
@@ -114,6 +115,7 @@ func (j *InstallContainerRequest) Execute() {
 		}
 	}
 
+	// open and lock the base path (to prevent simultaneous updates)
 	state, exists, err := utils.OpenFileExclusive(unitPath, 0660)
 	if err != nil {
 		log.Print("job_create_container: Unable to open unit file: ", err)
@@ -121,6 +123,7 @@ func (j *InstallContainerRequest) Execute() {
 	}
 	defer state.Close()
 
+	// write a new file to disk that describes the new service
 	unit, err := utils.CreateFileExclusive(unitVersionPath, 0660)
 	if err != nil {
 		log.Print("job_create_container: Unable to open unit file: ", err)
@@ -129,6 +132,7 @@ func (j *InstallContainerRequest) Execute() {
 	}
 	defer unit.Close()
 
+	// if this is an existing container, read the currently reserved ports
 	existingPorts := gears.PortPairs{}
 	if exists {
 		existingPorts, err = gears.GetExistingPorts(j.GearId)
@@ -141,6 +145,7 @@ func (j *InstallContainerRequest) Execute() {
 		}
 	}
 
+	// allocate and reserve ports for this gear
 	reserved, erra := gears.AtomicReserveExternalPorts(unitVersionPath, data.Ports, existingPorts)
 	if erra != nil {
 		log.Printf("job_create_container: Unable to reserve external ports: %+v", erra)
@@ -158,6 +163,7 @@ func (j *InstallContainerRequest) Execute() {
 		portSpec = dockerPortSpec(reserved)
 	}
 
+	// write the environment to disk
 	var environmentPath string
 	if env != nil {
 		if errw := env.Write(false); errw != nil {
@@ -167,6 +173,7 @@ func (j *InstallContainerRequest) Execute() {
 		environmentPath = env.Id.EnvironmentPathFor()
 	}
 
+	// write the network links (if any) to disk
 	if data.NetworkLinks != nil {
 		if errw := data.NetworkLinks.Write(j.GearId.NetworkLinksPathFor(), false); errw != nil {
 			j.Failure(ErrGearCreateFailed)
@@ -175,6 +182,8 @@ func (j *InstallContainerRequest) Execute() {
 	}
 
 	slice := "gear-small"
+
+	// write the definition unit file
 	args := gears.ContainerUnit{
 		Gear:     j.GearId,
 		Image:    j.Image,
@@ -219,12 +228,15 @@ func (j *InstallContainerRequest) Execute() {
 		return
 	}
 
+	// swap the new definition with the old one
 	if err := utils.AtomicReplaceLink(unitVersionPath, unitDefinitionPath); err != nil {
 		log.Printf("job_create_container: Failed to activate new unit: %+v", err)
 		j.Failure(ErrGearCreateFailed)
 		return
 	}
 
+	// write the gear state (active, or not active) based on the current start
+	// state
 	if errs := gears.WriteGearStateTo(state, j.GearId, data.Started); errs != nil {
 		log.Print("job_create_container: Unable to write state file: ", err)
 		j.Failure(ErrGearCreateFailed)
@@ -251,14 +263,20 @@ func (j *InstallContainerRequest) Execute() {
 	}
 
 	if data.Started {
-		if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
-			log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
-			j.Failure(ErrGearCreateFailed)
-			return
-		}
-		// Start the socket file and ignore failures
 		if data.SocketActivation {
-			systemd.Connection().StartUnitJob(socketUnitName, "fail")
+			// Start the socket file, not the service and ignore failures
+			if err := systemd.Connection().StartUnitJob(socketUnitName, "fail"); err != nil {
+				log.Printf("job_create_container: Could not start gear socket %s: %v", socketUnitName, err)
+				j.Failure(ErrGearCreateFailed)
+				return
+			}
+		} else {
+			if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
+				log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
+				j.Failure(ErrGearCreateFailed)
+				return
+			}
+
 		}
 	}
 

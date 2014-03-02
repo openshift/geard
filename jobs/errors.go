@@ -5,9 +5,6 @@ var (
 	ErrGearNotFound            = SimpleJobError{JobResponseNotFound, "The specified gear does not exist."}
 	ErrGearAlreadyExists       = SimpleJobError{JobResponseAlreadyExists, "A gear with this identifier already exists."}
 	ErrGearCreateFailed        = SimpleJobError{JobResponseError, "Unable to create gear."}
-	ErrRepositoryAlreadyExists = SimpleJobError{JobResponseAlreadyExists, "A repository with this identifier already exists."}
-	ErrSubscribeToUnit         = SimpleJobError{JobResponseError, "Unable to watch for the completion of this action."}
-	ErrRepositoryCreateFailed  = SimpleJobError{JobResponseError, "Unable to create the repository."}
 	ErrGearStartFailed         = SimpleJobError{JobResponseError, "Unable to start this gear."}
 	ErrGearStopFailed          = SimpleJobError{JobResponseError, "Unable to stop this gear."}
 	ErrEnvironmentUpdateFailed = SimpleJobError{JobResponseError, "Unable to update the specified environment."}
