@@ -124,8 +124,8 @@ func (s *httpJobResponse) Failure(e jobs.JobError) {
 }
 
 type httpFailureResponse struct {
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
+	Message string
+	Data    interface{} `json:"Data,omitempty"`
 }
 
 type HeaderSerialization interface {

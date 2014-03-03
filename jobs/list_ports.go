@@ -6,19 +6,17 @@ import (
 )
 
 type ContainerPortsJobRequest struct {
-	JobResponse
-	JobRequest
 	GearId gears.Identifier
 	UserId string
 }
 
-func (j *ContainerPortsJobRequest) Execute() {
+func (j *ContainerPortsJobRequest) Execute(resp JobResponse) {
 	portPairs, err := gears.GetExistingPorts(j.GearId)
 	if err != nil {
 		log.Printf("job_container_ports_log: Unable to find unit: %s\n", err.Error())
-		j.Failure(ErrGearNotFound)
+		resp.Failure(ErrGearNotFound)
 		return
 	}
 
-	j.SuccessWithData(JobResponseAccepted, portPairs)
+	resp.SuccessWithData(JobResponseAccepted, portPairs)
 }

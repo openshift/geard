@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/smarterclayton/geard/jobs"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -29,12 +30,32 @@ func (t *TokenData) RequestId() (jobs.RequestIdentifier, error) {
 	}
 	return jobs.RequestIdentifier(b), nil
 }
+func (t *TokenData) SetRequestIdentifier(id jobs.RequestIdentifier) {
+	t.I = hex.EncodeToString(id)
+}
 
 func (t *TokenData) ResourceType() string {
 	return t.T
 }
 func (t *TokenData) ResourceLocator() string {
 	return t.R
+}
+func (t *TokenData) ToValues(values *url.Values) {
+	if t.I != "" {
+		values.Set("i", t.I)
+	}
+	if t.T != "" {
+		values.Set("t", t.T)
+	}
+	if t.R != "" {
+		values.Set("r", t.R)
+	}
+	if t.U != "" {
+		values.Set("u", t.U)
+	}
+	if t.D != 0 {
+		values.Set("d", strconv.Itoa(t.D))
+	}
 }
 
 func NewTokenFromString(s string) (*TokenData, error) {

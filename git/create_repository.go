@@ -20,8 +20,6 @@ var (
 )
 
 type CreateRepositoryRequest struct {
-	jobs.JobResponse
-	jobs.JobRequest
 	RepositoryId gears.Identifier
 	Image        string
 	CloneUrl     string
@@ -30,17 +28,17 @@ type CreateRepositoryRequest struct {
 const repositoryOwnerUid = 1001
 const repositoryOwnerGid = 1001
 
-func (j *CreateRepositoryRequest) Execute() {
+func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 	repositoryPath := j.RepositoryId.RepositoryPathFor()
 	unitName := fmt.Sprintf("job-repo-create-%s.service", j.RepositoryId)
 	cloneUrl := j.CloneUrl
 
 	if err := os.Mkdir(repositoryPath, 0770); err != nil {
 		if os.IsExist(err) {
-			j.Failure(ErrRepositoryAlreadyExists)
+			resp.Failure(ErrRepositoryAlreadyExists)
 		} else {
 			log.Printf("job_create_repository: make repository dir: %+v", err)
-			j.Failure(ErrRepositoryCreateFailed)
+			resp.Failure(ErrRepositoryCreateFailed)
 		}
 		return
 	}
@@ -51,13 +49,13 @@ func (j *CreateRepositoryRequest) Execute() {
 	conn, errc := systemd.NewConnection()
 	if errc != nil {
 		log.Print("job_create_repository: systemd: ", errc)
-		j.Failure(ErrSubscribeToUnit)
+		resp.Failure(ErrSubscribeToUnit)
 		return
 	}
 	//defer conn.Close()
 	if err := conn.Subscribe(); err != nil {
 		log.Print("job_create_repository: subscribe: ", err)
-		j.Failure(ErrSubscribeToUnit)
+		resp.Failure(ErrSubscribeToUnit)
 		return
 	}
 	defer conn.Unsubscribe()
@@ -97,15 +95,15 @@ func (j *CreateRepositoryRequest) Execute() {
 	)
 	if err != nil {
 		log.Printf("job_create_repository: Could not start transient unit: %s", systemd.SprintSystemdError(err))
-		j.Failure(ErrRepositoryCreateFailed)
+		resp.Failure(ErrRepositoryCreateFailed)
 		return
 	} else if status != "done" {
 		log.Printf("job_create_repository: Unit did not return 'done'")
-		j.Failure(ErrRepositoryCreateFailed)
+		resp.Failure(ErrRepositoryCreateFailed)
 		return
 	}
 
-	w := j.SuccessWithWrite(jobs.JobResponseAccepted, true)
+	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true)
 	go io.Copy(w, stdout)
 
 wait:

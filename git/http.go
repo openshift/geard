@@ -8,42 +8,52 @@ import (
 	"github.com/smarterclayton/go-json-rest"
 )
 
-func Routes() []http.RestRoute {
-	return []http.RestRoute{
-		http.RestRoute{"PUT", "/token/:token/repository", apiPutRepository},
-		http.RestRoute{"GET", "/token/:token/repository/archive/*", apiGetArchive},
+func Routes() []http.HttpJobHandler {
+	return []http.HttpJobHandler{
+		&httpCreateRepositoryRequest{},
+		&httpGitArchiveContentRequest{Ref: "*"},
 	}
 }
 
-func apiPutRepository(reqid jobs.RequestIdentifier, token *http.TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	repositoryId, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
+type httpCreateRepositoryRequest CreateRepositoryRequest
+
+func (h *httpCreateRepositoryRequest) HttpMethod() string { return "PUT" }
+func (h *httpCreateRepositoryRequest) HttpPath() string   { return "/repository" }
+func (h *httpCreateRepositoryRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
+	return func(reqid jobs.RequestIdentifier, token *http.TokenData, r *rest.Request) (jobs.Job, error) {
+		repositoryId, errg := gears.NewIdentifier(token.ResourceLocator())
+		if errg != nil {
+			return nil, errg
+		}
+		// TODO: convert token into a safe clone spec and commit hash
+		return &CreateRepositoryRequest{
+			repositoryId,
+			"ccoleman/githost",
+			token.ResourceType(),
+		}, nil
 	}
-	// TODO: convert token into a safe clone spec and commit hash
-	return &CreateRepositoryRequest{
-		http.NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		repositoryId,
-		"ccoleman/githost",
-		token.ResourceType(),
-	}, nil
 }
 
-func apiGetArchive(reqid jobs.RequestIdentifier, token *http.TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	repoId, errr := gears.NewIdentifier(token.ResourceLocator())
-	if errr != nil {
-		return nil, jobs.SimpleJobError{jobs.JobResponseInvalidRequest, fmt.Sprintf("Invalid repository identifier: %s", errr.Error())}
-	}
-	ref, errc := NewGitCommitRef(r.PathParam("*"))
-	if errc != nil {
-		return nil, jobs.SimpleJobError{jobs.JobResponseInvalidRequest, fmt.Sprintf("Invalid commit ref: %s", errc.Error())}
-	}
+type httpGitArchiveContentRequest GitArchiveContentRequest
 
-	return &GitArchiveContentRequest{
-		http.NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		repoId,
-		ref,
-	}, nil
+func (h *httpGitArchiveContentRequest) HttpMethod() string { return "GET" }
+func (h *httpGitArchiveContentRequest) HttpPath() string {
+	return "/repository/archive/" + string(h.Ref)
+}
+func (h *httpGitArchiveContentRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
+	return func(reqid jobs.RequestIdentifier, token *http.TokenData, r *rest.Request) (jobs.Job, error) {
+		repoId, errr := gears.NewIdentifier(token.ResourceLocator())
+		if errr != nil {
+			return nil, jobs.SimpleJobError{jobs.JobResponseInvalidRequest, fmt.Sprintf("Invalid repository identifier: %s", errr.Error())}
+		}
+		ref, errc := NewGitCommitRef(r.PathParam("*"))
+		if errc != nil {
+			return nil, jobs.SimpleJobError{jobs.JobResponseInvalidRequest, fmt.Sprintf("Invalid commit ref: %s", errc.Error())}
+		}
+
+		return &GitArchiveContentRequest{
+			repoId,
+			ref,
+		}, nil
+	}
 }

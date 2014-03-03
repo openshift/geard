@@ -8,10 +8,7 @@ import (
 )
 
 type Job interface {
-	Execute()
-
-	Fast() bool
-	JobId() RequestIdentifier
+	Execute(JobResponse)
 }
 
 type Join interface {
@@ -56,16 +53,4 @@ func NewRequestIdentifier() RequestIdentifier {
 	i := make(RequestIdentifier, 16)
 	rand.Read(i)
 	return i
-}
-
-type JobRequest struct {
-	RequestId RequestIdentifier
-}
-
-func (j *JobRequest) Fast() bool {
-	return false
-}
-
-func (j *JobRequest) JobId() RequestIdentifier {
-	return j.RequestId
 }

@@ -53,75 +53,71 @@ func inStateOrTooSoon(unit string, active bool, rateLimit uint64) (bool, bool) {
 }
 
 type StartedContainerStateRequest struct {
-	JobResponse
-	JobRequest
 	GearId gears.Identifier
 	UserId string
 }
 
-func (j *StartedContainerStateRequest) Execute() {
+func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 	unitName := j.GearId.UnitNameFor()
 	unitPath := j.GearId.UnitPathFor()
 
 	in_state, too_soon := inStateOrTooSoon(unitName, true, rateLimitChanges)
 	if in_state {
-		w := j.SuccessWithWrite(JobResponseAccepted, true)
+		w := resp.SuccessWithWrite(JobResponseAccepted, true)
 		fmt.Fprintf(w, "Gear %s starting\n", j.GearId)
 		return
 	}
 	if too_soon {
-		j.Failure(ErrStartRequestThrottled)
+		resp.Failure(ErrStartRequestThrottled)
 		return
 	}
 
 	if errs := gears.WriteGearState(j.GearId, true); errs != nil {
 		log.Print("job_alter_container_state: Unable to write state file: ", errs)
-		j.Failure(ErrGearStartFailed)
+		resp.Failure(ErrGearStartFailed)
 		return
 	}
 
 	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {
 		log.Printf("job_alter_container_state: Could not enable gear %s: %v", unitName, err)
-		j.Failure(ErrGearStartFailed)
+		resp.Failure(ErrGearStartFailed)
 		return
 	}
 
 	if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
 		log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
-		j.Failure(ErrGearStartFailed)
+		resp.Failure(ErrGearStartFailed)
 		return
 	}
 
-	w := j.SuccessWithWrite(JobResponseAccepted, true)
+	w := resp.SuccessWithWrite(JobResponseAccepted, true)
 	fmt.Fprintf(w, "Gear %s starting\n", j.GearId)
 }
 
 type StoppedContainerStateRequest struct {
-	JobResponse
-	JobRequest
 	GearId gears.Identifier
 	UserId string
 }
 
-func (j *StoppedContainerStateRequest) Execute() {
+func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 	in_state, too_soon := inStateOrTooSoon(j.GearId.UnitNameFor(), false, rateLimitChanges)
 	if in_state {
-		w := j.SuccessWithWrite(JobResponseAccepted, true)
+		w := resp.SuccessWithWrite(JobResponseAccepted, true)
 		fmt.Fprintf(w, "Gear %s is stopped\n", j.GearId)
 		return
 	}
 	if too_soon {
-		j.Failure(ErrStopRequestThrottled)
+		resp.Failure(ErrStopRequestThrottled)
 		return
 	}
 
 	if errs := gears.WriteGearState(j.GearId, false); errs != nil {
 		log.Print("job_alter_container_state: Unable to write state file: ", errs)
-		j.Failure(ErrGearStopFailed)
+		resp.Failure(ErrGearStopFailed)
 		return
 	}
 
-	w := j.SuccessWithWrite(JobResponseAccepted, true)
+	w := resp.SuccessWithWrite(JobResponseAccepted, true)
 
 	unitName := j.GearId.UnitNameFor()
 	done := make(chan time.Time)

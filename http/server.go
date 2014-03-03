@@ -1,17 +1,21 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/smarterclayton/geard/config"
 	"github.com/smarterclayton/geard/dispatcher"
-	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/go-json-rest"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 )
+
+func ApiVersion() string {
+	return "1"
+}
 
 var ErrHandledResponse = errors.New("Request handled")
 
@@ -21,13 +25,18 @@ type HttpConfiguration struct {
 	Extensions []HttpExtension
 }
 
-type RestRoute struct {
-	Method  string
-	Path    string
-	Handler JobHandler
+type JobHandler func(jobs.RequestIdentifier, *TokenData, *rest.Request) (jobs.Job, error)
+
+type HttpJobHandler interface {
+	RemoteJob
+	Handler(conf *HttpConfiguration) JobHandler
 }
 
-type HttpExtension func() []RestRoute
+type HttpStreamable interface {
+	Streamable() bool
+}
+
+type HttpExtension func() []HttpJobHandler
 
 func (conf *HttpConfiguration) Handler() http.Handler {
 	handler := rest.ResourceHandler{
@@ -36,326 +45,104 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 		EnableGzip:               false,
 	}
 
-	handlers := []rest.Route{
-		rest.Route{"GET", "/token/:token/containers", conf.jobRestHandler(apiListContainers)},
-		rest.Route{"PUT", "/token/:token/containers/links", conf.jobRestHandler(apiPutContainerLinks)},
-		rest.Route{"PUT", "/token/:token/container", conf.jobRestHandler(apiPutContainer)},
-		rest.Route{"DELETE", "/token/:token/container", conf.jobRestHandler(apiDeleteContainer)},
-		rest.Route{"GET", "/token/:token/container/log", conf.jobRestHandler(apiGetContainerLog)},
-		rest.Route{"PUT", "/token/:token/container/:action", conf.jobRestHandler(apiPutContainerAction)},
-		rest.Route{"GET", "/token/:token/container/ports", conf.jobRestHandler(apiGetContainerPorts)},
+	handlers := []HttpJobHandler{
+		&HttpInstallContainerRequest{},
+		&HttpDeleteContainerRequest{},
+		&HttpListContainerPortsRequest{},
+		&HttpContainerLogRequest{},
 
-		rest.Route{"GET", "/token/:token/images", conf.jobRestHandler(conf.apiListImages)},
+		&HttpStartContainerRequest{},
+		&HttpStopContainerRequest{},
 
-		rest.Route{"GET", "/token/:token/content", conf.jobRestHandler(apiGetContent)},
-		rest.Route{"GET", "/token/:token/content/*", conf.jobRestHandler(apiGetContent)},
+		&HttpLinkContainersRequest{},
 
-		rest.Route{"PUT", "/token/:token/keys", conf.jobRestHandler(apiPutKeys)},
+		&HttpListContainersRequest{},
+		&HttpListImagesRequest{},
+		&HttpListBuildsRequest{},
 
-		rest.Route{"PUT", "/token/:token/environment", conf.jobRestHandler(apiPutEnvironment)},
-		rest.Route{"PATCH", "/token/:token/environment", conf.jobRestHandler(apiPatchEnvironment)},
+		&HttpBuildImageRequest{},
 
-		rest.Route{"GET", "/token/:token/builds", conf.jobRestHandler(apiListBuilds)},
-		rest.Route{"PUT", "/token/:token/build-image", conf.jobRestHandler(apiPutBuildImageAction)},
+		&HttpPatchEnvironmentRequest{},
+		&HttpPutEnvironmentRequest{},
+
+		&HttpContentRequest{},
+		&HttpContentRequest{Subpath: "*"},
+
+		&HttpCreateKeysRequest{},
 	}
 
 	for i := range conf.Extensions {
 		routes := conf.Extensions[i]()
 		for j := range routes {
-			handlers = append(handlers, rest.Route{routes[j].Method, routes[j].Path, conf.jobRestHandler(routes[j].Handler)})
+			handlers = append(handlers, routes[j])
 		}
 	}
-	handler.SetRoutes(handlers...)
+
+	routes := make([]rest.Route, len(handlers))
+	for i := range handlers {
+		routes[i] = conf.jobRestHandler(handlers[i])
+	}
+
+	handler.SetRoutes(routes...)
 	return &handler
 }
 
-type JobHandler func(jobs.RequestIdentifier, *TokenData, *rest.ResponseWriter, *rest.Request) (jobs.Job, error)
-
-func (conf *HttpConfiguration) jobRestHandler(handler JobHandler) func(*rest.ResponseWriter, *rest.Request) {
-	return func(w *rest.ResponseWriter, r *rest.Request) {
-		token, id, errt := extractToken(r.PathParam("token"), r.Request)
-		if errt != nil {
-			log.Println(errt)
-			http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
-			return
-		}
-
-		if token.D == 0 {
-			log.Println("http: Recommend passing 'd' as an argument for the current date")
-		}
-		if token.U == "" {
-			log.Println("http: Recommend passing 'u' as an argument for the associated user")
-		}
-
-		job, errh := handler(id, token, w, r)
-		if errh != nil {
-			if errh != ErrHandledResponse {
-				http.Error(w, "Invalid request: "+errh.Error()+"\n", http.StatusBadRequest)
+func (conf *HttpConfiguration) jobRestHandler(handler HttpJobHandler) rest.Route {
+	method := handler.Handler(conf)
+	return rest.Route{
+		handler.HttpMethod(),
+		"/token/:token" + handler.HttpPath(),
+		func(w *rest.ResponseWriter, r *rest.Request) {
+			match := r.Header.Get("If-Match")
+			segments := strings.Split(match, ",")
+			for i := range segments {
+				if strings.HasPrefix(segments[i], "api=") {
+					if segments[i][4:] != ApiVersion() {
+						http.Error(w, fmt.Sprintf("Current API version %s does not match requested %s", ApiVersion(), segments[i][4:]), http.StatusPreconditionFailed)
+						return
+					}
+				}
 			}
-			return
-		}
 
-		wait, errd := conf.Dispatcher.Dispatch(job)
-		if errd == jobs.ErrRanToCompletion {
-			http.Error(w, errd.Error(), http.StatusNoContent)
-			return
-		} else if errd != nil {
-			serveRequestError(w, apiRequestError{errd, errd.Error(), http.StatusServiceUnavailable})
-			return
-		}
-		<-wait
+			token, id, errt := extractToken(r.PathParam("token"), r.Request)
+			if errt != nil {
+				log.Println(errt)
+				http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
+				return
+			}
+
+			if token.D == 0 {
+				log.Println("http: Recommend passing 'd' as an argument for the current date")
+			}
+			if token.U == "" {
+				log.Println("http: Recommend passing 'u' as an argument for the associated user")
+			}
+
+			job, errh := method(id, token, r)
+			if errh != nil {
+				if errh != ErrHandledResponse {
+					http.Error(w, "Invalid request: "+errh.Error()+"\n", http.StatusBadRequest)
+				}
+				return
+			}
+
+			canStream := true
+			if streaming, ok := job.(HttpStreamable); ok {
+				canStream = streaming.Streamable()
+			}
+			response := NewHttpJobResponse(w.ResponseWriter, !canStream)
+
+			wait, errd := conf.Dispatcher.Dispatch(id, job, response)
+			if errd == jobs.ErrRanToCompletion {
+				http.Error(w, errd.Error(), http.StatusNoContent)
+				return
+			} else if errd != nil {
+				serveRequestError(w, apiRequestError{errd, errd.Error(), http.StatusServiceUnavailable})
+				return
+			}
+			<-wait
+		},
 	}
-}
-
-func apiPutContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-	if token.ResourceType() == "" {
-		return nil, errors.New("A container must have an image identifier")
-	}
-
-	data := jobs.ExtendedInstallContainerData{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-	if data.Ports == nil {
-		data.Ports = make([]gears.PortPair, 0)
-	}
-
-	if data.Environment != nil {
-		env := data.Environment
-		if env.Id == gears.InvalidIdentifier {
-			return nil, errors.New("You must specify an environment identifier on creation.")
-		}
-	}
-
-	if data.NetworkLinks != nil {
-		if err := data.NetworkLinks.Check(); err != nil {
-			return nil, err
-		}
-	}
-
-	return &jobs.InstallContainerRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		gearId,
-		token.U,
-		token.ResourceType(),
-		&data,
-	}, nil
-}
-
-func apiDeleteContainer(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-	return &jobs.DeleteContainerRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}, gearId}, nil
-}
-
-func apiListBuilds(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	return &jobs.ListBuildsRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}}, nil
-}
-
-func apiListContainers(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	return &jobs.ListContainersRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}}, nil
-}
-
-func (conf HttpConfiguration) apiListImages(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	return &jobs.ListImagesRequest{NewHttpJobResponse(w.ResponseWriter, false), jobs.JobRequest{reqid}, conf.Docker.Socket}, nil
-}
-
-func apiGetContainerLog(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-	return &jobs.ContainerLogRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		gearId,
-		token.U,
-	}, nil
-}
-
-func apiGetContainerPorts(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-	return &jobs.ContainerPortsJobRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		gearId,
-		token.U,
-	}, nil
-}
-
-func apiPutKeys(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	data := jobs.ExtendedCreateKeysData{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-	if err := data.Check(); err != nil {
-		return nil, err
-	}
-	return &jobs.CreateKeysRequest{
-		NewHttpJobResponse(w.ResponseWriter, true),
-		jobs.JobRequest{reqid},
-		token.U,
-		&data,
-	}, nil
-}
-
-func apiPutContainerAction(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	action := r.PathParam("action")
-	gearId, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-	switch action {
-	case "started":
-		return &jobs.StartedContainerStateRequest{
-			NewHttpJobResponse(w.ResponseWriter, false),
-			jobs.JobRequest{reqid},
-			gearId,
-			token.U,
-		}, nil
-	case "stopped":
-		return &jobs.StoppedContainerStateRequest{
-			NewHttpJobResponse(w.ResponseWriter, false),
-			jobs.JobRequest{reqid},
-			gearId,
-			token.U,
-		}, nil
-	default:
-		return nil, errors.New("You must provide a valid action for this container to take")
-	}
-}
-
-func apiPutBuildImageAction(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	if token.ResourceLocator() == "" {
-		return nil, errors.New("You must specifiy the application source to build")
-	}
-	if token.ResourceType() == "" {
-		return nil, errors.New("You must specify a base image")
-	}
-
-	source := token.ResourceLocator() // token.R
-	baseImage := token.ResourceType() // token.T
-	tag := token.U
-
-	data := jobs.ExtendedBuildImageData{}
-	if r.Body != nil {
-		dec := json.NewDecoder(r.Body)
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-
-	return &jobs.BuildImageRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		source,
-		baseImage,
-		tag,
-		&data,
-	}, nil
-}
-
-func apiPutEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	id, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-
-	data := jobs.ExtendedEnvironmentData{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-	if err := data.Check(); err != nil {
-		return nil, err
-	}
-	data.Id = id
-
-	return &jobs.PutEnvironmentRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		&data,
-	}, nil
-}
-
-func apiPatchEnvironment(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	id, errg := gears.NewIdentifier(token.ResourceLocator())
-	if errg != nil {
-		return nil, errg
-	}
-
-	data := jobs.ExtendedEnvironmentData{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-	if err := data.Check(); err != nil {
-		return nil, err
-	}
-	data.Id = id
-
-	return &jobs.PatchEnvironmentRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		&data,
-	}, nil
-}
-
-func apiGetContent(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	if token.ResourceLocator() == "" {
-		return nil, errors.New("You must specify the location of the content you want to access")
-	}
-	if token.ResourceType() == "" {
-		return nil, errors.New("You must specify the type of the content you want to access")
-	}
-
-	return &jobs.ContentRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		token.ResourceType(),
-		token.ResourceLocator(),
-		r.PathParam("*"),
-	}, nil
-}
-
-func apiPutContainerLinks(reqid jobs.RequestIdentifier, token *TokenData, w *rest.ResponseWriter, r *rest.Request) (jobs.Job, error) {
-	data := jobs.ExtendedLinkContainersData{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-
-	if err := data.Check(); err != nil {
-		return nil, err
-	}
-
-	return &jobs.LinkContainersRequest{
-		NewHttpJobResponse(w.ResponseWriter, false),
-		jobs.JobRequest{reqid},
-		&data,
-	}, nil
 }
 
 func limitedBodyReader(r *rest.Request) io.Reader {
