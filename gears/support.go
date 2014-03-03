@@ -270,6 +270,22 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 		return errs
 	}
 
+	// Enable routing in the namespace
+	output, err := exec.Command("ip", "netns", "exec", name, "sysctl", "-w", "net.ipv4.conf.all.route_localnet=1").Output()
+	if err != nil {
+		log.Printf("network_links: Failed to enable localnet routing: %v", err)
+		log.Printf("network_links: error output: %v", output)
+		return err
+	}
+
+	// Enable ip forwarding
+	output, err = exec.Command("ip", "netns", "exec", name, "sysctl", "-w", "net.ipv4.ip_forward=1").Output()
+	if err != nil {
+		log.Printf("network_links: Failed to enable ipv4 forwarding: %v", err)
+		log.Printf("network_links: error output: %v", output)
+		return err
+	}
+
 	// Restore a set of rules to the table
 	cmd := exec.Command("ip", "netns", "exec", name, "iptables-restore")
 	stdin, errp := cmd.StdinPipe()
