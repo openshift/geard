@@ -9,9 +9,9 @@ import (
 )
 
 type unitResponse struct {
-	Id          string `json:"id"`
-	ActiveState string `json:"active_state"`
-	SubState    string `json:"sub_state"`
+	Id          string
+	ActiveState string
+	SubState    string
 }
 type units []unitResponse
 
@@ -41,8 +41,6 @@ func unitsMatching(re *regexp.Regexp, found func(name string, unit *dbus.UnitSta
 }
 
 type ListContainersRequest struct {
-	JobResponse
-	JobRequest
 }
 type containerResponse struct {
 	unitResponse
@@ -67,7 +65,7 @@ type listContainers struct {
 
 var reGearUnits = regexp.MustCompile("\\Agear-([^\\.]+)\\.service\\z")
 
-func (j *ListContainersRequest) Execute() {
+func (j *ListContainersRequest) Execute(resp JobResponse) {
 	r := listContainers{make(containers, 0)}
 
 	if err := unitsMatching(reGearUnits, func(name string, unit *dbus.UnitStatus) {
@@ -82,17 +80,15 @@ func (j *ListContainersRequest) Execute() {
 		})
 	}); err != nil {
 		log.Printf("list_units: Unable to list units from systemd: %v", err)
-		j.Failure(ErrListContainersFailed)
+		resp.Failure(ErrListContainersFailed)
 		return
 	}
 
 	sort.Sort(r.Containers)
-	j.SuccessWithData(JobResponseOk, r)
+	resp.SuccessWithData(JobResponseOk, r)
 }
 
 type ListBuildsRequest struct {
-	JobResponse
-	JobRequest
 }
 type listBuilds struct {
 	Builds units `json:"builds"`
@@ -100,7 +96,7 @@ type listBuilds struct {
 
 var reBuildUnits = regexp.MustCompile("\\Abuild-([^\\.]+)\\.service\\z")
 
-func (j *ListBuildsRequest) Execute() {
+func (j *ListBuildsRequest) Execute(resp JobResponse) {
 	r := listBuilds{make(units, 0)}
 
 	if err := unitsMatching(reBuildUnits, func(name string, unit *dbus.UnitStatus) {
@@ -111,9 +107,9 @@ func (j *ListBuildsRequest) Execute() {
 		})
 	}); err != nil {
 		log.Printf("list_units: Unable to list units from systemd: %v", err)
-		j.Failure(ErrListContainersFailed)
+		resp.Failure(ErrListContainersFailed)
 		return
 	}
 	sort.Sort(r.Builds)
-	j.SuccessWithData(JobResponseOk, r)
+	resp.SuccessWithData(JobResponseOk, r)
 }

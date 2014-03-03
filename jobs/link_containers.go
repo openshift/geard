@@ -7,7 +7,7 @@ import (
 
 type GearLink struct {
 	Gear         gears.Identifier
-	NetworkLinks gears.NetworkLinks `json:"network_links"`
+	NetworkLinks gears.NetworkLinks
 }
 
 func (g *GearLink) Check() error {
@@ -42,20 +42,18 @@ func (g *ExtendedLinkContainersData) Check() error {
 }
 
 type LinkContainersRequest struct {
-	JobResponse
-	JobRequest
 	Data *ExtendedLinkContainersData
 }
 
-func (j *LinkContainersRequest) Execute() {
+func (j *LinkContainersRequest) Execute(resp JobResponse) {
 	data := j.Data
 
 	for i := range data.Links {
 		if errw := data.Links[i].NetworkLinks.Write(data.Links[i].Gear.NetworkLinksPathFor(), false); errw != nil {
-			j.Failure(ErrLinkContainersFailed)
+			resp.Failure(ErrLinkContainersFailed)
 			return
 		}
 	}
 
-	j.Success(JobResponseOk)
+	resp.Success(JobResponseOk)
 }

@@ -13,8 +13,7 @@ import (
 )
 
 type BuildImageRequest struct {
-	JobResponse
-	JobRequest
+	Name      string
 	Source    string
 	BaseImage string
 	Tag       string
@@ -29,13 +28,13 @@ type ExtendedBuildImageData struct {
 
 const buildImage = "pmorie/sti-builder"
 
-func (j *BuildImageRequest) Execute() {
-	w := j.SuccessWithWrite(JobResponseAccepted, true)
+func (j *BuildImageRequest) Execute(resp JobResponse) {
+	w := resp.SuccessWithWrite(JobResponseAccepted, true)
 
 	fmt.Fprintf(w, "Processing build-image request:\n")
 	// TODO: download source, add bind-mount
 
-	unitName := gears.JobIdentifier(j.RequestId).UnitNameForBuild()
+	unitName := gears.JobIdentifier(j.Name).UnitNameForBuild()
 	unitDescription := fmt.Sprintf("Builder for %s", j.Tag)
 
 	stdout, err := gears.ProcessLogsForUnit(unitName)

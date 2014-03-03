@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/user"
 	"strconv"
-	"strings"
 )
 
 var (
@@ -104,6 +103,15 @@ func Execute() {
 	gearCmd.Execute()
 }
 
+// Initializers for local command execution.
+func needsSystemd() {
+	systemd.Require()
+}
+func needsSystemdAndData() {
+	systemd.Require()
+	gears.InitializeData()
+}
+
 func gear(cmd *cobra.Command, args []string) {
 	if !daemon {
 		cmd.Usage()
@@ -121,77 +129,65 @@ func gear(cmd *cobra.Command, args []string) {
 }
 
 func clean(cmd *cobra.Command, args []string) {
-	systemd.Require()
+	needsSystemd()
 	gears.Clean()
 }
 
 func installImage(cmd *cobra.Command, args []string) {
-	systemd.Require()
-	gears.InitializeData()
-
-	if len(args) != 2 {
-		fail(1, "Valid arguments: <image_name> <id>\n")
+	if len(args) < 2 {
+		fail(1, "Valid arguments: <image_name> <id> ...\n")
 	}
 	imageId := args[0]
 	if imageId == "" {
 		fail(1, "Argument 1 must be an image to base the gear on\n")
 	}
-	gearId, err := gears.NewIdentifier(args[1])
+	ids, err := NewRemoteIdentifiers(args[1:])
 	if err != nil {
-		fail(1, "Argument 2 must be a valid gear identifier: %s\n", err.Error())
+		fail(1, "You must pass one or more valid gear ids: %s\n", err.Error())
 	}
 
-	run(cmd, func(r jobs.JobResponse) jobs.Job {
-		return &jobs.InstallContainerRequest{
-			JobResponse: r,
-			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
-			GearId:      gearId,
-			Image:       imageId,
-			Data:        &jobs.ExtendedInstallContainerData{},
+	runEach(cmd, needsSystemdAndData, func(on Locator) jobs.Job {
+		return &http.HttpInstallContainerRequest{
+			jobs.InstallContainerRequest{
+				Id:    on.(*RemoteIdentifier).Id,
+				Image: imageId,
+			},
 		}
-	})
+	}, ids...)
 }
 
 func startContainer(cmd *cobra.Command, args []string) {
-	systemd.Require()
-
 	if len(args) != 1 {
 		fail(1, "Valid arguments: <id>\n")
 	}
-	gearId, err := gears.NewIdentifier(args[0])
+	gearId, err := NewRemoteIdentifier(args[0])
 	if err != nil {
 		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", gearId.UnitNameFor())
-	run(cmd, func(r jobs.JobResponse) jobs.Job {
+	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", gearId.Id.UnitNameFor())
+	run(cmd, needsSystemd, func(on ...Locator) jobs.Job {
 		return &jobs.StartedContainerStateRequest{
-			JobResponse: r,
-			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
-			GearId:      gearId,
+			GearId: on[0].(RemoteIdentifier).Id,
 		}
-	})
+	}, gearId)
 }
 
 func stopContainer(cmd *cobra.Command, args []string) {
-	systemd.Require()
-
 	if len(args) != 1 {
 		fail(1, "Valid arguments: <id>\n")
 	}
-	gearId, err := gears.NewIdentifier(args[0])
+	gearId, err := NewRemoteIdentifier(args[0])
 	if err != nil {
 		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", gearId.UnitNameFor())
-	run(cmd, func(r jobs.JobResponse) jobs.Job {
+	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", gearId.Id.UnitNameFor())
+	run(cmd, needsSystemd, func(on ...Locator) jobs.Job {
 		return &jobs.StoppedContainerStateRequest{
-			JobResponse: r,
-			JobRequest:  jobs.JobRequest{jobs.NewRequestIdentifier()},
-			GearId:      gearId,
+			GearId: on[0].(RemoteIdentifier).Id,
 		}
-	})
+	}, gearId)
 }
 
 func initGear(cmd *cobra.Command, args []string) {
@@ -240,25 +236,4 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 	if err := gears.GenerateAuthorizedKeys(conf.Docker.Socket, u); err != nil {
 		fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 	}
-}
-
-func run(cmd *cobra.Command, init func(jobs.JobResponse) jobs.Job) {
-	r := &CliJobResponse{cmd.Out(), cmd.Out(), false, false, 0, ""}
-	j := init(r)
-	j.Execute()
-	if r.exitCode != 0 {
-		if r.message == "" {
-			r.message = "Command failed"
-		}
-		fail(r.exitCode, r.message)
-	}
-	os.Exit(r.exitCode)
-}
-
-func fail(code int, format string, other ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, other...)
-	if !strings.HasSuffix(format, "\n") {
-		fmt.Fprintln(os.Stderr)
-	}
-	os.Exit(code)
 }

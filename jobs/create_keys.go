@@ -11,8 +11,6 @@ import (
 )
 
 type CreateKeysRequest struct {
-	JobResponse
-	JobRequest
 	UserId string
 	Data   *ExtendedCreateKeysData
 }
@@ -100,7 +98,7 @@ func KeyFingerprint(key ssh.PublicKey) utils.Fingerprint {
 	return utils.Fingerprint(bytes[:])
 }
 
-func (j *CreateKeysRequest) Execute() {
+func (j *CreateKeysRequest) Execute(resp JobResponse) {
 	failedKeys := []KeyFailure{}
 	for i := range j.Data.Keys {
 		key := j.Data.Keys[i]
@@ -151,8 +149,8 @@ func (j *CreateKeysRequest) Execute() {
 			data[i] = KeyStructuredFailure{failedKeys[i].Index, failedKeys[i].Reason.Error()}
 			log.Printf("Failure %d: %+v", failedKeys[i].Index, failedKeys[i].Reason)
 		}
-		j.Failure(StructuredJobError{SimpleJobError{JobResponseError, "Not all keys were completed"}, data})
+		resp.Failure(StructuredJobError{SimpleJobError{JobResponseError, "Not all keys were completed"}, data})
 	} else {
-		j.Success(JobResponseOk)
+		resp.Success(JobResponseOk)
 	}
 }

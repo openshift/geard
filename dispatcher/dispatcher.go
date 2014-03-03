@@ -17,6 +17,10 @@ type Dispatcher struct {
 	recentJobs *RequestIdentifierMap
 }
 
+type Fast interface {
+	Fast() bool
+}
+
 func (d *Dispatcher) Start() {
 	d.recentJobs = NewRequestIdentifierMap(d.TrackDuplicateIds)
 	d.fastJobs = make(chan jobTracker, d.QueueFast)
@@ -30,9 +34,9 @@ func (d *Dispatcher) Start() {
 func (d *Dispatcher) work(queue <-chan jobTracker) {
 	go func() {
 		for tracker := range queue {
-			id := tracker.job.JobId()
+			id := tracker.id
 			log.Printf("job START %s", id.String())
-			tracker.job.Execute()
+			tracker.job.Execute(tracker.response)
 			log.Printf("job END   %s", id.String())
 			close(tracker.complete)
 			d.recentJobs.Put(id, nil)
@@ -41,15 +45,17 @@ func (d *Dispatcher) work(queue <-chan jobTracker) {
 }
 
 type jobTracker struct {
+	id       jobs.RequestIdentifier
 	job      jobs.Job
+	response jobs.JobResponse
 	complete chan bool
 }
 
-func (d *Dispatcher) Dispatch(j jobs.Job) (done <-chan bool, err error) {
+func (d *Dispatcher) Dispatch(id jobs.RequestIdentifier, j jobs.Job, resp jobs.JobResponse) (done <-chan bool, err error) {
 	complete := make(chan bool)
-	tracker := jobTracker{j, complete}
+	tracker := jobTracker{id, j, resp, complete}
 
-	if existing, found := d.recentJobs.Put(j.JobId(), tracker); found {
+	if existing, found := d.recentJobs.Put(id, tracker); found {
 		var join jobs.Join
 		if existing != nil {
 			other, _ := existing.(jobTracker)
@@ -83,7 +89,11 @@ func (d *Dispatcher) Dispatch(j jobs.Job) (done <-chan bool, err error) {
 	}
 
 	var queue chan jobTracker
-	if j.Fast() {
+	fast := false
+	if f, ok := j.(Fast); ok {
+		fast = f.Fast()
+	}
+	if fast {
 		queue = d.fastJobs
 	} else {
 		queue = d.slowJobs

@@ -16,18 +16,12 @@ import (
 const ContentTypeGitArchive = "gitarchive"
 
 type GitArchiveContentRequest struct {
-	jobs.JobResponse
-	jobs.JobRequest
 	RepositoryId gears.Identifier
 	Ref          GitCommitRef
 }
 
-func (j *GitArchiveContentRequest) Fast() bool {
-	return false
-}
-
-func (j *GitArchiveContentRequest) Execute() {
-	w := j.SuccessWithWrite(jobs.JobResponseOk, false)
+func (j GitArchiveContentRequest) Execute(resp jobs.JobResponse) {
+	w := resp.SuccessWithWrite(jobs.JobResponseOk, false)
 	if err := writeGitRepositoryArchive(w, j.RepositoryId.RepositoryPathFor(), j.Ref); err != nil {
 		log.Printf("job_content: Invalid git repository stream: %v", err)
 	}

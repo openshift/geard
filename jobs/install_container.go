@@ -40,15 +40,11 @@ import (
 // 1) Publicly exposing ports
 
 type InstallContainerRequest struct {
-	JobResponse
-	JobRequest
-	GearId gears.Identifier
-	UserId string
-	Image  string
-	Data   *ExtendedInstallContainerData
-}
+	RequestIdentifier
 
-type ExtendedInstallContainerData struct {
+	Id    gears.Identifier
+	Image string
+
 	// A simple container is allowed to default to normal Docker
 	// options like -P.  If simple is true no user or home
 	// directory is created and SSH is not available
@@ -61,56 +57,75 @@ type ExtendedInstallContainerData struct {
 	// no port forwarding, socket activated).
 	// If UseSocketProxy then socket files are proxies to the
 	// appropriate port
-	SocketActivation bool `json:"socket_activation"`
-	SkipSocketProxy  bool `json:"dont_proxy_socket"`
+	SocketActivation bool
+	SkipSocketProxy  bool
 
 	Ports        gears.PortPairs
 	Environment  *ExtendedEnvironmentData
-	NetworkLinks *gears.NetworkLinks `json:"network_links"`
+	NetworkLinks *gears.NetworkLinks
 
 	// Should the container be started by default
 	Started bool
 }
 
+func (req *InstallContainerRequest) Check() error {
+	if req.SocketActivation && len(req.Ports) == 0 {
+		req.SocketActivation = false
+		req.Isolate = true
+	}
+	if req.Image == "" {
+		return errors.New("A container must have an image identifier")
+	}
+	if req.Environment != nil {
+		if req.Environment.Id == gears.InvalidIdentifier {
+			return errors.New("You must specify an environment identifier on creation.")
+		}
+		if err := req.Environment.Check(); err != nil {
+			return err
+		}
+	}
+	if req.NetworkLinks != nil {
+		if err := req.NetworkLinks.Check(); err != nil {
+			return err
+		}
+	}
+	if req.Ports == nil {
+		req.Ports = make([]gears.PortPair, 0)
+	}
+	return nil
+}
+
 func dockerPortSpec(p gears.PortPairs) string {
 	var portSpec bytes.Buffer
-	if len(p) > 0 {
-		portSpec.WriteString("-p")
-		for i := range p {
-			portSpec.WriteString(fmt.Sprintf(" %d:%d", p[i].External, p[i].Internal))
-		}
+	for i := range p {
+		portSpec.WriteString(fmt.Sprintf("-p %d:%d ", p[i].External, p[i].Internal))
 	}
 	return portSpec.String()
 }
 
-func (j *InstallContainerRequest) Execute() {
-	data := j.Data
+func (req *InstallContainerRequest) Execute(resp JobResponse) {
 
+	id := req.Id
+	unitName := id.UnitNameFor()
+	unitPath := id.UnitPathFor()
+	unitDefinitionPath := id.UnitDefinitionPathFor()
+	unitVersionPath := id.VersionedUnitPathFor(req.RequestIdentifier.String())
+
+	socketUnitName := id.SocketUnitNameFor()
+	socketUnitPath := id.SocketUnitPathFor()
 	var socketActivationType string
-	if data.SocketActivation && len(data.Ports) == 0 {
-		data.SocketActivation = false
-		data.Isolate = true
-	}
-	if data.SocketActivation {
+	if req.SocketActivation {
 		socketActivationType = "enabled"
-		if !data.SkipSocketProxy {
+		if !req.SkipSocketProxy {
 			socketActivationType = "proxied"
 		}
 	}
 
-	unitName := j.GearId.UnitNameFor()
-	unitPath := j.GearId.UnitPathFor()
-	unitDefinitionPath := j.GearId.UnitDefinitionPathFor()
-	unitVersionPath := j.GearId.VersionedUnitPathFor(j.RequestId.String())
-
-	socketUnitName := j.GearId.SocketUnitNameFor()
-	socketUnitPath := j.GearId.SocketUnitPathFor()
-
 	// attempt to download the environment if it is remote
-	env := data.Environment
+	env := req.Environment
 	if env != nil {
 		if err := env.Fetch(); err != nil {
-			j.Failure(ErrGearCreateFailed)
+			resp.Failure(ErrGearCreateFailed)
 			return
 		}
 	}
@@ -119,7 +134,7 @@ func (j *InstallContainerRequest) Execute() {
 	state, exists, err := utils.OpenFileExclusive(unitPath, 0660)
 	if err != nil {
 		log.Print("job_create_container: Unable to open unit file: ", err)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 	}
 	defer state.Close()
 
@@ -127,7 +142,7 @@ func (j *InstallContainerRequest) Execute() {
 	unit, err := utils.CreateFileExclusive(unitVersionPath, 0660)
 	if err != nil {
 		log.Print("job_create_container: Unable to open unit file: ", err)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 		return
 	}
 	defer unit.Close()
@@ -135,29 +150,29 @@ func (j *InstallContainerRequest) Execute() {
 	// if this is an existing container, read the currently reserved ports
 	existingPorts := gears.PortPairs{}
 	if exists {
-		existingPorts, err = gears.GetExistingPorts(j.GearId)
+		existingPorts, err = gears.GetExistingPorts(id)
 		if err != nil {
 			if _, ok := err.(*os.PathError); !ok {
 				log.Print("job_create_container: Unable to read existing ports from file: ", err)
-				j.Failure(ErrGearCreateFailed)
+				resp.Failure(ErrGearCreateFailed)
 				return
 			}
 		}
 	}
 
 	// allocate and reserve ports for this gear
-	reserved, erra := gears.AtomicReserveExternalPorts(unitVersionPath, data.Ports, existingPorts)
+	reserved, erra := gears.AtomicReserveExternalPorts(unitVersionPath, req.Ports, existingPorts)
 	if erra != nil {
 		log.Printf("job_create_container: Unable to reserve external ports: %+v", erra)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 		return
 	}
 	if len(reserved) > 0 {
-		j.WritePendingSuccess("PortMapping", reserved)
+		resp.WritePendingSuccess("PortMapping", reserved)
 	}
 
 	var portSpec string
-	if data.Simple && len(reserved) == 0 {
+	if req.Simple && len(reserved) == 0 {
 		portSpec = "-P"
 	} else {
 		portSpec = dockerPortSpec(reserved)
@@ -167,16 +182,16 @@ func (j *InstallContainerRequest) Execute() {
 	var environmentPath string
 	if env != nil {
 		if errw := env.Write(false); errw != nil {
-			j.Failure(ErrGearCreateFailed)
+			resp.Failure(ErrGearCreateFailed)
 			return
 		}
 		environmentPath = env.Id.EnvironmentPathFor()
 	}
 
 	// write the network links (if any) to disk
-	if data.NetworkLinks != nil {
-		if errw := data.NetworkLinks.Write(j.GearId.NetworkLinksPathFor(), false); errw != nil {
-			j.Failure(ErrGearCreateFailed)
+	if req.NetworkLinks != nil {
+		if errw := req.NetworkLinks.Write(id.NetworkLinksPathFor(), false); errw != nil {
+			resp.Failure(ErrGearCreateFailed)
 			return
 		}
 	}
@@ -185,17 +200,16 @@ func (j *InstallContainerRequest) Execute() {
 
 	// write the definition unit file
 	args := gears.ContainerUnit{
-		Gear:     j.GearId,
-		Image:    j.Image,
+		Gear:     id,
+		Image:    req.Image,
 		PortSpec: portSpec,
 		Slice:    slice + ".slice",
 
-		Isolate: data.Isolate,
+		Isolate: req.Isolate,
 
-		User:  j.UserId,
-		ReqId: j.RequestId.String(),
+		ReqId: req.RequestIdentifier.String(),
 
-		HomeDir:         j.GearId.HomePath(),
+		HomeDir:         id.HomePath(),
 		EnvironmentPath: environmentPath,
 		ExecutablePath:  filepath.Join(config.GearBasePath(), "bin", "gear"),
 		IncludePath:     "",
@@ -207,9 +221,9 @@ func (j *InstallContainerRequest) Execute() {
 
 	var unitTemplate *template.Template
 	switch {
-	case data.Simple:
+	case req.Simple:
 		unitTemplate = gears.SimpleContainerUnitTemplate
-	case data.SocketActivation:
+	case req.SocketActivation:
 		unitTemplate = gears.ContainerSocketActivatedUnitTemplate
 	default:
 		unitTemplate = gears.ContainerUnitTemplate
@@ -217,13 +231,13 @@ func (j *InstallContainerRequest) Execute() {
 
 	if erre := unitTemplate.Execute(unit, args); erre != nil {
 		log.Printf("job_create_container: Unable to output template: %+v", erre)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 		defer os.Remove(unitVersionPath)
 		return
 	}
 	if err := unit.Close(); err != nil {
 		log.Printf("job_create_container: Unable to finish writing unit: %+v", err)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 		defer os.Remove(unitVersionPath)
 		return
 	}
@@ -231,26 +245,26 @@ func (j *InstallContainerRequest) Execute() {
 	// swap the new definition with the old one
 	if err := utils.AtomicReplaceLink(unitVersionPath, unitDefinitionPath); err != nil {
 		log.Printf("job_create_container: Failed to activate new unit: %+v", err)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 		return
 	}
 
 	// write the gear state (active, or not active) based on the current start
 	// state
-	if errs := gears.WriteGearStateTo(state, j.GearId, data.Started); errs != nil {
+	if errs := gears.WriteGearStateTo(state, id, req.Started); errs != nil {
 		log.Print("job_create_container: Unable to write state file: ", err)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 		return
 	}
 	if err := state.Close(); err != nil {
 		log.Print("job_create_container: Unable to close state file: ", err)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 		return
 	}
 
 	// Generate the socket file and ignore failures
 	paths := []string{unitPath}
-	if data.SocketActivation {
+	if req.SocketActivation {
 		if err := writeSocketUnit(socketUnitPath, &args); err == nil {
 			paths = []string{unitPath, socketUnitPath}
 		}
@@ -258,33 +272,33 @@ func (j *InstallContainerRequest) Execute() {
 
 	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, paths...); err != nil {
 		log.Printf("job_create_container: Could not enable gear %s: %v", unitName, err)
-		j.Failure(ErrGearCreateFailed)
+		resp.Failure(ErrGearCreateFailed)
 		return
 	}
 
-	if data.Started {
-		if data.SocketActivation {
+	if req.Started {
+		if req.SocketActivation {
 			// Start the socket file, not the service and ignore failures
 			if err := systemd.Connection().StartUnitJob(socketUnitName, "fail"); err != nil {
 				log.Printf("job_create_container: Could not start gear socket %s: %v", socketUnitName, err)
-				j.Failure(ErrGearCreateFailed)
+				resp.Failure(ErrGearCreateFailed)
 				return
 			}
 		} else {
 			if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
 				log.Printf("job_create_container: Could not start gear %s: %v", unitName, err)
-				j.Failure(ErrGearCreateFailed)
+				resp.Failure(ErrGearCreateFailed)
 				return
 			}
 
 		}
 	}
 
-	w := j.SuccessWithWrite(JobResponseAccepted, true)
-	if data.Started {
-		fmt.Fprintf(w, "Gear %s is starting\n", j.GearId)
+	w := resp.SuccessWithWrite(JobResponseAccepted, true)
+	if req.Started {
+		fmt.Fprintf(w, "Gear %s is starting\n", id)
 	} else {
-		fmt.Fprintf(w, "Gear %s is installed\n", j.GearId)
+		fmt.Fprintf(w, "Gear %s is installed\n", id)
 	}
 }
 

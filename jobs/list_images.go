@@ -7,18 +7,16 @@ import (
 )
 
 type ListImagesRequest struct {
-	JobResponse
-	JobRequest
 	DockerSocket string
 }
 
-func (j *ListImagesRequest) Execute() {
+func (j *ListImagesRequest) Execute(resp JobResponse) {
 	// TODO: config item for docker port
 	dockerClient, err := docker.NewClient(j.DockerSocket)
 
 	if err != nil {
 		log.Printf("job_list_images: Couldn't connect to docker: %+v", err)
-		j.Failure(ErrListImagesFailed)
+		resp.Failure(ErrListImagesFailed)
 		return
 	}
 
@@ -26,11 +24,11 @@ func (j *ListImagesRequest) Execute() {
 
 	if err != nil {
 		log.Printf("job_list_images: Couldn't connect to docker: %+v", err)
-		j.Failure(ErrListImagesFailed)
+		resp.Failure(ErrListImagesFailed)
 		return
 	}
 
-	w := j.SuccessWithWrite(JobResponseAccepted, true)
+	w := resp.SuccessWithWrite(JobResponseAccepted, true)
 	for _, img := range imgs {
 		fmt.Fprintf(w, "%+v\n", img.RepoTags[0])
 	}

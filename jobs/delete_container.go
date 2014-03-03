@@ -9,12 +9,10 @@ import (
 )
 
 type DeleteContainerRequest struct {
-	JobResponse
-	JobRequest
 	GearId gears.Identifier
 }
 
-func (j *DeleteContainerRequest) Execute() {
+func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 	unitName := j.GearId.UnitNameFor()
 	unitPath := j.GearId.UnitPathFor()
 	socketUnitPath := j.GearId.SocketUnitPathFor()
@@ -23,10 +21,10 @@ func (j *DeleteContainerRequest) Execute() {
 	_, err := systemd.Connection().GetUnitProperties(unitName)
 	switch {
 	case systemd.IsNoSuchUnit(err):
-		j.Success(JobResponseOk)
+		resp.Success(JobResponseOk)
 		return
 	case err != nil:
-		j.Failure(ErrDeleteContainerFailed)
+		resp.Failure(ErrDeleteContainerFailed)
 		return
 	}
 
@@ -35,7 +33,7 @@ func (j *DeleteContainerRequest) Execute() {
 	}
 
 	if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
-		j.Failure(ErrDeleteContainerFailed)
+		resp.Failure(ErrDeleteContainerFailed)
 		return
 	}
 
@@ -63,5 +61,5 @@ func (j *DeleteContainerRequest) Execute() {
 		log.Printf("delete_container: Some units have not been disabled: %v", err)
 	}
 
-	j.Success(JobResponseOk)
+	resp.Success(JobResponseOk)
 }
