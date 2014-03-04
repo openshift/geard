@@ -45,23 +45,6 @@ func Execute() {
 	}
 	gearCmd.PersistentFlags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
 
-	daemonCmd := &cobra.Command{
-		Use:   "daemon",
-		Short: "Start the gear server",
-		Long:  "Launch the gear HTTP API server as a daemon. Will not send itself to the background.",
-		Run:   daemon,
-	}
-	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":8080", "Set the address for the http endpoint to listen on")
-	gearCmd.AddCommand(daemonCmd)
-
-	cleanCmd := &cobra.Command{
-		Use:   "clean",
-		Short: "Disable all gears, slices, and targets in systemd",
-		Long:  "Disable all registered resources from systemd to allow them to be removed from the system.  Will reload the systemd daemon config.",
-		Run:   clean,
-	}
-	gearCmd.AddCommand(cleanCmd)
-
 	installImageCmd := &cobra.Command{
 		Use:   "install <image> <name>...",
 		Short: "Install a docker image as a systemd service",
@@ -73,9 +56,10 @@ func Execute() {
 	startCmd := &cobra.Command{
 		Use:   "start <name>...",
 		Short: "Invoke systemd to start a gear",
-		Long:  ``,
+		Long:  "Queues the start and immediately returns.", //  Use -f to attach to the logs.",
 		Run:   startContainer,
 	}
+	//startCmd.Flags().BoolVarP(&follow, "follow", "f", false, "Attach to the logs after startup")
 	gearCmd.AddCommand(startCmd)
 
 	stopCmd := &cobra.Command{
@@ -86,10 +70,27 @@ func Execute() {
 	}
 	gearCmd.AddCommand(stopCmd)
 
+	daemonCmd := &cobra.Command{
+		Use:   "daemon",
+		Short: "(Local) Start the gear server",
+		Long:  "Launch the gear HTTP API server as a daemon. Will not send itself to the background.",
+		Run:   daemon,
+	}
+	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":8080", "Set the address for the http endpoint to listen on")
+	gearCmd.AddCommand(daemonCmd)
+
+	cleanCmd := &cobra.Command{
+		Use:   "clean",
+		Short: "(Local) Disable all gears, slices, and targets in systemd",
+		Long:  "Disable all registered resources from systemd to allow them to be removed from the system.  Will reload the systemd daemon config.",
+		Run:   clean,
+	}
+	gearCmd.AddCommand(cleanCmd)
+
 	initGearCmd := &cobra.Command{
-		Use:   "init",
-		Short: `Setup the environment for a gear`,
-		Long:  ``,
+		Use:   "init <name> <image>",
+		Short: "(Local) Setup the environment for a gear",
+		Long:  "",
 		Run:   initGear,
 	}
 	initGearCmd.Flags().BoolVarP(&pre, "pre", "", false, "Perform pre-start initialization")
@@ -97,12 +98,10 @@ func Execute() {
 	gearCmd.AddCommand(initGearCmd)
 
 	genAuthKeysCmd := &cobra.Command{
-		Use:   "gen-auth-keys",
-		Short: `Create the authorized_keys file for a gear`,
-		Long: `Generate .ssh/authorized_keys file for the specified gear
-							id or (if gear id is ommitted) for the current gear 
-							user`,
-		Run: genAuthKeys,
+		Use:   "gen-auth-keys [<name>]",
+		Short: "(Local) Create the authorized_keys file for a gear",
+		Long:  "Generate .ssh/authorized_keys file for the specified gear id or (if gear id is ommitted) for the current gear user",
+		Run:   genAuthKeys,
 	}
 	gearCmd.AddCommand(genAuthKeysCmd)
 
@@ -154,8 +153,9 @@ func installImage(cmd *cobra.Command, args []string) {
 	runEach(cmd, needsSystemdAndData, func(on Locator) jobs.Job {
 		return &http.HttpInstallContainerRequest{
 			InstallContainerRequest: jobs.InstallContainerRequest{
-				Id:    on.(*RemoteIdentifier).Id,
-				Image: imageId,
+				RequestIdentifier: jobs.NewRequestIdentifier(),
+				Id:                on.(*RemoteIdentifier).Id,
+				Image:             imageId,
 			},
 		}
 	}, ids...)

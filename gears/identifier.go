@@ -15,7 +15,7 @@ import (
 type Identifier string
 
 var InvalidIdentifier = Identifier("")
-var allowedIdentifier = regexp.MustCompile("\\A[a-zA-Z0-9\\-]{4,32}\\z")
+var allowedIdentifier = regexp.MustCompile("\\A[a-zA-Z0-9\\-\\.]{4,32}\\z")
 
 func NewIdentifier(s string) (Identifier, error) {
 	switch {

@@ -73,6 +73,9 @@ func (req *InstallContainerRequest) Check() error {
 		req.SocketActivation = false
 		req.Isolate = true
 	}
+	if len(req.RequestIdentifier) == 0 {
+		return errors.New("A request identifier is required to create this item.")
+	}
 	if req.Image == "" {
 		return errors.New("A container must have an image identifier")
 	}
@@ -133,7 +136,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	// open and lock the base path (to prevent simultaneous updates)
 	state, exists, err := utils.OpenFileExclusive(unitPath, 0660)
 	if err != nil {
-		log.Print("install_container: Unable to open unit file: ", err)
+		log.Print("install_container: Unable to lock unit file: ", err)
 		resp.Failure(ErrGearCreateFailed)
 	}
 	defer state.Close()
@@ -141,7 +144,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	// write a new file to disk that describes the new service
 	unit, err := utils.CreateFileExclusive(unitVersionPath, 0660)
 	if err != nil {
-		log.Print("install_container: Unable to open unit file: ", err)
+		log.Print("install_container: Unable to open unit file definition: ", err)
 		resp.Failure(ErrGearCreateFailed)
 		return
 	}
