@@ -7,11 +7,17 @@ Gear(d) is an opinionated tool for installing Docker images as containers onto a
 
 to install the public image <code>pmorie/sti-html-app</code> to systemd on the local box with the service name "gear-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (port 8080 is the default):
 
-    $ sudo gear -d
+    $ sudo gear daemon
     2014/02/21 02:59:42 ports: searching block 41, 4000-4099
     2014/02/21 02:59:42 Starting HTTP on :8080 ...
 
-The gear command must run as root to interface with the Docker daemon and systemd over DBus at the current time.
+You can also use the gear command against a remote daemon:
+
+    $ gear stop localhost:8080/my-sample-service
+    $ gear install pmorie/sti-html-app localhost:8080/my-sample-service.1 localhost:8080/my-sample-service.2
+    $ gear start localhost:8080/my-sample-service.1 localhost:8080/my-sample-service.2
+
+The gear daemon and local commands must run as root to interface with the Docker daemon and systemd over DBus.
 
 ### What's a gear?
 
@@ -46,11 +52,14 @@ Here are the initial set of supported gear actions - these should map cleanly to
 
 *   Create a new system unit file that runs a single docker image (install and start a gear)
 
+        $ gear install pmorie/sti-html-app localhost:8080/my-sample-service
         $ curl -X PUT "http://localhost:8080/token/__test__/container?t=pmorie%2Fsti-html-app&r=my-sample-service
 
 *   Stop or start a gear
 
+        $ gear stop localhost:8080/my-sample-service
         $ curl -X PUT "http://localhost:8080/token/__test__/container/stopped?r=my-sample-service
+        $ gear start localhost:8080/my-sample-service
         $ curl -X PUT "http://localhost:8080/token/__test__/container/started?r=my-sample-service
 
 *   Fetch the logs for a gear
@@ -61,6 +70,7 @@ Here are the initial set of supported gear actions - these should map cleanly to
 
         $ curl -X PUT "http://localhost:8080/token/__test__/repository?r=my-sample-repo
 
+*   Link containers with local loopback ports (127.0.0.2:8081 -> 9.8.23.14:8080)
 *   Set a public key as enabling SSH or Git SSH access to a gear or repository (respectively)
 *   Enable SSH access to join a container for a set of authorized keys
 *   Build a new image from a source URL and base image
@@ -68,11 +78,11 @@ Here are the initial set of supported gear actions - these should map cleanly to
 *   Set and retrieve environment files for sharing between gears (patch and pull operations)
 *   More....
 
-The daemon is geard (see what I did there?) towards allowing an administrator to easily ensure a given docker container will *always* run on the system by taking advantage of systemd.  It depends on the upcoming "foreground" mode of Docker which will allow the launching process to remain the parent of the container processes - this means that on termination the parent (systemd) can auto restart the process, set additional namespace options, and in general customize more deeply the behavior of the process.
+The daemon is focused on allowing an administrator to easily ensure a given docker container will *always* run on the system by taking advantage of systemd.  It depends on the upcoming "foreground" mode of Docker which will allow the launching process to remain the parent of the container processes - this means that on termination the parent (systemd) can auto restart the process, set additional namespace options, and in general customize more deeply the behavior of the process.
 
 Each geard unit is assigned a unique Unix user and is the user context that the container is run under for quota and security purposes.  An SELinux MCS category label will automatically be assigned to the container, ensuring that each container is more deeply isolated.  Containers are added to a default systemd slice that may have cgroup rules applied to limit them.
 
-A container may also be optionally enabled for public key SSH access for a set of known keys under the user identifier associated with the container.  On SSH, they'll join the running namespace for that container.  More details coming soon.
+A container may also be optionally enabled for public key SSH access for a set of known keys under the user identifier associated with the container.  On SSH, they'll join the running namespace for that container.
 
 
 Try it out
