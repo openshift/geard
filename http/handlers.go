@@ -9,8 +9,11 @@ import (
 	"io"
 )
 
+type DefaultRequest struct{}
+
 type HttpInstallContainerRequest struct {
 	jobs.InstallContainerRequest
+	DefaultRequest
 }
 
 func (h *HttpInstallContainerRequest) HttpMethod() string { return "PUT" }
@@ -141,7 +144,10 @@ func (h *HttpCreateKeysRequest) Handler(conf *HttpConfiguration) JobHandler {
 	}
 }
 
-type HttpStartContainerRequest jobs.StartedContainerStateRequest
+type HttpStartContainerRequest struct {
+	jobs.StartedContainerStateRequest
+	DefaultRequest
+}
 
 func (h *HttpStartContainerRequest) HttpMethod() string { return "PUT" }
 func (h *HttpStartContainerRequest) HttpPath() string   { return "/container/started" }
@@ -151,14 +157,14 @@ func (h *HttpStartContainerRequest) Handler(conf *HttpConfiguration) JobHandler 
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.StartedContainerStateRequest{
-			gearId,
-			token.U,
-		}, nil
+		return &jobs.StartedContainerStateRequest{gearId}, nil
 	}
 }
 
-type HttpStopContainerRequest jobs.StoppedContainerStateRequest
+type HttpStopContainerRequest struct {
+	jobs.StoppedContainerStateRequest
+	DefaultRequest
+}
 
 func (h *HttpStopContainerRequest) HttpMethod() string { return "PUT" }
 func (h *HttpStopContainerRequest) HttpPath() string   { return "/container/stopped" }
@@ -168,10 +174,7 @@ func (h *HttpStopContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.StoppedContainerStateRequest{
-			gearId,
-			token.U,
-		}, nil
+		return &jobs.StoppedContainerStateRequest{gearId}, nil
 	}
 }
 

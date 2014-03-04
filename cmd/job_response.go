@@ -37,7 +37,7 @@ func (s *CliJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interfa
 	encoder.Encode(&data)
 }
 
-func (s *CliJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush bool) io.Writer {
+func (s *CliJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush, structured bool) io.Writer {
 	s.Success(t)
 	return utils.NewWriteFlusher(s.stdout)
 }

@@ -26,7 +26,7 @@ type JobResponse interface {
 
 	Success(t JobResponseSuccess)
 	SuccessWithData(t JobResponseSuccess, data interface{})
-	SuccessWithWrite(t JobResponseSuccess, flush bool) io.Writer
+	SuccessWithWrite(t JobResponseSuccess, flush, structured bool) io.Writer
 	Failure(reason JobError)
 
 	WriteClosed() <-chan bool

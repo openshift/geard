@@ -29,7 +29,7 @@ type ExtendedBuildImageData struct {
 const buildImage = "pmorie/sti-builder"
 
 func (j *BuildImageRequest) Execute(resp JobResponse) {
-	w := resp.SuccessWithWrite(JobResponseAccepted, true)
+	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 
 	fmt.Fprintf(w, "Processing build-image request:\n")
 	// TODO: download source, add bind-mount

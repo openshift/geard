@@ -148,7 +148,7 @@ func installImage(cmd *cobra.Command, args []string) {
 
 	runEach(cmd, needsSystemdAndData, func(on Locator) jobs.Job {
 		return &http.HttpInstallContainerRequest{
-			jobs.InstallContainerRequest{
+			InstallContainerRequest: jobs.InstallContainerRequest{
 				Id:    on.(*RemoteIdentifier).Id,
 				Image: imageId,
 			},
@@ -157,37 +157,41 @@ func installImage(cmd *cobra.Command, args []string) {
 }
 
 func startContainer(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
-		fail(1, "Valid arguments: <id>\n")
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
 	}
-	gearId, err := NewRemoteIdentifier(args[0])
+	ids, err := NewRemoteIdentifiers(args)
 	if err != nil {
-		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
+		fail(1, "You must pass one or more valid gear ids: %s\n", err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", gearId.Id.UnitNameFor())
-	run(cmd, needsSystemd, func(on ...Locator) jobs.Job {
-		return &jobs.StartedContainerStateRequest{
-			GearId: on[0].(RemoteIdentifier).Id,
+	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	runEach(cmd, needsSystemd, func(on Locator) jobs.Job {
+		return &http.HttpStartContainerRequest{
+			StartedContainerStateRequest: jobs.StartedContainerStateRequest{
+				Id: on.(*RemoteIdentifier).Id,
+			},
 		}
-	}, gearId)
+	}, ids...)
 }
 
 func stopContainer(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
-		fail(1, "Valid arguments: <id>\n")
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
 	}
-	gearId, err := NewRemoteIdentifier(args[0])
+	ids, err := NewRemoteIdentifiers(args)
 	if err != nil {
-		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
+		fail(1, "You must pass one or more valid gear ids: %s\n", err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", gearId.Id.UnitNameFor())
-	run(cmd, needsSystemd, func(on ...Locator) jobs.Job {
-		return &jobs.StoppedContainerStateRequest{
-			GearId: on[0].(RemoteIdentifier).Id,
+	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	runEach(cmd, needsSystemd, func(on Locator) jobs.Job {
+		return &http.HttpStopContainerRequest{
+			StoppedContainerStateRequest: jobs.StoppedContainerStateRequest{
+				Id: on.(*RemoteIdentifier).Id,
+			},
 		}
-	}, gearId)
+	}, ids...)
 }
 
 func initGear(cmd *cobra.Command, args []string) {
