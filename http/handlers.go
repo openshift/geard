@@ -184,9 +184,8 @@ func (h *HttpBuildImageRequest) HttpMethod() string { return "PUT" }
 func (h *HttpBuildImageRequest) HttpPath() string   { return "/build-image" }
 func (h *HttpBuildImageRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-
 		if token.ResourceLocator() == "" {
-			return nil, errors.New("You must specifiy the application source to build")
+			return nil, errors.New("You must specify the application source to build")
 		}
 		if token.ResourceType() == "" {
 			return nil, errors.New("You must specify a base image")
