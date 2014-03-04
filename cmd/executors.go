@@ -22,16 +22,17 @@ type check interface {
 func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, on ...Locator) {
 	exitch := make(chan int, len(on))
 	stdout := log.New(cmd.Out(), "", log.Ldate|log.Ltime)
-	wg := &sync.WaitGroup{}
+	tasks := &sync.WaitGroup{}
 	local, remote := Locators(on).Group()
 
 	if len(local) > 0 {
 		localInit()
+
+		tasks.Add(1)
 		go func() {
-			wg.Add(1)
 			w := logstreamer.NewLogstreamer(stdout, "local ", false)
 			defer w.Close()
-			defer wg.Done()
+			defer tasks.Done()
 
 			job := init(local...)
 			if check, ok := job.(check); ok {
@@ -43,7 +44,9 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 			}
 			response := &CliJobResponse{stdout: w, stderr: w}
 			job.Execute(response)
-			if response.exitCode != 0 {
+			if response.exitCode == 0 {
+				response.WritePending(w)
+			} else {
 				if response.message == "" {
 					response.message = "Command failed"
 				}
@@ -54,14 +57,15 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 	}
 
 	for i := range remote {
+		ids := remote[i]
+		host := ids[0].Identity()
+		locator := ids[0].(http.RemoteLocator)
+
+		tasks.Add(1)
 		go func() {
-			wg.Add(1)
-			ids := remote[i]
-			host := ids[0].Identity()
-			locator := ids[0].(http.RemoteLocator)
 			w := logstreamer.NewLogstreamer(stdout, host+" ", false)
 			defer w.Close()
-			defer wg.Done()
+			defer tasks.Done()
 
 			dispatcher := http.NewHttpDispatcher(locator, log.New(w, "", 0))
 
@@ -85,6 +89,8 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 						response.message = "Command failed"
 					}
 					fmt.Fprintf(w, response.message)
+				} else {
+					response.WritePending(w)
 				}
 			} else {
 				fmt.Fprintf(w, "Unable to run this action (%+v) against a remote server", reflect.TypeOf(job))
@@ -98,7 +104,7 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 	select {
 	case code = <-exitch:
 	}
-	wg.Wait()
+	tasks.Wait()
 	os.Exit(code)
 }
 
@@ -107,60 +113,65 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, on ...Locator) {
 	exitch := make(chan int, len(on))
 	stdout := log.New(cmd.Out(), "", log.Ldate|log.Ltime)
-	wg := &sync.WaitGroup{}
+	tasks := &sync.WaitGroup{}
 	local, remote := Locators(on).Group()
 
 	if len(local) > 0 {
 		localInit()
+
+		tasks.Add(1)
 		go func() {
-			wg.Add(1)
-			w := logstreamer.NewLogstreamer(stdout, "local ", false)
-			defer w.Close()
-			defer wg.Done()
+			defer tasks.Done()
 
 			code := 0
 			for i := range local {
 				job := init(local[i])
+				w := logstreamer.NewLogstreamer(stdout, local[i].String()+" ", false)
+
 				if check, ok := job.(check); ok {
 					if err := check.Check(); err != nil {
 						fmt.Fprintf(w, "Not valid: %s", err.Error())
 						code = 1
+						w.Close()
 						continue
 					}
 				}
 				response := &CliJobResponse{stdout: w, stderr: w}
 				job.Execute(response)
-				if response.exitCode != 0 {
+				if response.exitCode == 0 {
+					response.WritePending(w)
+				} else {
 					if response.message == "" {
 						response.message = "Command failed"
 					}
 					fmt.Fprintf(w, response.message)
 					code = response.exitCode
 				}
+				w.Close()
 			}
 			exitch <- code
 		}()
 	}
 
 	for i := range remote {
-		go func() {
-			wg.Add(1)
-			ids := remote[i]
-			host := ids[0].Identity()
-			locator := ids[0].(http.RemoteLocator)
-			w := logstreamer.NewLogstreamer(stdout, host+" ", false)
-			defer w.Close()
-			defer wg.Done()
+		ids := remote[i]
+		locator := ids[0].(http.RemoteLocator)
 
-			dispatcher := http.NewHttpDispatcher(locator, log.New(w, "", 0))
+		tasks.Add(1)
+		go func() {
+			defer tasks.Done()
+
+			dispatcher := http.NewHttpDispatcher(locator, log.New(cmd.Out(), "", 0))
 
 			code := 0
 			for j := range ids {
 				job := init(ids[j])
+				w := logstreamer.NewLogstreamer(stdout, ids[j].String()+" ", false)
 				if check, ok := job.(check); ok {
 					if err := check.Check(); err != nil {
 						fmt.Fprintf(w, "Not valid: %s", err.Error())
 						code = 1
+						w.Close()
 						continue
 					}
 				}
@@ -174,6 +185,8 @@ func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, 
 							response.message = "Command failed"
 						}
 						fmt.Fprintf(w, response.message)
+					} else {
+						response.WritePending(w)
 					}
 				} else {
 					fmt.Fprintf(w, "Unable to run this action (%+v) against a remote server", reflect.TypeOf(job))
@@ -181,6 +194,7 @@ func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, 
 						code = 1
 					}
 				}
+				w.Close()
 			}
 			exitch <- code
 		}()
@@ -190,7 +204,7 @@ func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, 
 	select {
 	case code = <-exitch:
 	}
-	wg.Wait()
+	tasks.Wait()
 	os.Exit(code)
 }
 

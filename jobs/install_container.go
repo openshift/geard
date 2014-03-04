@@ -40,7 +40,7 @@ import (
 // 1) Publicly exposing ports
 
 type InstallContainerRequest struct {
-	RequestIdentifier
+	RequestIdentifier `json:"-"`
 
 	Id    gears.Identifier
 	Image string
