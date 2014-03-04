@@ -13,6 +13,10 @@ import (
 	"sync"
 )
 
+type check interface {
+	Check() error
+}
+
 // A simple executor that groups each remote / local system and simultaneous streams
 // output to the client.  Exits with 0 if all succeeded or the first error code.
 func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, on ...Locator) {
@@ -25,18 +29,25 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 		localInit()
 		go func() {
 			wg.Add(1)
-			lstdout := logstreamer.NewLogstreamer(stdout, "local ", false)
-			defer lstdout.Close()
+			w := logstreamer.NewLogstreamer(stdout, "local ", false)
+			defer w.Close()
 			defer wg.Done()
 
 			job := init(local...)
-			response := &CliJobResponse{stdout: lstdout, stderr: lstdout}
+			if check, ok := job.(check); ok {
+				if err := check.Check(); err != nil {
+					fmt.Fprintf(w, "Not valid: %s", err.Error())
+					exitch <- 1
+					return
+				}
+			}
+			response := &CliJobResponse{stdout: w, stderr: w}
 			job.Execute(response)
 			if response.exitCode != 0 {
 				if response.message == "" {
 					response.message = "Command failed"
 				}
-				fmt.Fprintf(lstdout, response.message)
+				fmt.Fprintf(w, response.message)
 			}
 			exitch <- response.exitCode
 		}()
@@ -45,14 +56,36 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 	for i := range remote {
 		go func() {
 			wg.Add(1)
-			w := logstreamer.NewLogstreamer(stdout, remote[i][0].Identity()+" ", false)
+			ids := remote[i]
+			host := ids[0].Identity()
+			locator := ids[0].(http.RemoteLocator)
+			w := logstreamer.NewLogstreamer(stdout, host+" ", false)
 			defer w.Close()
 			defer wg.Done()
 
-			job := init(local...)
+			dispatcher := http.NewHttpDispatcher(locator, log.New(w, "", 0))
+
+			job := init(ids...)
+			if check, ok := job.(check); ok {
+				if err := check.Check(); err != nil {
+					fmt.Fprintf(w, "Not valid: %s", err.Error())
+					exitch <- 1
+					return
+				}
+			}
+
 			code := 0
-			if remotable, ok := job.(http.RemoteJob); ok {
-				fmt.Fprintf(w, "Executing %d %v", i, remotable)
+			if remotable, ok := job.(http.RemoteExecutable); ok {
+				response := &CliJobResponse{stdout: w, stderr: w}
+				if err := dispatcher.Dispatch(remotable, response); err != nil {
+					fmt.Fprintf(w, "Unable to retrieve response: %s", err.Error())
+				} else if response.exitCode != 0 {
+					code = response.exitCode
+					if response.message == "" {
+						response.message = "Command failed"
+					}
+					fmt.Fprintf(w, response.message)
+				}
 			} else {
 				fmt.Fprintf(w, "Unable to run this action (%+v) against a remote server", reflect.TypeOf(job))
 				code = 1
@@ -81,20 +114,27 @@ func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, 
 		localInit()
 		go func() {
 			wg.Add(1)
-			lstdout := logstreamer.NewLogstreamer(stdout, "local ", false)
-			defer lstdout.Close()
+			w := logstreamer.NewLogstreamer(stdout, "local ", false)
+			defer w.Close()
 			defer wg.Done()
 
 			code := 0
 			for i := range local {
 				job := init(local[i])
-				response := &CliJobResponse{stdout: lstdout, stderr: lstdout}
+				if check, ok := job.(check); ok {
+					if err := check.Check(); err != nil {
+						fmt.Fprintf(w, "Not valid: %s", err.Error())
+						code = 1
+						continue
+					}
+				}
+				response := &CliJobResponse{stdout: w, stderr: w}
 				job.Execute(response)
 				if response.exitCode != 0 {
 					if response.message == "" {
 						response.message = "Command failed"
 					}
-					fmt.Fprintf(lstdout, response.message)
+					fmt.Fprintf(w, response.message)
 					code = response.exitCode
 				}
 			}
@@ -107,19 +147,34 @@ func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, 
 			wg.Add(1)
 			ids := remote[i]
 			host := ids[0].Identity()
+			locator := ids[0].(http.RemoteLocator)
 			w := logstreamer.NewLogstreamer(stdout, host+" ", false)
 			defer w.Close()
 			defer wg.Done()
 
-			locator := ids[0].(http.RemoteLocator)
-			dispatcher := http.NewHttpDispatcher(locator)
+			dispatcher := http.NewHttpDispatcher(locator, log.New(w, "", 0))
 
 			code := 0
 			for j := range ids {
 				job := init(ids[j])
+				if check, ok := job.(check); ok {
+					if err := check.Check(); err != nil {
+						fmt.Fprintf(w, "Not valid: %s", err.Error())
+						code = 1
+						continue
+					}
+				}
 				if remotable, ok := job.(http.RemoteExecutable); ok {
-					fmt.Fprintf(w, "Executing %v", remotable)
-					dispatcher.Dispatch(remotable)
+					response := &CliJobResponse{stdout: w, stderr: w}
+					if err := dispatcher.Dispatch(remotable, response); err != nil {
+						fmt.Fprintf(w, "Unable to retrieve response: %s", err.Error())
+					} else if response.exitCode != 0 {
+						code = response.exitCode
+						if response.message == "" {
+							response.message = "Command failed"
+						}
+						fmt.Fprintf(w, response.message)
+					}
 				} else {
 					fmt.Fprintf(w, "Unable to run this action (%+v) against a remote server", reflect.TypeOf(job))
 					if code == 0 {

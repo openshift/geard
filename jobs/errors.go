@@ -14,6 +14,7 @@ var (
 	ErrStopRequestThrottled    = SimpleJobError{JobResponseRateLimit, "It has been too soon since the last request to stop."}
 	ErrLinkContainersFailed    = SimpleJobError{JobResponseError, "Not all links could be set."}
 	ErrDeleteContainerFailed   = SimpleJobError{JobResponseError, "Unable to delete the container."}
+	ErrContentTypeDoesNotMatch = SimpleJobError{JobResponseNotAcceptable, "The content type you requested is not available for this action."}
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 	JobResponseNotFound
 	JobResponseInvalidRequest
 	JobResponseRateLimit
+	JobResponseNotAcceptable
 )
 
 // An error with a code and message to user

@@ -9,27 +9,31 @@ import (
 	"net/http"
 )
 
+type ResponseContentMode int
+
+const (
+	ResponseJson ResponseContentMode = iota
+	ResponseTable
+)
+
+type TabularOutput interface {
+	WriteTableTo(io.Writer) error
+}
+
 type httpJobResponse struct {
 	response      http.ResponseWriter
 	skipStreaming bool
+	mode          ResponseContentMode
 	succeeded     bool
 	failed        bool
 	pending       map[string]string
 }
 
-func NewHttpJobResponse(w http.ResponseWriter, skipStreaming bool) jobs.JobResponse {
+func NewHttpJobResponse(w http.ResponseWriter, skipStreaming bool, mode ResponseContentMode) jobs.JobResponse {
 	return &httpJobResponse{
 		response:      w,
 		skipStreaming: skipStreaming,
-	}
-}
-
-func (s *httpJobResponse) StatusCode(t jobs.JobResponseSuccess) int {
-	switch t {
-	case jobs.JobResponseAccepted:
-		return http.StatusAccepted
-	default:
-		return http.StatusOK
+		mode:          mode,
 	}
 }
 
@@ -38,6 +42,46 @@ func (s *httpJobResponse) StreamResult() bool {
 }
 
 func (s *httpJobResponse) Success(t jobs.JobResponseSuccess) {
+	s.success(t, false)
+}
+
+func (s *httpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interface{}) {
+	if s.mode == ResponseTable {
+		tabular, ok := data.(TabularOutput)
+		if !ok {
+			s.Failure(jobs.ErrContentTypeDoesNotMatch)
+			return
+		}
+		s.response.Header().Add("Content-Type", "text/plain")
+		s.success(t, false)
+		tabular.WriteTableTo(s.response)
+		return
+	}
+	s.response.Header().Add("Content-Type", "application/json")
+	s.success(t, false)
+	encoder := json.NewEncoder(s.response)
+	encoder.Encode(&data)
+}
+
+func (s *httpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush, structured bool) io.Writer {
+	if structured {
+		s.response.Header().Add("Content-Type", "application/json")
+	} else {
+		s.response.Header().Add("Content-Type", "text/plain")
+	}
+	s.success(t, !s.skipStreaming)
+	var w io.Writer
+	if s.skipStreaming {
+		w = ioutil.Discard
+	} else if flush {
+		w = utils.NewWriteFlusher(s.response)
+	} else {
+		w = s.response
+	}
+	return w
+}
+
+func (s *httpJobResponse) success(t jobs.JobResponseSuccess, stream bool) {
 	if s.failed {
 		panic("Cannot call Success() after failure")
 	}
@@ -52,27 +96,16 @@ func (s *httpJobResponse) Success(t jobs.JobResponseSuccess) {
 		s.pending = nil
 	}
 	s.succeeded = true
-	s.response.WriteHeader(s.StatusCode(t))
+	s.response.WriteHeader(s.statusCode(t, stream))
 }
 
-func (s *httpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interface{}) {
-	s.response.Header().Add("Content-Type", "application/json")
-	s.Success(t)
-	encoder := json.NewEncoder(s.response)
-	encoder.Encode(&data)
-}
-
-func (s *httpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush bool) io.Writer {
-	s.Success(t)
-	var w io.Writer
-	if s.skipStreaming {
-		w = ioutil.Discard
-	} else if flush {
-		w = utils.NewWriteFlusher(s.response)
-	} else {
-		w = s.response
+func (s *httpJobResponse) statusCode(t jobs.JobResponseSuccess, stream bool) int {
+	switch {
+	case stream:
+		return http.StatusAccepted
+	default:
+		return http.StatusOK
 	}
-	return w
 }
 
 func (s *httpJobResponse) WriteClosed() <-chan bool {
@@ -113,12 +146,15 @@ func (s *httpJobResponse) Failure(e jobs.JobError) {
 		code = http.StatusNotFound
 	case jobs.JobResponseInvalidRequest:
 		code = http.StatusBadRequest
+	case jobs.JobResponseNotAcceptable:
+		code = http.StatusNotAcceptable
 	case jobs.JobResponseRateLimit:
 		code = 429 // http.statusTooManyRequests
 	default:
 		code = http.StatusInternalServerError
 	}
 
+	s.response.Header().Set("Content-Type", "application/json")
 	s.response.WriteHeader(code)
 	json.NewEncoder(s.response).Encode(&response)
 }

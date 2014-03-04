@@ -149,6 +149,9 @@ func IsUnitLoadState(systemd Systemd, unit string, state string) (bool, error) {
 func IsNoSuchUnit(err error) bool {
 	return SystemdError(err, "org.freedesktop.systemd1.NoSuchUnit")
 }
+func IsFileNotFound(err error) bool {
+	return SystemdError(err, "org.freedesktop.DBus.Error.FileNotFound")
+}
 func IsLoadFailed(err error) bool {
 	return SystemdError(err, "org.freedesktop.systemd1.LoadFailed")
 }

@@ -28,7 +28,7 @@ func (j *ListImagesRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	w := resp.SuccessWithWrite(JobResponseAccepted, true)
+	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 	for _, img := range imgs {
 		fmt.Fprintf(w, "%+v\n", img.RepoTags[0])
 	}

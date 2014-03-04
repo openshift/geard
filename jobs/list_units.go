@@ -1,11 +1,14 @@
 package jobs
 
 import (
+	"fmt"
 	"github.com/smarterclayton/geard/systemd"
 	"github.com/smarterclayton/go-systemd/dbus"
+	"io"
 	"log"
 	"regexp"
 	"sort"
+	"text/tabwriter"
 )
 
 type unitResponse struct {
@@ -63,10 +66,25 @@ type listContainers struct {
 	Containers containers `json:"containers"`
 }
 
+func (l *listContainers) WriteTableTo(w io.Writer) error {
+	tw := tabwriter.NewWriter(w, 8, 4, 1, ' ', tabwriter.DiscardEmptyColumns)
+	if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", "ID", "ACTIVE", "SUB", "LOAD", "TYPE"); err != nil {
+		return err
+	}
+	for i := range l.Containers {
+		container := &l.Containers[i]
+		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", container.Id, container.ActiveState, container.SubState, container.LoadState, container.JobType); err != nil {
+			return err
+		}
+	}
+	tw.Flush()
+	return nil
+}
+
 var reGearUnits = regexp.MustCompile("\\Agear-([^\\.]+)\\.service\\z")
 
 func (j *ListContainersRequest) Execute(resp JobResponse) {
-	r := listContainers{make(containers, 0)}
+	r := &listContainers{make(containers, 0)}
 
 	if err := unitsMatching(reGearUnits, func(name string, unit *dbus.UnitStatus) {
 		r.Containers = append(r.Containers, containerResponse{

@@ -99,7 +99,9 @@ func (l *Logstreamer) OutputLines() (err error) {
 	for {
 		line, err := l.buf.ReadString('\n')
 		if err == io.EOF {
-			l.out(line)
+			if line != "" {
+				l.out(line)
+			}
 			break
 		}
 		if err != nil {

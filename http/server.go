@@ -126,11 +126,16 @@ func (conf *HttpConfiguration) jobRestHandler(handler HttpJobHandler) rest.Route
 				return
 			}
 
+			mode := ResponseJson
+			if r.Header.Get("Accept") == "text/plain" {
+				mode = ResponseTable
+			}
+
 			canStream := true
 			if streaming, ok := job.(HttpStreamable); ok {
 				canStream = streaming.Streamable()
 			}
-			response := NewHttpJobResponse(w.ResponseWriter, !canStream)
+			response := NewHttpJobResponse(w.ResponseWriter, !canStream, mode)
 
 			wait, errd := conf.Dispatcher.Dispatch(id, job, response)
 			if errd == jobs.ErrRanToCompletion {

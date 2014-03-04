@@ -103,7 +103,7 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 		return
 	}
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true)
+	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
 	go io.Copy(w, stdout)
 
 wait:

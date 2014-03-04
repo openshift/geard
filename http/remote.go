@@ -1,11 +1,15 @@
 package http
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/smarterclayton/geard/jobs"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
 
@@ -26,21 +30,27 @@ type RemoteExecutable interface {
 	RemoteJob
 	MarshalToToken(token *TokenData)
 	MarshalToHttp(io.Writer) error
+	MarshalResponse(r io.Reader, mode ResponseContentMode) (interface{}, error)
 }
 
 type HttpDispatcher struct {
 	client  *http.Client
 	locator RemoteLocator
+	log     *log.Logger
 }
 
-func NewHttpDispatcher(l RemoteLocator) *HttpDispatcher {
+func NewHttpDispatcher(l RemoteLocator, logger *log.Logger) *HttpDispatcher {
+	if logger == nil {
+		logger = log.New(os.Stdout, "", 0)
+	}
 	return &HttpDispatcher{
-		&http.Client{},
-		l,
+		client:  &http.Client{},
+		locator: l,
+		log:     logger,
 	}
 }
 
-func (h *HttpDispatcher) Dispatch(job RemoteExecutable) error {
+func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) error {
 	reader, writer := io.Pipe()
 	httpreq, errn := http.NewRequest(job.HttpMethod(), h.locator.BaseURL().String(), reader)
 	if errn != nil {
@@ -53,30 +63,58 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable) error {
 	query := &url.Values{}
 	token.ToValues(query)
 
-	req := RemoteHttpRequest{httpreq}
-	req.request.Header.Add("If-Match", "api="+ApiVersion())
-	req.request.Header.Add("Content-Type", "application/json")
-	req.request.URL.Path = "/token/__test__" + job.HttpPath()
-	req.request.URL.RawQuery = query.Encode()
+	req := httpreq
+	req.Header.Add("If-Match", "api="+ApiVersion())
+	req.Header.Add("Content-Type", "application/json")
+	req.URL.Path = "/token/__test__" + job.HttpPath()
+	req.URL.RawQuery = query.Encode()
 	go func() {
 		if err := job.MarshalToHttp(writer); err != nil {
-			log.Printf("remote: Error when writing to http: %v", err)
+			h.log.Printf("remote: Error when writing to http: %v", err)
 			writer.CloseWithError(err)
 		} else {
 			writer.Close()
 		}
 	}()
-	log.Printf("Sending request to %v", req.request)
-	resp, err := h.client.Do(req.request)
+
+	resp, err := h.client.Do(req)
 	if err != nil {
-		log.Printf("Failed: %v", err)
+		h.log.Printf("Failed: %v", err)
 		return err
 	}
-	log.Printf("Closing %v", resp)
 	defer resp.Body.Close()
-	return nil
-}
 
-type RemoteHttpRequest struct {
-	request *http.Request
+	isJson := resp.Header.Get("Content-Type") == "application/json"
+
+	switch code := resp.StatusCode; {
+	case code == 202:
+		if isJson {
+			return errors.New("Decoding of streaming JSON has not been implemented")
+		}
+		w := res.SuccessWithWrite(jobs.JobResponseOk, false, false)
+		if _, err := io.Copy(w, resp.Body); err != nil {
+			return err
+		}
+	case code >= 200 && code < 300:
+		if !isJson {
+			return errors.New(fmt.Sprintf("remote: Response with %d status code had content type %s (should be application/json)", code, resp.Header.Get("Content-Type")))
+		}
+		data, err := job.MarshalResponse(resp.Body, ResponseJson)
+		if err != nil {
+			return err
+		}
+		res.SuccessWithData(jobs.JobResponseOk, data)
+	default:
+		if isJson {
+			decoder := json.NewDecoder(resp.Body)
+			data := httpFailureResponse{}
+			if err := decoder.Decode(&data); err != nil {
+				return err
+			}
+			res.Failure(jobs.SimpleJobError{jobs.JobResponseError, data.Message})
+			return nil
+		}
+		res.Failure(jobs.SimpleJobError{jobs.JobResponseError, "Unable to decode response."})
+	}
+	return nil
 }
