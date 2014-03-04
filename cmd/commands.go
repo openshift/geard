@@ -17,9 +17,9 @@ import (
 )
 
 var (
-	daemon     bool
 	pre        bool
 	post       bool
+	follow     bool
 	listenAddr string
 )
 
@@ -35,39 +35,43 @@ var conf = http.HttpConfiguration{
 	},
 }
 
+// Parse the command line arguments and invoke one of the support subcommands.
 func Execute() {
 	gearCmd := &cobra.Command{
 		Use:   "gear",
 		Short: "Gear(d) is a tool for installing Docker containers to systemd",
-		Long: `A commandline client and server that allows Docker containers to
-              be installed to Systemd in an opinionated and distributed
-              fashion.
-              Complete documentation is available at http://github.com/smarterclayton/geard`,
-		Run: gear,
+		Long:  "A commandline client and server that allows Docker containers to be installed to Systemd in an opinionated and distributed fashion.\n\nComplete documentation is available at http://github.com/smarterclayton/geard",
+		Run:   gear,
 	}
-	gearCmd.Flags().BoolVarP(&daemon, "daemon", "d", false, "Run as a server process")
-	gearCmd.Flags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
-	gearCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":8080", "Set the address for the http endpoint to listen on")
+	gearCmd.PersistentFlags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
+
+	daemonCmd := &cobra.Command{
+		Use:   "daemon",
+		Short: "Start the gear server",
+		Long:  "Launch the gear HTTP API server as a daemon. Will not send itself to the background.",
+		Run:   daemon,
+	}
+	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":8080", "Set the address for the http endpoint to listen on")
+	gearCmd.AddCommand(daemonCmd)
 
 	cleanCmd := &cobra.Command{
 		Use:   "clean",
 		Short: "Disable all gears, slices, and targets in systemd",
-		Long: `Disable all registered resources from systemd to allow them to be
-              removed from the system.  Will reload the systemd daemon config.`,
-		Run: clean,
+		Long:  "Disable all registered resources from systemd to allow them to be removed from the system.  Will reload the systemd daemon config.",
+		Run:   clean,
 	}
 	gearCmd.AddCommand(cleanCmd)
 
 	installImageCmd := &cobra.Command{
-		Use:   "install",
+		Use:   "install <image> <name>...",
 		Short: "Install a docker image as a systemd service",
-		Long:  ``,
+		Long:  "Given a docker image label (which may include a custom registry) and the name of one or more gears, contact each of the requested servers and install the image as a new container managed by systemd.\n\nSpecify a location on a remote server with <host>[:<port>]/<name> instead of <name>.  The default port is 2223.",
 		Run:   installImage,
 	}
 	gearCmd.AddCommand(installImageCmd)
 
 	startCmd := &cobra.Command{
-		Use:   "start",
+		Use:   "start <name>...",
 		Short: "Invoke systemd to start a gear",
 		Long:  ``,
 		Run:   startContainer,
@@ -75,7 +79,7 @@ func Execute() {
 	gearCmd.AddCommand(startCmd)
 
 	stopCmd := &cobra.Command{
-		Use:   "stop",
+		Use:   "stop <name>...",
 		Short: "Invoke systemd to stop a gear",
 		Long:  ``,
 		Run:   stopContainer,
@@ -94,9 +98,11 @@ func Execute() {
 
 	genAuthKeysCmd := &cobra.Command{
 		Use:   "gen-auth-keys",
-		Short: `Generate .ssh/authorized_keys file for the specified gear id or (if gear id is ommitted) for the current gear user`,
-		Long:  ``,
-		Run:   genAuthKeys,
+		Short: `Create the authorized_keys file for a gear`,
+		Long: `Generate .ssh/authorized_keys file for the specified gear
+							id or (if gear id is ommitted) for the current gear 
+							user`,
+		Run: genAuthKeys,
 	}
 	gearCmd.AddCommand(genAuthKeysCmd)
 
@@ -113,11 +119,10 @@ func needsSystemdAndData() {
 }
 
 func gear(cmd *cobra.Command, args []string) {
-	if !daemon {
-		cmd.Usage()
-		return
-	}
+	cmd.Help()
+}
 
+func daemon(cmd *cobra.Command, args []string) {
 	systemd.Start()
 	gears.InitializeData()
 	gears.StartPortAllocator(4000, 60000)
