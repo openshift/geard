@@ -44,6 +44,47 @@ func (p PortPairs) ToHeader() string {
 	return pairs.String()
 }
 
+func (p PortPairs) String() string {
+	var pairs bytes.Buffer
+	for i := range p {
+		if i != 0 {
+			pairs.WriteString(", ")
+		}
+		pairs.WriteString(strconv.Itoa(int(p[i].Internal)))
+		pairs.WriteString(" -> ")
+		pairs.WriteString(strconv.Itoa(int(p[i].External)))
+	}
+	return pairs.String()
+}
+
+func FromPortPairHeader(s string) (PortPairs, error) {
+	pairs := strings.Split(s, ",")
+	ports := make(PortPairs, 0, len(pairs))
+	for i := range pairs {
+		pair := pairs[i]
+		value := strings.SplitN(pair, "=", 2)
+		if len(value) != 2 {
+			return PortPairs{}, errors.New(fmt.Sprintf("The port string '%s' must be comma separated pairs of ports", s))
+		}
+		internal, err := strconv.Atoi(value[0])
+		if err != nil {
+			return PortPairs{}, err
+		}
+		if internal < 0 || internal > 65535 {
+			return PortPairs{}, errors.New("Port values must be between 0 and 65535")
+		}
+		external, err := strconv.Atoi(value[1])
+		if err != nil {
+			return PortPairs{}, err
+		}
+		if external < 0 || external > 65535 {
+			return PortPairs{}, errors.New("Port values must be between 0 and 65535")
+		}
+		ports = append(ports, PortPair{Port(internal), Port(external)})
+	}
+	return ports, nil
+}
+
 type portReservations []portReservation
 
 func GetExistingPorts(gearId Identifier) (PortPairs, error) {

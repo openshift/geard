@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/utils"
 	"io"
+	"sort"
 )
 
 type CliJobResponse struct {
@@ -14,6 +16,11 @@ type CliJobResponse struct {
 	failed    bool
 	exitCode  int
 	message   string
+	pending   map[string]interface{}
+}
+
+type printable interface {
+	String() string
 }
 
 func (s *CliJobResponse) StreamResult() bool {
@@ -48,6 +55,10 @@ func (s *CliJobResponse) WriteClosed() <-chan bool {
 }
 
 func (s *CliJobResponse) WritePendingSuccess(name string, value interface{}) {
+	if s.pending == nil {
+		s.pending = make(map[string]interface{})
+	}
+	s.pending[name] = value
 }
 
 func (s *CliJobResponse) Failure(e jobs.JobError) {
@@ -66,4 +77,23 @@ func (s *CliJobResponse) Failure(e jobs.JobError) {
 	}
 	s.exitCode = code
 	s.message = e.Error()
+}
+
+func (s *CliJobResponse) WritePending(w io.Writer) {
+	if s.pending != nil {
+		keys := make([]string, 0, len(s.pending))
+		for k := range s.pending {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for i := range keys {
+			k := keys[i]
+			v := s.pending[k]
+			if prints, ok := v.(printable); ok {
+				fmt.Fprintf(w, "%s: %s\n", k, prints.String())
+			} else {
+				fmt.Fprintf(w, "%s: %+v\n", k, v)
+			}
+		}
+	}
 }

@@ -21,6 +21,7 @@ var (
 	post       bool
 	follow     bool
 	listenAddr string
+	portPairs  PortPairs
 )
 
 var conf = http.HttpConfiguration{
@@ -51,6 +52,7 @@ func Execute() {
 		Long:  "Given a docker image label (which may include a custom registry) and the name of one or more gears, contact each of the requested servers and install the image as a new container managed by systemd.\n\nSpecify a location on a remote server with <host>[:<port>]/<name> instead of <name>.  The default port is 2223.",
 		Run:   installImage,
 	}
+	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>=<external>,...'.\nUse zero to request a port be assigned.")
 	gearCmd.AddCommand(installImageCmd)
 
 	startCmd := &cobra.Command{
@@ -156,6 +158,7 @@ func installImage(cmd *cobra.Command, args []string) {
 				RequestIdentifier: jobs.NewRequestIdentifier(),
 				Id:                on.(*RemoteIdentifier).Id,
 				Image:             imageId,
+				Ports:             *portPairs.Get().(*gears.PortPairs),
 			},
 		}
 	}, ids...)

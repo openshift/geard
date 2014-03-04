@@ -12,6 +12,7 @@ import (
 type Locator interface {
 	IsRemote() bool
 	Identity() string
+	String() string
 }
 
 type Locators []Locator
@@ -49,6 +50,12 @@ func (r RemoteIdentifier) IsRemote() bool {
 }
 func (r RemoteIdentifier) Identity() string {
 	return string(r.Host)
+}
+func (r RemoteIdentifier) String() string {
+	if r.Host != "" {
+		return string(r.Host) + "/" + string(r.Id)
+	}
+	return string(r.Id)
 }
 func (r RemoteIdentifier) BaseURL() *url.URL {
 	uri, err := r.Host.NewURI()

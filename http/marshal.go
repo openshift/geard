@@ -3,7 +3,9 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"github.com/smarterclayton/geard/gears"
 	"io"
+	"net/http"
 )
 
 func (h *DefaultRequest) MarshalToHttp(w io.Writer) error {
@@ -11,8 +13,11 @@ func (h *DefaultRequest) MarshalToHttp(w io.Writer) error {
 }
 func (h *DefaultRequest) MarshalToToken(token *TokenData) {
 }
-func (h *DefaultRequest) MarshalResponse(r io.Reader, mode ResponseContentMode) (interface{}, error) {
-	return nil, errors.New("Unexpected response body to request")
+func (h *DefaultRequest) MarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
+	if r != nil {
+		return nil, errors.New("Unexpected response body to request")
+	}
+	return nil, nil
 }
 
 func (h *HttpInstallContainerRequest) MarshalToHttp(w io.Writer) error {
@@ -23,7 +28,18 @@ func (h *HttpInstallContainerRequest) MarshalToToken(token *TokenData) {
 	token.R = string(h.Id)
 	token.T = h.Image
 }
-func (h *HttpInstallContainerRequest) MarshalResponse(r io.Reader, mode ResponseContentMode) (interface{}, error) {
+func (h *HttpInstallContainerRequest) MarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
+	if r == nil {
+		pending := make(map[string]interface{})
+		if s := headers.Get("X-PortMapping"); s != "" {
+			ports, err := gears.FromPortPairHeader(s)
+			if err != nil {
+				return nil, err
+			}
+			pending["Ports"] = ports
+		}
+		return pending, nil
+	}
 	return nil, errors.New("Unexpected response body to HttpInstallContainerRequest")
 }
 

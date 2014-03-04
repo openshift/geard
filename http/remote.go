@@ -30,7 +30,7 @@ type RemoteExecutable interface {
 	RemoteJob
 	MarshalToToken(token *TokenData)
 	MarshalToHttp(io.Writer) error
-	MarshalResponse(r io.Reader, mode ResponseContentMode) (interface{}, error)
+	MarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error)
 }
 
 type HttpDispatcher struct {
@@ -58,7 +58,9 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 	}
 	token := &TokenData{}
 	job.MarshalToToken(token)
-	token.SetRequestIdentifier(jobs.NewRequestIdentifier())
+	if len(token.I) == 0 {
+		token.SetRequestIdentifier(jobs.NewRequestIdentifier())
+	}
 	token.D = int(time.Now().Unix())
 	query := &url.Values{}
 	token.ToValues(query)
@@ -91,6 +93,15 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 		if isJson {
 			return errors.New("Decoding of streaming JSON has not been implemented")
 		}
+		data, err := job.MarshalHttpResponse(resp.Header, nil, ResponseTable)
+		if err != nil {
+			return err
+		}
+		if pending, ok := data.(map[string]interface{}); ok {
+			for k := range pending {
+				res.WritePendingSuccess(k, pending[k])
+			}
+		}
 		w := res.SuccessWithWrite(jobs.JobResponseOk, false, false)
 		if _, err := io.Copy(w, resp.Body); err != nil {
 			return err
@@ -99,7 +110,7 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 		if !isJson {
 			return errors.New(fmt.Sprintf("remote: Response with %d status code had content type %s (should be application/json)", code, resp.Header.Get("Content-Type")))
 		}
-		data, err := job.MarshalResponse(resp.Body, ResponseJson)
+		data, err := job.MarshalHttpResponse(nil, resp.Body, ResponseJson)
 		if err != nil {
 			return err
 		}
@@ -114,6 +125,7 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 			res.Failure(jobs.SimpleJobError{jobs.JobResponseError, data.Message})
 			return nil
 		}
+		io.Copy(os.Stderr, resp.Body)
 		res.Failure(jobs.SimpleJobError{jobs.JobResponseError, "Unable to decode response."})
 	}
 	return nil
