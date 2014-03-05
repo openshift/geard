@@ -103,7 +103,21 @@ func (h *HttpContainerLogRequest) Handler(conf *HttpConfiguration) JobHandler {
 	}
 }
 
-type HttpListContainerPortsRequest jobs.ContainerPortsJobRequest
+type HttpContainerStatusRequest jobs.ContainerStatusRequest
+
+func (h *HttpContainerStatusRequest) HttpMethod() string { return "GET" }
+func (h *HttpContainerStatusRequest) HttpPath() string   { return "/container/status" }
+func (h *HttpContainerStatusRequest) Handler(conf *HttpConfiguration) JobHandler {
+	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
+		gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+		if errg != nil {
+			return nil, errg
+		}
+		return &jobs.ContainerStatusRequest{Id: gearId}, nil
+	}
+}
+
+type HttpListContainerPortsRequest jobs.ContainerPortsRequest
 
 func (h *HttpListContainerPortsRequest) HttpMethod() string { return "GET" }
 func (h *HttpListContainerPortsRequest) HttpPath() string   { return "/container/ports" }
@@ -113,7 +127,7 @@ func (h *HttpListContainerPortsRequest) Handler(conf *HttpConfiguration) JobHand
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.ContainerPortsJobRequest{
+		return &jobs.ContainerPortsRequest{
 			gearId,
 			token.U,
 		}, nil

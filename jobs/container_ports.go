@@ -5,12 +5,16 @@ import (
 	"log"
 )
 
-type ContainerPortsJobRequest struct {
+type ContainerPortsRequest struct {
 	GearId gears.Identifier
 	UserId string
 }
 
-func (j *ContainerPortsJobRequest) Execute(resp JobResponse) {
+type containerPortsResponse struct {
+	Ports gears.PortPairs
+}
+
+func (j *ContainerPortsRequest) Execute(resp JobResponse) {
 	portPairs, err := gears.GetExistingPorts(j.GearId)
 	if err != nil {
 		log.Printf("job_container_ports_log: Unable to find unit: %s\n", err.Error())
@@ -18,5 +22,5 @@ func (j *ContainerPortsJobRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	resp.SuccessWithData(JobResponseAccepted, portPairs)
+	resp.SuccessWithData(JobResponseAccepted, containerPortsResponse{portPairs})
 }

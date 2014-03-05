@@ -37,7 +37,7 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 	unitName := gears.JobIdentifier(j.Name).UnitNameForBuild()
 	unitDescription := fmt.Sprintf("Builder for %s", j.Tag)
 
-	stdout, err := gears.ProcessLogsForUnit(unitName)
+	stdout, err := systemd.ProcessLogsForUnit(unitName)
 	if err != nil {
 		stdout = utils.EmptyReader
 		log.Printf("job_build_image: Unable to fetch build logs: %s, %+v", err.Error(), err)

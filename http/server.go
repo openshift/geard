@@ -48,8 +48,9 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 	handlers := []HttpJobHandler{
 		&HttpInstallContainerRequest{},
 		&HttpDeleteContainerRequest{},
-		&HttpListContainerPortsRequest{},
 		&HttpContainerLogRequest{},
+		&HttpContainerStatusRequest{},
+		&HttpListContainerPortsRequest{},
 
 		&HttpStartContainerRequest{},
 		&HttpStopContainerRequest{},

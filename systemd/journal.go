@@ -1,4 +1,4 @@
-package gears
+package systemd
 
 import (
 	"errors"

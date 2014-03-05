@@ -69,7 +69,7 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 			return unit != unitName
 		})
 
-	stdout, err := gears.ProcessLogsForUnit(unitName)
+	stdout, err := systemd.ProcessLogsForUnit(unitName)
 	if err != nil {
 		stdout = utils.EmptyReader
 		log.Printf("job_create_repository: Unable to fetch build logs: %+v", err)

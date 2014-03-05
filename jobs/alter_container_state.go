@@ -126,7 +126,7 @@ func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 
 	ioerr := make(chan error)
 	go func() {
-		ioerr <- gears.WriteLogsTo(w, unitName, 0, done)
+		ioerr <- systemd.WriteLogsTo(w, unitName, 0, done)
 	}()
 
 	joberr := make(chan error)

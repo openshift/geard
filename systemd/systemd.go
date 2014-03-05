@@ -5,8 +5,10 @@ import (
 	"fmt"
 	db "github.com/guelfey/go.dbus"
 	"github.com/smarterclayton/go-systemd/dbus"
+	"io"
 	"log"
 	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"time"
@@ -154,4 +156,16 @@ func IsFileNotFound(err error) bool {
 }
 func IsLoadFailed(err error) bool {
 	return SystemdError(err, "org.freedesktop.systemd1.LoadFailed")
+}
+
+func WriteStatusTo(w io.Writer, unit string) error {
+	cmd := exec.Command("/usr/bin/systemctl", "status", unit)
+	cmd.Stdout = w
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if err := cmd.Wait(); err != nil {
+		return err
+	}
+	return nil
 }
