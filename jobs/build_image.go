@@ -121,7 +121,7 @@ wait:
 		case c := <-changes:
 			if changed, ok := c[unitName]; ok {
 				if changed.SubState != "running" {
-					fmt.Fprintf(w, "Build completed\n", changed.SubState)
+					fmt.Fprintf(w, "Build completed\n")
 					break wait
 				}
 			}
