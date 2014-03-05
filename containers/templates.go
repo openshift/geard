@@ -31,11 +31,11 @@ Description=Container {{.Id}}
 Type=simple
 {{ if .Slice }}Slice={{.Slice}}{{ end }}
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
-ExecStart=/bin/sh -c '/usr/bin/docker inspect -format="Reusing {{"{{.ID}}"}}" "container-{{.Id}}" 2>/dev/null && \
-                      exec /usr/bin/docker start -a "container-{{.Id}}" || \
-                      exec /usr/bin/docker run -name "container-{{.Id}}" -volumes-from "container-{{.Id}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
-ExecReload=/usr/bin/docker stop "container-{{.Id}}"
-ExecReload=/usr/bin/docker rm "container-{{.Id}}"
+ExecStart=/bin/sh -c '/usr/bin/docker inspect -format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null && \
+                      exec /usr/bin/docker start -a "{{.Id}}" || \
+                      exec /usr/bin/docker run -name "{{.Id}}" -volumes-from "{{.Id}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
+ExecReload=/usr/bin/docker stop "{{.Id}}"
+ExecReload=/usr/bin/docker rm "{{.Id}}"
 
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
@@ -59,8 +59,8 @@ Type=simple
 {{ if .Isolate }}
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
-            -name "container-{{.Id}}" -rm \
-            -volumes-from "container-{{.Id}}" \
+            -name "{{.Id}}" -rm \
+            -volumes-from "{{.Id}}" \
             -a stdout -a stderr {{.PortSpec}} \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
             "{{.Image}}" /.container.init
@@ -68,8 +68,8 @@ ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{else}}
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
-            -name "container-{{.Id}}" -rm \
-            -volumes-from "container-{{.Id}}" \
+            -name "{{.Id}}" -rm \
+            -volumes-from "{{.Id}}" \
             -a stdout -a stderr {{.PortSpec}} \
             "{{.Image}}"
 {{ end }}
@@ -98,8 +98,8 @@ Type=simple
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
-            -name "container-{{.Id}}" \
-            -volumes-from "container-{{.Id}}" \
+            -name "{{.Id}}" \
+            -volumes-from "{{.Id}}" \
             -a stdout -a stderr \
             --env LISTEN_FDS \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro \
