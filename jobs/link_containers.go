@@ -2,23 +2,23 @@ package jobs
 
 import (
 	"errors"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 )
 
-type GearLink struct {
-	Gear         gears.Identifier
-	NetworkLinks gears.NetworkLinks
+type ContainerLink struct {
+	Id           containers.Identifier
+	NetworkLinks containers.NetworkLinks
 }
 
-func (g *GearLink) Check() error {
-	if g.Gear == "" {
-		return errors.New("Gear identifier may not be empty")
+func (link *ContainerLink) Check() error {
+	if link.Id == "" {
+		return errors.New("Container identifier may not be empty")
 	}
-	if _, err := gears.NewIdentifier(string(g.Gear)); err != nil {
+	if _, err := containers.NewIdentifier(string(link.Id)); err != nil {
 		return err
 	}
-	for i := range g.NetworkLinks {
-		if err := g.NetworkLinks[i].Check(); err != nil {
+	for i := range link.NetworkLinks {
+		if err := link.NetworkLinks[i].Check(); err != nil {
 			return err
 		}
 	}
@@ -26,15 +26,15 @@ func (g *GearLink) Check() error {
 }
 
 type ExtendedLinkContainersData struct {
-	Links []GearLink
+	Links []ContainerLink
 }
 
-func (g *ExtendedLinkContainersData) Check() error {
-	if len(g.Links) == 0 {
-		return errors.New("One or more gear links must be specified.")
+func (link *ExtendedLinkContainersData) Check() error {
+	if len(link.Links) == 0 {
+		return errors.New("One or more links must be specified.")
 	}
-	for i := range g.Links {
-		if err := g.Links[i].Check(); err != nil {
+	for i := range link.Links {
+		if err := link.Links[i].Check(); err != nil {
 			return err
 		}
 	}
@@ -49,7 +49,7 @@ func (j *LinkContainersRequest) Execute(resp JobResponse) {
 	data := j.Data
 
 	for i := range data.Links {
-		if errw := data.Links[i].NetworkLinks.Write(data.Links[i].Gear.NetworkLinksPathFor(), false); errw != nil {
+		if errw := data.Links[i].NetworkLinks.Write(data.Links[i].Id.NetworkLinksPathFor(), false); errw != nil {
 			resp.Failure(ErrLinkContainersFailed)
 			return
 		}

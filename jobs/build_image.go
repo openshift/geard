@@ -2,7 +2,7 @@ package jobs
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/systemd"
 	"github.com/smarterclayton/geard/utils"
 	"github.com/smarterclayton/go-systemd/dbus"
@@ -34,7 +34,7 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 	fmt.Fprintf(w, "Processing build-image request:\n")
 	// TODO: download source, add bind-mount
 
-	unitName := gears.JobIdentifier(j.Name).UnitNameForBuild()
+	unitName := containers.JobIdentifier(j.Name).UnitNameForBuild()
 	unitDescription := fmt.Sprintf("Builder for %s", j.Tag)
 
 	stdout, err := systemd.ProcessLogsForUnit(unitName)
@@ -100,7 +100,7 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 		dbus.PropExecStart(startCmd, true),
 		dbus.PropDescription(unitDescription),
 		dbus.PropRemainAfterExit(true),
-		dbus.PropSlice("gear.slice"),
+		dbus.PropSlice("container.slice"),
 	)
 
 	if err != nil {

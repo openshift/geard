@@ -1,4 +1,4 @@
-package gears
+package containers
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ func TestNewIdentifier(t *testing.T) {
 	if _, err := NewIdentifier(""); err == nil {
 		t.Error("Empty identifier should return a valid error")
 	}
-	if _, err := NewIdentifier(""); "Gear identifier may not be empty" != err.Error() {
+	if _, err := NewIdentifier(""); "Identifier may not be empty" != err.Error() {
 		t.Error("Empty identifier should return appropriate message")
 	}
 	if _, err := NewIdentifier("^^^^"); err == nil {

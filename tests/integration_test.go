@@ -19,7 +19,7 @@ import (
 )
 
 /*
- * The geard REST api needs a unique request id per HTTP request.
+ * The REST API needs a unique request id per HTTP request.
  * This is a quickie impl that will be flaky at scale but is good
  * enough for now, probably
  */
@@ -40,9 +40,9 @@ func Test(t *testing.T) { TestingT(t) }
 
 type IntegrationTestSuite struct {
 	dockerClient *docker.Client
-	geardPort    string
+	daemonPort   string
 	requestIdGen *RequestIdGenerator
-	geardCmd     *exec.Cmd
+	cmd          *exec.Cmd
 }
 
 var integration = flag.Bool("integration", false, "Include integration tests")
@@ -63,36 +63,36 @@ func (s *IntegrationTestSuite) SetUpSuite(c *C) {
 	travis := os.Getenv("TRAVIS")
 
 	if travis != "" {
-		s.geardCmd = s.startGeard(c)
+		s.cmd = s.startDaemon(c)
 	}
 
 	s.dockerClient, _ = docker.NewClient("unix:///var/run/docker.sock")
 	s.requestIdGen = NewRequestIdGenerator()
-	s.geardPort = os.Getenv("GEARD_PORT")
+	s.daemonPort = os.Getenv("DAEMON_PORT")
 
-	if s.geardPort == "" {
-		s.geardPort = "8080"
+	if s.daemonPort == "" {
+		s.daemonPort = "8080"
 	}
 }
 
 func (s *IntegrationTestSuite) TearDownSuite(c *C) {
-	s.stopGeard()
+	s.stopDaemon()
 }
 
-func (s *IntegrationTestSuite) startGeard(c *C) *exec.Cmd {
-	cmd := exec.Command("sudo", "./geard.local")
+func (s *IntegrationTestSuite) startDaemon(c *C) *exec.Cmd {
+	cmd := exec.Command("sudo", "./gear", "daemon")
 	err := cmd.Start()
 
-	c.Assert(err, IsNil, Commentf("Couldn't start geard: %+v", err))
+	c.Assert(err, IsNil, Commentf("Couldn't start daemon: %+v", err))
 
 	time.Sleep(30 * time.Second)
 
 	return cmd
 }
 
-func (s *IntegrationTestSuite) stopGeard() {
-	if s.geardCmd != nil {
-		s.geardCmd.Process.Kill()
+func (s *IntegrationTestSuite) stopDaemon() {
+	if s.cmd != nil {
+		s.cmd.Process.Kill()
 	}
 }
 
@@ -125,7 +125,7 @@ func (s *IntegrationTestSuite) buildImage(c *C, sourceRepo string, baseImage str
 	values.Set("i", strconv.Itoa(s.requestId()))
 	params := values.Encode()
 
-	url := fmt.Sprintf("http://localhost:%s/token/__test__/build-image?%s", s.geardPort, params)
+	url := fmt.Sprintf("http://localhost:%s/token/__test__/build-image?%s", s.daemonPort, params)
 	b, _ := json.Marshal(extendedParams)
 	req, _ := http.NewRequest("PUT", url, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")

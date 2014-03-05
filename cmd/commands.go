@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 	"github.com/smarterclayton/cobra"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/dispatcher"
-	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/git"
 	"github.com/smarterclayton/geard/http"
 	"github.com/smarterclayton/geard/jobs"
@@ -116,7 +116,7 @@ func needsSystemd() {
 }
 func needsSystemdAndData() {
 	systemd.Require()
-	gears.InitializeData()
+	containers.InitializeData()
 }
 
 func gear(cmd *cobra.Command, args []string) {
@@ -125,8 +125,8 @@ func gear(cmd *cobra.Command, args []string) {
 
 func daemon(cmd *cobra.Command, args []string) {
 	systemd.Start()
-	gears.InitializeData()
-	gears.StartPortAllocator(4000, 60000)
+	containers.InitializeData()
+	containers.StartPortAllocator(4000, 60000)
 	conf.Dispatcher.Start()
 
 	nethttp.Handle("/", conf.Handler())
@@ -136,7 +136,7 @@ func daemon(cmd *cobra.Command, args []string) {
 
 func clean(cmd *cobra.Command, args []string) {
 	needsSystemd()
-	gears.Clean()
+	containers.Clean()
 }
 
 func installImage(cmd *cobra.Command, args []string) {
@@ -158,7 +158,7 @@ func installImage(cmd *cobra.Command, args []string) {
 				RequestIdentifier: jobs.NewRequestIdentifier(),
 				Id:                on.(*RemoteIdentifier).Id,
 				Image:             imageId,
-				Ports:             *portPairs.Get().(*gears.PortPairs),
+				Ports:             *portPairs.Get().(*containers.PortPairs),
 			},
 		}
 	}, ids...)
@@ -206,18 +206,18 @@ func initGear(cmd *cobra.Command, args []string) {
 	if len(args) != 2 || !(pre || post) || (pre && post) {
 		fail(1, "Valid arguments: <gear_id> <image_name> (--pre|--post)\n")
 	}
-	gearId, err := gears.NewIdentifier(args[0])
+	gearId, err := containers.NewIdentifier(args[0])
 	if err != nil {
 		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 	}
 
 	switch {
 	case pre:
-		if err := gears.InitPreStart(conf.Docker.Socket, gearId, args[1]); err != nil {
+		if err := containers.InitPreStart(conf.Docker.Socket, gearId, args[1]); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	case post:
-		if err := gears.InitPostStart(conf.Docker.Socket, gearId); err != nil {
+		if err := containers.InitPostStart(conf.Docker.Socket, gearId); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	}
@@ -232,7 +232,7 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 	var err error
 
 	if len(args) == 1 {
-		gearId, err := gears.NewIdentifier(args[0])
+		gearId, err := containers.NewIdentifier(args[0])
 		if err != nil {
 			fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 		}
@@ -245,7 +245,7 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	if err := gears.GenerateAuthorizedKeys(conf.Docker.Socket, u); err != nil {
+	if err := containers.GenerateAuthorizedKeys(conf.Docker.Socket, u); err != nil {
 		fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 	}
 }

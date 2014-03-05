@@ -1,7 +1,7 @@
 package jobs
 
 import (
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/systemd"
 	"log"
 	"os"
@@ -9,14 +9,14 @@ import (
 )
 
 type DeleteContainerRequest struct {
-	GearId gears.Identifier
+	Id containers.Identifier
 }
 
 func (j *DeleteContainerRequest) Execute(resp JobResponse) {
-	unitName := j.GearId.UnitNameFor()
-	unitPath := j.GearId.UnitPathFor()
-	socketUnitPath := j.GearId.SocketUnitPathFor()
-	unitDefinitionPath := j.GearId.UnitDefinitionPathFor()
+	unitName := j.Id.UnitNameFor()
+	unitPath := j.Id.UnitPathFor()
+	socketUnitPath := j.Id.SocketUnitPathFor()
+	unitDefinitionPath := j.Id.UnitDefinitionPathFor()
 
 	_, err := systemd.Connection().GetUnitProperties(unitName)
 	switch {
@@ -41,19 +41,19 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 		log.Printf("delete_container: Unable to remove socket unit path: %v", err)
 	}
 
-	ports, err := gears.GetExistingPorts(j.GearId)
+	ports, err := containers.GetExistingPorts(j.Id)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			log.Printf("delete_container: Unable to read existing port definitions: %v", err)
 		}
-		ports = gears.PortPairs{}
+		ports = containers.PortPairs{}
 	}
 
 	if err := os.RemoveAll(filepath.Dir(unitDefinitionPath)); err != nil {
-		log.Printf("delete_container: Unable to remove definitions for gear: %v", err)
+		log.Printf("delete_container: Unable to remove definitions for container: %v", err)
 	}
 
-	if err := gears.ReleaseExternalPorts(filepath.Dir(unitDefinitionPath), ports); err != nil {
+	if err := containers.ReleaseExternalPorts(filepath.Dir(unitDefinitionPath), ports); err != nil {
 		log.Printf("delete_container: Unable to release ports: %v", err)
 	}
 

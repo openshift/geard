@@ -35,8 +35,7 @@ func (d *Dispatcher) work(queue <-chan jobTracker) {
 	go func() {
 		for tracker := range queue {
 			id := tracker.id
-			log.Printf("job START %s", id.String())
-			log.Printf("job %+v", tracker.job)
+			log.Printf("job START %s: %+v", id.String(), tracker.job)
 			tracker.job.Execute(tracker.response)
 			log.Printf("job END   %s", id.String())
 			close(tracker.complete)

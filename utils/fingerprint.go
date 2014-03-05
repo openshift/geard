@@ -2,9 +2,9 @@ package utils
 
 import (
 	"encoding/base64"
+	"github.com/smarterclayton/geard/config"
 	"path/filepath"
 	"strings"
-	"github.com/smarterclayton/geard/config"
 )
 
 type Fingerprint []byte
@@ -14,5 +14,5 @@ func (f Fingerprint) ToShortName() string {
 }
 
 func (f Fingerprint) PublicKeyPathFor() string {
-	return IsolateContentPath(filepath.Join(config.GearBasePath(), "keys", "public"), f.ToShortName(), "")
+	return IsolateContentPath(filepath.Join(config.ContainerBasePath(), "keys", "public"), f.ToShortName(), "")
 }

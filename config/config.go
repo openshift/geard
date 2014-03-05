@@ -1,8 +1,8 @@
 package config
 
-const basePath = "/var/lib/gears"
+const basePath = "/var/lib/containers"
 
-func GearBasePath() string {
+func ContainerBasePath() string {
 	return basePath
 }
 

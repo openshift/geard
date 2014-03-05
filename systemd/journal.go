@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-var ErrLogWriteTimeout = errors.New("gear_logs: Maximum duration exceeded, timeout")
-var ErrLogComplete = errors.New("gear_logs: Closed by caller")
+var ErrLogWriteTimeout = errors.New("journal: Maximum duration exceeded, timeout")
+var ErrLogComplete = errors.New("journal: Closed by caller")
 
 func ProcessLogsForUnit(unit string) (io.ReadCloser, error) {
 	cmd := exec.Command("/usr/bin/journalctl", "--since=now", "-q", "-f", "--unit", unit)
@@ -58,16 +58,16 @@ func WriteLogsTo(w io.Writer, unit string, previous int, until <-chan time.Time)
 	select {
 	case err = <-prcch:
 		if err != nil {
-			log.Print("gear_logs: Process exited unexpectedly: ", err)
+			log.Print("journal: Process exited unexpectedly: ", err)
 		}
 	case err = <-outch:
 		if err != nil {
-			log.Print("gear_logs: Output closed before process exited: ", err)
+			log.Print("journal: Output closed before process exited: ", err)
 		} else {
-			log.Print("gear_logs: Write completed")
+			log.Print("journal: Write completed")
 		}
 	case <-until:
-		log.Print("gear_logs: Done")
+		log.Print("journal: Done")
 		err = nil
 	}
 

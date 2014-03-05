@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"errors"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"log"
 	"net"
 	"net/url"
@@ -41,7 +41,7 @@ func (locators Locators) Group() (local Locators, remote []Locators) {
 }
 
 type RemoteIdentifier struct {
-	Id   gears.Identifier
+	Id   containers.Identifier
 	Host HostIdentifier
 }
 
@@ -99,14 +99,14 @@ func NewRemoteIdentifier(value string) (*RemoteIdentifier, error) {
 	}
 	sections := strings.SplitN(value, "/", 2)
 	if len(sections) == 1 {
-		id, err := gears.NewIdentifier(sections[0])
+		id, err := containers.NewIdentifier(sections[0])
 		if err != nil {
 			return nil, err
 		}
 		return &RemoteIdentifier{id, ""}, nil
 	}
 
-	id, err := gears.NewIdentifier(sections[1])
+	id, err := containers.NewIdentifier(sections[1])
 	if err != nil {
 		return nil, err
 	}

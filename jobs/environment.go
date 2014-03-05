@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"io"
 	"log"
 	"net/http"
@@ -35,7 +35,7 @@ func (e *Environment) Check() error {
 type ExtendedEnvironmentData struct {
 	Variables []Environment
 	Source    string
-	Id        gears.Identifier // Used on creation only
+	Id        containers.Identifier // Used on creation only
 }
 
 func (d *ExtendedEnvironmentData) Check() error {

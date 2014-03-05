@@ -1,11 +1,11 @@
-package gears
+package containers
 
 import (
 	"text/template"
 )
 
 type ContainerUnit struct {
-	Gear     Identifier
+	Id       Identifier
 	Image    string
 	PortSpec string
 	Slice    string
@@ -25,22 +25,22 @@ type ContainerUnit struct {
 
 var SimpleContainerUnitTemplate = template.Must(template.New("simple_unit.service").Parse(`
 [Unit]
-Description=Gear container {{.Gear}}
+Description=Container {{.Id}}
 
 [Service]
 Type=simple
 {{ if .Slice }}Slice={{.Slice}}{{ end }}
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
-ExecStart=/bin/sh -c '/usr/bin/docker inspect -format="Reusing {{"{{.ID}}"}}" "gear-{{.Gear}}" 2>/dev/null && \
-                      exec /usr/bin/docker start -a "gear-{{.Gear}}" || \
-                      exec /usr/bin/docker run -name "gear-{{.Gear}}" -volumes-from "gear-{{.Gear}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
-ExecReload=/usr/bin/docker stop "gear-{{.Gear}}"
-ExecReload=/usr/bin/docker rm "gear-{{.Gear}}"
+ExecStart=/bin/sh -c '/usr/bin/docker inspect -format="Reusing {{"{{.ID}}"}}" "container-{{.Id}}" 2>/dev/null && \
+                      exec /usr/bin/docker start -a "container-{{.Id}}" || \
+                      exec /usr/bin/docker run -name "container-{{.Id}}" -volumes-from "container-{{.Id}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
+ExecReload=/usr/bin/docker stop "container-{{.Id}}"
+ExecReload=/usr/bin/docker rm "container-{{.Id}}"
 
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
-# Gear information
-X-GearId={{.Gear}}
+# Container information
+X-ContainerId={{.Id}}
 X-ContainerImage={{.Image}}
 X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
@@ -50,38 +50,38 @@ X-ContainerRequestId={{.ReqId}}
 
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
 [Unit]
-Description=Gear container {{.Gear}}
+Description=Container {{.Id}}
 
 [Service]
 Type=simple
 {{ if .Slice }}Slice={{.Slice}}{{ end }}
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
 {{ if .Isolate }}
-ExecStartPre={{.ExecutablePath}} init --pre "{{.Gear}}" "{{.Image}}"
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
-            -name "gear-{{.Gear}}" -rm \
-            -volumes-from "gear-{{.Gear}}" \
+            -name "container-{{.Id}}" -rm \
+            -volumes-from "container-{{.Id}}" \
             -a stdout -a stderr {{.PortSpec}} \
-            -v {{.HomeDir}}/gear-init.sh:/.gear.init:ro -u root \
-            "{{.Image}}" /.gear.init
-ExecStartPost=-{{.ExecutablePath}} init --post "{{.Gear}}" "{{.Image}}"
+            -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
+            "{{.Image}}" /.container.init
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{else}}
-ExecStartPre={{.ExecutablePath}} init --pre "{{.Gear}}" "{{.Image}}"
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
-            -name "gear-{{.Gear}}" -rm \
-            -volumes-from "gear-{{.Gear}}" \
+            -name "container-{{.Id}}" -rm \
+            -volumes-from "container-{{.Id}}" \
             -a stdout -a stderr {{.PortSpec}} \
             "{{.Image}}"
 {{ end }}
 
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
-# Gear information
-X-GearId={{.Gear}}
+# Container information
+X-ContainerId={{.Id}}
 X-ContainerImage={{.Image}}
 X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
-X-GearType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
+X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 X-SocketActivation=disabled
 {{range .PortPairs}}X-PortMapping={{.Internal}},{{.External}}
 {{end}}
@@ -89,33 +89,33 @@ X-SocketActivation=disabled
 
 var ContainerSocketActivatedUnitTemplate = template.Must(template.New("unit.service").Parse(`
 [Unit]
-Description=Gear container {{.Gear}}
+Description=Container {{.Id}}
 BindsTo={{.SocketUnitName}}
 
 [Service]
 Type=simple
 {{ if .Slice }}Slice={{.Slice}}{{ end }}
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
-ExecStartPre={{.ExecutablePath}} init --pre "{{.Gear}}" "{{.Image}}"
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
-            -name "gear-{{.Gear}}" \
-            -volumes-from "gear-{{.Gear}}" \
+            -name "container-{{.Id}}" \
+            -volumes-from "container-{{.Id}}" \
             -a stdout -a stderr \
             --env LISTEN_FDS \
-            -v {{.HomeDir}}/gear-init.sh:/.gear.init:ro \
+            -v {{.HomeDir}}/container-init.sh:/.container.init:ro \
             -v /usr/sbin/systemd-socket-proxyd:/usr/sbin/systemd-socket-proxyd:ro \
             -u root -f -rm \
-            "{{.Image}}" /.gear.init
-ExecStartPost=-{{.ExecutablePath}} init --post "{{.Gear}}" "{{.Image}}"
+            "{{.Image}}" /.container.init
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
-# Gear information
-X-GearId={{.Gear}}
+# Container information
+X-ContainerId={{.Id}}
 X-ContainerImage={{.Image}}
 X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
-X-GearType=isolated
+X-ContainerType=isolated
 X-SocketActivated={{.SocketActivationType}}
 {{range .PortPairs}}X-PortMapping={{.Internal}},{{.External}}
 {{end}}
@@ -123,17 +123,17 @@ X-SocketActivated={{.SocketActivationType}}
 
 var ContainerSocketTemplate = template.Must(template.New("unit.socket").Parse(`
 [Unit]
-Description=Gear socket {{.Gear}}
+Description=Container socket {{.Id}}
 
 [Socket]
 {{range .PortPairs}}ListenStream={{.External}}
 {{end}}
 
 [Install]
-WantedBy=gear-sockets.target
+WantedBy=container-sockets.target
 `))
 
-type GearInitScript struct {
+type ContainerInitScript struct {
 	CreateUser     bool
 	ContainerUser  string
 	Uid            string
@@ -145,7 +145,7 @@ type GearInitScript struct {
 	UseSocketProxy bool
 }
 
-var GearInitTemplate = template.Must(template.New("gear-init.sh").Parse(`#!/bin/bash
+var ContainerInitTemplate = template.Must(template.New("container-init.sh").Parse(`#!/bin/bash
 {{ if .CreateUser }}
 groupadd -g {{.Gid}} {{.ContainerUser}}
 useradd -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}
@@ -192,7 +192,7 @@ type TargetUnit struct {
 
 var TargetUnitTemplate = template.Must(template.New("unit.target").Parse(`
 [Unit]
-Description=Gear target {{.Name}}
+Description=Container target {{.Name}}
 
 [Install]
 WantedBy={{.WantedBy}}
@@ -205,7 +205,7 @@ type SliceUnit struct {
 
 var SliceUnitTemplate = template.Must(template.New("unit.slice").Parse(`
 [Unit]
-Description=Gear slice {{.Name}}
+Description=Container slice {{.Name}}
 
 [Slice]
 CPUAccounting=yes
@@ -214,5 +214,5 @@ MemoryLimit=512M
 {{ if .Parent }}Slice={{.Parent}}{{ end }}
 
 [Install]
-WantedBy=gear.target,gear-active.target
+WantedBy=container.target,container-active.target
 `))

@@ -2,7 +2,7 @@ package git
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/http"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/go-json-rest"
@@ -21,7 +21,7 @@ func (h *httpCreateRepositoryRequest) HttpMethod() string { return "PUT" }
 func (h *httpCreateRepositoryRequest) HttpPath() string   { return "/repository" }
 func (h *httpCreateRepositoryRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *http.TokenData, r *rest.Request) (jobs.Job, error) {
-		repositoryId, errg := gears.NewIdentifier(token.ResourceLocator())
+		repositoryId, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
@@ -42,7 +42,7 @@ func (h *httpGitArchiveContentRequest) HttpPath() string {
 }
 func (h *httpGitArchiveContentRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *http.TokenData, r *rest.Request) (jobs.Job, error) {
-		repoId, errr := gears.NewIdentifier(token.ResourceLocator())
+		repoId, errr := containers.NewIdentifier(token.ResourceLocator())
 		if errr != nil {
 			return nil, jobs.SimpleJobError{jobs.JobResponseInvalidRequest, fmt.Sprintf("Invalid repository identifier: %s", errr.Error())}
 		}

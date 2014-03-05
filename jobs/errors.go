@@ -2,11 +2,11 @@ package jobs
 
 var (
 	ErrRanToCompletion         = SimpleJobError{JobResponseError, "This job has run to completion."}
-	ErrGearNotFound            = SimpleJobError{JobResponseNotFound, "The specified gear does not exist."}
-	ErrGearAlreadyExists       = SimpleJobError{JobResponseAlreadyExists, "A gear with this identifier already exists."}
-	ErrGearCreateFailed        = SimpleJobError{JobResponseError, "Unable to create gear."}
-	ErrGearStartFailed         = SimpleJobError{JobResponseError, "Unable to start this gear."}
-	ErrGearStopFailed          = SimpleJobError{JobResponseError, "Unable to stop this gear."}
+	ErrContainerNotFound       = SimpleJobError{JobResponseNotFound, "The specified container does not exist."}
+	ErrContainerAlreadyExists  = SimpleJobError{JobResponseAlreadyExists, "A container with this identifier already exists."}
+	ErrContainerCreateFailed   = SimpleJobError{JobResponseError, "Unable to create container."}
+	ErrContainerStartFailed    = SimpleJobError{JobResponseError, "Unable to start this container."}
+	ErrContainerStopFailed     = SimpleJobError{JobResponseError, "Unable to stop this container."}
 	ErrEnvironmentUpdateFailed = SimpleJobError{JobResponseError, "Unable to update the specified environment."}
 	ErrListImagesFailed        = SimpleJobError{JobResponseError, "Unable to list docker images."}
 	ErrListContainersFailed    = SimpleJobError{JobResponseError, "Unable to list the installed containers."}

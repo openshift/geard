@@ -3,7 +3,7 @@ package jobs
 import (
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/systemd"
 	"log"
 	"os"
@@ -53,7 +53,7 @@ func inStateOrTooSoon(unit string, active bool, rateLimit uint64) (bool, bool) {
 }
 
 type StartedContainerStateRequest struct {
-	Id gears.Identifier
+	Id containers.Identifier
 }
 
 func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
@@ -63,7 +63,7 @@ func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 	in_state, too_soon := inStateOrTooSoon(unitName, true, rateLimitChanges)
 	if in_state {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
-		fmt.Fprintf(w, "Gear %s starting\n", j.Id)
+		fmt.Fprintf(w, "Container %s starting\n", j.Id)
 		return
 	}
 	if too_soon {
@@ -71,41 +71,41 @@ func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	if errs := gears.WriteGearState(j.Id, true); errs != nil {
+	if errs := containers.WriteContainerState(j.Id, true); errs != nil {
 		log.Print("alter_container_state: Unable to write state file: ", errs)
-		resp.Failure(ErrGearStartFailed)
+		resp.Failure(ErrContainerStartFailed)
 		return
 	}
 
 	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {
 		if systemd.IsNoSuchUnit(err) || systemd.IsFileNotFound(err) {
-			resp.Failure(ErrGearNotFound)
+			resp.Failure(ErrContainerNotFound)
 			return
 		}
-		log.Printf("alter_container_state: Could not enable gear %s: %v", unitName, err)
-		resp.Failure(ErrGearStartFailed)
+		log.Printf("alter_container_state: Could not enable container %s: %v", unitName, err)
+		resp.Failure(ErrContainerStartFailed)
 		return
 	}
 
 	if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
-		log.Printf("install_container: Could not start gear %s: %v", unitName, err)
-		resp.Failure(ErrGearStartFailed)
+		log.Printf("install_container: Could not start container %s: %v", unitName, err)
+		resp.Failure(ErrContainerStartFailed)
 		return
 	}
 
 	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
-	fmt.Fprintf(w, "Gear %s starting\n", j.Id)
+	fmt.Fprintf(w, "Container %s starting\n", j.Id)
 }
 
 type StoppedContainerStateRequest struct {
-	Id gears.Identifier
+	Id containers.Identifier
 }
 
 func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 	in_state, too_soon := inStateOrTooSoon(j.Id.UnitNameFor(), false, rateLimitChanges)
 	if in_state {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
-		fmt.Fprintf(w, "Gear %s is stopped\n", j.Id)
+		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
 		return
 	}
 	if too_soon {
@@ -113,9 +113,9 @@ func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	if errs := gears.WriteGearState(j.Id, false); errs != nil {
+	if errs := containers.WriteContainerState(j.Id, false); errs != nil {
 		log.Print("alter_container_state: Unable to write state file: ", errs)
-		resp.Failure(ErrGearStopFailed)
+		resp.Failure(ErrContainerStopFailed)
 		return
 	}
 
@@ -157,13 +157,13 @@ func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 	switch {
 	case systemd.IsNoSuchUnit(err):
 		if _, err := os.Stat(j.Id.UnitPathFor()); err == nil {
-			fmt.Fprintf(w, "Gear %s is stopped\n", j.Id)
+			fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
 		} else {
-			fmt.Fprintf(w, "No such gear %s\n", j.Id)
+			fmt.Fprintf(w, "No such container %s\n", j.Id)
 		}
 	case err != nil:
-		fmt.Fprintf(w, "Could not start gear: %s\n", err.Error())
+		fmt.Fprintf(w, "Could not start container: %s\n", err.Error())
 	default:
-		fmt.Fprintf(w, "Gear %s is stopped\n", j.Id)
+		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
 	}
 }

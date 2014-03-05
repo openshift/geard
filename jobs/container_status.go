@@ -1,20 +1,20 @@
 package jobs
 
 import (
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/systemd"
 	"log"
 	"os"
 )
 
 type ContainerStatusRequest struct {
-	Id gears.Identifier
+	Id containers.Identifier
 }
 
 func (j *ContainerStatusRequest) Execute(resp JobResponse) {
 	if _, err := os.Stat(j.Id.UnitPathFor()); err != nil {
 		log.Printf("container_status: Can't stat unit: %v", err)
-		resp.Failure(ErrGearNotFound)
+		resp.Failure(ErrContainerNotFound)
 		return
 	}
 

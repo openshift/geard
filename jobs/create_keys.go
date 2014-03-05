@@ -4,7 +4,7 @@ import (
 	"code.google.com/p/go.crypto/ssh"
 	"crypto/sha256"
 	"errors"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/utils"
 	"log"
 	"os"
@@ -18,7 +18,7 @@ type CreateKeysRequest struct {
 type ExtendedCreateKeysData struct {
 	Keys         []KeyData
 	Repositories []RepositoryPermission
-	Gears        []GearPermission
+	Containers   []ContainerPermission
 }
 
 type KeyData struct {
@@ -27,12 +27,12 @@ type KeyData struct {
 }
 
 type RepositoryPermission struct {
-	Id    gears.Identifier
+	Id    containers.Identifier
 	Write bool
 }
 
-type GearPermission struct {
-	Id gears.Identifier
+type ContainerPermission struct {
+	Id containers.Identifier
 }
 
 func (k *KeyData) Check() error {
@@ -48,12 +48,12 @@ func (k *KeyData) Check() error {
 }
 
 func (p *RepositoryPermission) Check() error {
-	_, err := gears.NewIdentifier(string(p.Id))
+	_, err := containers.NewIdentifier(string(p.Id))
 	return err
 }
 
-func (p *GearPermission) Check() error {
-	_, err := gears.NewIdentifier(string(p.Id))
+func (p *ContainerPermission) Check() error {
+	_, err := containers.NewIdentifier(string(p.Id))
 	return err
 }
 
@@ -63,8 +63,8 @@ func (d *ExtendedCreateKeysData) Check() error {
 			return err
 		}
 	}
-	for i := range d.Gears {
-		if err := d.Gears[i].Check(); err != nil {
+	for i := range d.Containers {
+		if err := d.Containers[i].Check(); err != nil {
 			return err
 		}
 	}
@@ -76,8 +76,8 @@ func (d *ExtendedCreateKeysData) Check() error {
 	if len(d.Keys) == 0 {
 		return errors.New("One or more keys must be specified.")
 	}
-	if len(d.Repositories) == 0 && len(d.Gears) == 0 {
-		return errors.New("Either repositories or gears must be specified.")
+	if len(d.Repositories) == 0 && len(d.Containers) == 0 {
+		return errors.New("Either repositories or containers must be specified.")
 	}
 	return nil
 }
@@ -117,8 +117,8 @@ func (j *CreateKeysRequest) Execute(resp JobResponse) {
 			continue
 		}
 
-		for k := range j.Data.Gears {
-			p := j.Data.Gears[k]
+		for k := range j.Data.Containers {
+			p := j.Data.Containers[k]
 			if _, err := os.Stat(p.Id.UnitPathFor()); err != nil {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
 			}
