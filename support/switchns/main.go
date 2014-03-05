@@ -19,9 +19,9 @@ Usage:
 	switchns <container name> [--env="key=value"]... [--] <command>...
 	
 Examples:
-	switchns gear-0001 /bin/echo 1
-	switchns gear-0001 -- /bin/bash -c "echo \$PATH"
-	switchns gear-0001 --env FOO=BAR --env BAZ=ZAB -- /bin/bash -c "echo \$FOO \$BAZ"
+	switchns container-0001 /bin/echo 1
+	switchns container-0001 -- /bin/bash -c "echo \$PATH"
+	switchns container-0001 --env FOO=BAR --env BAZ=ZAB -- /bin/bash -c "echo \$FOO \$BAZ"
 `
 
 func main() {

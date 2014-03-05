@@ -1,4 +1,4 @@
-package gears
+package containers
 
 import (
 	"bufio"
@@ -20,21 +20,21 @@ import (
 	"strings"
 )
 
-func InitPreStart(dockerSocket string, gearId Identifier, imageName string) error {
+func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 	var err error
 	var imgInfo *d.Image
 
-	_, socketActivationType, err := GetSocketActivation(gearId)
+	_, socketActivationType, err := GetSocketActivation(id)
 	if err != nil {
 		fmt.Printf("init_pre_start: Error while parsing unit file: %v\n", err)
 		return err
 	}
 
-	if _, err = user.Lookup(gearId.LoginFor()); err != nil {
+	if _, err = user.Lookup(id.LoginFor()); err != nil {
 		if _, ok := err.(user.UnknownUserError); !ok {
 			return err
 		}
-		if err = createUser(gearId); err != nil {
+		if err = createUser(id); err != nil {
 			return err
 		}
 	}
@@ -43,15 +43,15 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		return err
 	}
 
-	if err := os.MkdirAll(gearId.HomePath(), 0700); err != nil {
+	if err := os.MkdirAll(id.HomePath(), 0700); err != nil {
 		return err
 	}
 
-	path := path.Join(gearId.HomePath(), "gear-init.sh")
-	u, _ := user.Lookup(gearId.LoginFor())
+	path := path.Join(id.HomePath(), "container-init.sh")
+	u, _ := user.Lookup(id.LoginFor())
 	file, _, err := utils.OpenFileExclusive(path, 0700)
 	if err != nil {
-		fmt.Printf("gear init pre-start: Unable to open script file: %v\n", err)
+		fmt.Printf("container init pre-start: Unable to open script file: %v\n", err)
 		return err
 	}
 	defer file.Close()
@@ -61,20 +61,20 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		volumes = append(volumes, volPath)
 	}
 
-	gearUser := imgInfo.Config.User
-	if gearUser == "" {
-		gearUser = "gear"
+	user := imgInfo.Config.User
+	if user == "" {
+		user = "container"
 	}
 
-	ports, err := GetExistingPorts(gearId)
+	ports, err := GetExistingPorts(id)
 	if err != nil {
-		fmt.Printf("gear init pre-start: Unable to retrieve port mapping\n")
+		fmt.Printf("container init pre-start: Unable to retrieve port mapping\n")
 		return err
 	}
 
-	if erre := GearInitTemplate.Execute(file, GearInitScript{
+	if erre := ContainerInitTemplate.Execute(file, ContainerInitScript{
 		imgInfo.Config.User == "",
-		gearUser,
+		user,
 		u.Uid,
 		u.Gid,
 		strings.Join(imgInfo.Config.Cmd, " "),
@@ -83,7 +83,7 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 		ports,
 		socketActivationType == "proxied",
 	}); erre != nil {
-		fmt.Printf("gear init pre-start: Unable to output template: ", erre)
+		fmt.Printf("container init pre-start: Unable to output template: ", erre)
 		return erre
 	}
 	if err := file.Close(); err != nil {
@@ -93,34 +93,34 @@ func InitPreStart(dockerSocket string, gearId Identifier, imageName string) erro
 	return nil
 }
 
-func createUser(gearId Identifier) error {
-	cmd := exec.Command("/usr/sbin/useradd", gearId.LoginFor(), "-m", "-d", gearId.HomePath(), "-c", "Gear user")
+func createUser(id Identifier) error {
+	cmd := exec.Command("/usr/sbin/useradd", id.LoginFor(), "-m", "-d", id.HomePath(), "-c", "Container user")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.Println(out)
 		return err
 	}
-	selinux.RestoreCon(gearId.HomePath(), true)
+	selinux.RestoreCon(id.HomePath(), true)
 	return nil
 }
 
-func InitPostStart(dockerSocket string, gearId Identifier) error {
+func InitPostStart(dockerSocket string, id Identifier) error {
 	var u *user.User
 	var container *d.Container
 	var err error
 
-	if u, err = user.Lookup(gearId.LoginFor()); err != nil {
+	if u, err = user.Lookup(id.LoginFor()); err != nil {
 		return err
 	}
 
-	if _, container, err = docker.GetContainer(dockerSocket, gearId.LoginFor(), true); err != nil {
+	if _, container, err = docker.GetContainer(dockerSocket, id.LoginFor(), true); err != nil {
 		return err
 	}
 
-	if err = generateAuthorizedKeys(gearId, u, container, true); err != nil {
+	if err = generateAuthorizedKeys(id, u, container, true); err != nil {
 		return err
 	}
 
-	if file, err := os.Open(gearId.NetworkLinksPathFor()); err == nil {
+	if file, err := os.Open(id.NetworkLinksPathFor()); err == nil {
 		defer file.Close()
 		pid, err := docker.ChildProcessForContainer(container)
 		if err != nil {
@@ -140,7 +140,7 @@ func GenerateAuthorizedKeys(dockerSocket string, u *user.User) error {
 	var container *d.Container
 	var err error
 
-	if u.Name != "Gear user" {
+	if u.Name != "Container user" {
 		return nil
 	}
 	if id, err = NewIdentifierFromUser(u); err != nil {
@@ -164,7 +164,7 @@ func generateAuthorizedKeys(id Identifier, u *user.User, container *d.Container,
 	var authorizedKeysPortSpec string
 	ports, err := GetExistingPorts(id)
 	if err != nil {
-		fmt.Errorf("gear init pre-start: Unable to retrieve port mapping")
+		fmt.Errorf("container init pre-start: Unable to retrieve port mapping")
 		return err
 	}
 
@@ -202,7 +202,7 @@ func generateAuthorizedKeys(id Identifier, u *user.User, container *d.Container,
 
 		srcFile, err = os.Open(keyFile)
 		defer srcFile.Close()
-		w.WriteString(fmt.Sprintf("command=\"%v/bin/switchns\",%vno-agent-forwarding,no-X11-forwarding ", config.GearBasePath(), authorizedKeysPortSpec))
+		w.WriteString(fmt.Sprintf("command=\"%v/bin/switchns\",%vno-agent-forwarding,no-X11-forwarding ", config.ContainerBasePath(), authorizedKeysPortSpec))
 		io.Copy(w, srcFile)
 		w.WriteString("\n")
 	}

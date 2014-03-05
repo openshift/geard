@@ -1,24 +1,24 @@
 package jobs
 
 import (
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"log"
 )
 
 type ContainerPortsRequest struct {
-	GearId gears.Identifier
+	Id     containers.Identifier
 	UserId string
 }
 
 type containerPortsResponse struct {
-	Ports gears.PortPairs
+	Ports containers.PortPairs
 }
 
 func (j *ContainerPortsRequest) Execute(resp JobResponse) {
-	portPairs, err := gears.GetExistingPorts(j.GearId)
+	portPairs, err := containers.GetExistingPorts(j.Id)
 	if err != nil {
 		log.Printf("job_container_ports_log: Unable to find unit: %s\n", err.Error())
-		resp.Failure(ErrGearNotFound)
+		resp.Failure(ErrContainerNotFound)
 		return
 	}
 

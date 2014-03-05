@@ -3,7 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"io"
 	"net/http"
 )
@@ -32,7 +32,7 @@ func (h *HttpInstallContainerRequest) MarshalHttpResponse(headers http.Header, r
 	if r == nil {
 		pending := make(map[string]interface{})
 		if s := headers.Get("X-PortMapping"); s != "" {
-			ports, err := gears.FromPortPairHeader(s)
+			ports, err := containers.FromPortPairHeader(s)
 			if err != nil {
 				return nil, err
 			}

@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 	"github.com/smarterclayton/cobra"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/dispatcher"
-	"github.com/smarterclayton/geard/gears"
 	"github.com/smarterclayton/geard/git"
 	"github.com/smarterclayton/geard/http"
 	"github.com/smarterclayton/geard/jobs"
@@ -20,6 +20,7 @@ var (
 	pre        bool
 	post       bool
 	follow     bool
+	start      bool
 	listenAddr string
 	portPairs  PortPairs
 )
@@ -49,15 +50,16 @@ func Execute() {
 	installImageCmd := &cobra.Command{
 		Use:   "install <image> <name>...",
 		Short: "Install a docker image as a systemd service",
-		Long:  "Given a docker image label (which may include a custom registry) and the name of one or more gears, contact each of the requested servers and install the image as a new container managed by systemd.\n\nSpecify a location on a remote server with <host>[:<port>]/<name> instead of <name>.  The default port is 2223.",
+		Long:  "Install a docker image as one or more systemd services on one or more servers.\n\nSpecify a location on a remote server with <host>[:<port>]/<name> instead of <name>.  The default port is 2223.",
 		Run:   installImage,
 	}
 	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>=<external>,...'.\nUse zero to request a port be assigned.")
+	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately.")
 	gearCmd.AddCommand(installImageCmd)
 
 	startCmd := &cobra.Command{
 		Use:   "start <name>...",
-		Short: "Invoke systemd to start a gear",
+		Short: "Invoke systemd to start a container",
 		Long:  "Queues the start and immediately returns.", //  Use -f to attach to the logs.",
 		Run:   startContainer,
 	}
@@ -66,7 +68,7 @@ func Execute() {
 
 	stopCmd := &cobra.Command{
 		Use:   "stop <name>...",
-		Short: "Invoke systemd to stop a gear",
+		Short: "Invoke systemd to stop a container",
 		Long:  ``,
 		Run:   stopContainer,
 	}
@@ -83,7 +85,7 @@ func Execute() {
 
 	cleanCmd := &cobra.Command{
 		Use:   "clean",
-		Short: "(Local) Disable all gears, slices, and targets in systemd",
+		Short: "(Local) Disable all containers, slices, and targets in systemd",
 		Long:  "Disable all registered resources from systemd to allow them to be removed from the system.  Will reload the systemd daemon config.",
 		Run:   clean,
 	}
@@ -91,7 +93,7 @@ func Execute() {
 
 	initGearCmd := &cobra.Command{
 		Use:   "init <name> <image>",
-		Short: "(Local) Setup the environment for a gear",
+		Short: "(Local) Setup the environment for a container",
 		Long:  "",
 		Run:   initGear,
 	}
@@ -101,8 +103,8 @@ func Execute() {
 
 	genAuthKeysCmd := &cobra.Command{
 		Use:   "gen-auth-keys [<name>]",
-		Short: "(Local) Create the authorized_keys file for a gear",
-		Long:  "Generate .ssh/authorized_keys file for the specified gear id or (if gear id is ommitted) for the current gear user",
+		Short: "(Local) Create the authorized_keys file for a container",
+		Long:  "Generate .ssh/authorized_keys file for the specified container id or (if container id is ommitted) for the current user",
 		Run:   genAuthKeys,
 	}
 	gearCmd.AddCommand(genAuthKeysCmd)
@@ -116,7 +118,7 @@ func needsSystemd() {
 }
 func needsSystemdAndData() {
 	systemd.Require()
-	gears.InitializeData()
+	containers.InitializeData()
 }
 
 func gear(cmd *cobra.Command, args []string) {
@@ -125,8 +127,8 @@ func gear(cmd *cobra.Command, args []string) {
 
 func daemon(cmd *cobra.Command, args []string) {
 	systemd.Start()
-	gears.InitializeData()
-	gears.StartPortAllocator(4000, 60000)
+	containers.InitializeData()
+	containers.StartPortAllocator(4000, 60000)
 	conf.Dispatcher.Start()
 
 	nethttp.Handle("/", conf.Handler())
@@ -136,7 +138,7 @@ func daemon(cmd *cobra.Command, args []string) {
 
 func clean(cmd *cobra.Command, args []string) {
 	needsSystemd()
-	gears.Clean()
+	containers.Clean()
 }
 
 func installImage(cmd *cobra.Command, args []string) {
@@ -145,11 +147,11 @@ func installImage(cmd *cobra.Command, args []string) {
 	}
 	imageId := args[0]
 	if imageId == "" {
-		fail(1, "Argument 1 must be an image to base the gear on\n")
+		fail(1, "Argument 1 must be a Docker image to base the service on\n")
 	}
 	ids, err := NewRemoteIdentifiers(args[1:])
 	if err != nil {
-		fail(1, "You must pass one or more valid gear ids: %s\n", err.Error())
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
 	runEach(cmd, needsSystemdAndData, func(on Locator) jobs.Job {
@@ -158,7 +160,8 @@ func installImage(cmd *cobra.Command, args []string) {
 				RequestIdentifier: jobs.NewRequestIdentifier(),
 				Id:                on.(*RemoteIdentifier).Id,
 				Image:             imageId,
-				Ports:             *portPairs.Get().(*gears.PortPairs),
+				Ports:             *portPairs.Get().(*containers.PortPairs),
+				Started:           start,
 			},
 		}
 	}, ids...)
@@ -170,7 +173,7 @@ func startContainer(cmd *cobra.Command, args []string) {
 	}
 	ids, err := NewRemoteIdentifiers(args)
 	if err != nil {
-		fail(1, "You must pass one or more valid gear ids: %s\n", err.Error())
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
 	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
@@ -189,7 +192,7 @@ func stopContainer(cmd *cobra.Command, args []string) {
 	}
 	ids, err := NewRemoteIdentifiers(args)
 	if err != nil {
-		fail(1, "You must pass one or more valid gear ids: %s\n", err.Error())
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
 	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
@@ -204,20 +207,20 @@ func stopContainer(cmd *cobra.Command, args []string) {
 
 func initGear(cmd *cobra.Command, args []string) {
 	if len(args) != 2 || !(pre || post) || (pre && post) {
-		fail(1, "Valid arguments: <gear_id> <image_name> (--pre|--post)\n")
+		fail(1, "Valid arguments: <id> <image_name> (--pre|--post)\n")
 	}
-	gearId, err := gears.NewIdentifier(args[0])
+	gearId, err := containers.NewIdentifier(args[0])
 	if err != nil {
 		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 	}
 
 	switch {
 	case pre:
-		if err := gears.InitPreStart(conf.Docker.Socket, gearId, args[1]); err != nil {
+		if err := containers.InitPreStart(conf.Docker.Socket, gearId, args[1]); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	case post:
-		if err := gears.InitPostStart(conf.Docker.Socket, gearId); err != nil {
+		if err := containers.InitPostStart(conf.Docker.Socket, gearId); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	}
@@ -225,14 +228,14 @@ func initGear(cmd *cobra.Command, args []string) {
 
 func genAuthKeys(cmd *cobra.Command, args []string) {
 	if len(args) > 1 {
-		fail(1, "Valid arguments: [<gear_id>]\n")
+		fail(1, "Valid arguments: [<id>]\n")
 	}
 
 	var u *user.User
 	var err error
 
 	if len(args) == 1 {
-		gearId, err := gears.NewIdentifier(args[0])
+		gearId, err := containers.NewIdentifier(args[0])
 		if err != nil {
 			fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 		}
@@ -245,7 +248,7 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	if err := gears.GenerateAuthorizedKeys(conf.Docker.Socket, u); err != nil {
+	if err := containers.GenerateAuthorizedKeys(conf.Docker.Socket, u); err != nil {
 		fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 	}
 }

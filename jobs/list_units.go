@@ -16,15 +16,15 @@ type unitResponse struct {
 	ActiveState string
 	SubState    string
 }
-type units []unitResponse
+type unitResponses []unitResponse
 
-func (c units) Less(a, b int) bool {
+func (c unitResponses) Less(a, b int) bool {
 	return c[a].Id < c[b].Id
 }
-func (c units) Len() int {
+func (c unitResponses) Len() int {
 	return len(c)
 }
-func (c units) Swap(a, b int) {
+func (c unitResponses) Swap(a, b int) {
 	c[a], c[b] = c[b], c[a]
 }
 
@@ -47,23 +47,23 @@ type ListContainersRequest struct {
 }
 type containerResponse struct {
 	unitResponse
-	LoadState string `json:"load_state"`
-	JobType   string `json:"job_type,omitempty"`
+	LoadState string
+	JobType   string `json:"JobType,omitempty"`
 }
-type containers []containerResponse
+type containerResponses []containerResponse
 
-func (c containers) Less(a, b int) bool {
+func (c containerResponses) Less(a, b int) bool {
 	return c[a].Id < c[b].Id
 }
-func (c containers) Len() int {
+func (c containerResponses) Len() int {
 	return len(c)
 }
-func (c containers) Swap(a, b int) {
+func (c containerResponses) Swap(a, b int) {
 	c[a], c[b] = c[b], c[a]
 }
 
 type listContainers struct {
-	Containers containers `json:"containers"`
+	Containers containerResponses
 }
 
 func (l *listContainers) WriteTableTo(w io.Writer) error {
@@ -81,12 +81,12 @@ func (l *listContainers) WriteTableTo(w io.Writer) error {
 	return nil
 }
 
-var reGearUnits = regexp.MustCompile("\\Agear-([^\\.]+)\\.service\\z")
+var reContainerUnits = regexp.MustCompile("\\Acontainer-([^\\.]+)\\.service\\z")
 
 func (j *ListContainersRequest) Execute(resp JobResponse) {
-	r := &listContainers{make(containers, 0)}
+	r := &listContainers{make(containerResponses, 0)}
 
-	if err := unitsMatching(reGearUnits, func(name string, unit *dbus.UnitStatus) {
+	if err := unitsMatching(reContainerUnits, func(name string, unit *dbus.UnitStatus) {
 		r.Containers = append(r.Containers, containerResponse{
 			unitResponse{
 				name,
@@ -109,13 +109,13 @@ func (j *ListContainersRequest) Execute(resp JobResponse) {
 type ListBuildsRequest struct {
 }
 type listBuilds struct {
-	Builds units `json:"builds"`
+	Builds unitResponses
 }
 
 var reBuildUnits = regexp.MustCompile("\\Abuild-([^\\.]+)\\.service\\z")
 
 func (j *ListBuildsRequest) Execute(resp JobResponse) {
-	r := listBuilds{make(units, 0)}
+	r := listBuilds{make(unitResponses, 0)}
 
 	if err := unitsMatching(reBuildUnits, func(name string, unit *dbus.UnitStatus) {
 		r.Builds = append(r.Builds, unitResponse{

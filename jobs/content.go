@@ -2,7 +2,7 @@ package jobs
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"io"
 	"log"
 	"os"
@@ -23,7 +23,7 @@ func (j *ContentRequest) Fast() bool {
 func (j *ContentRequest) Execute(resp JobResponse) {
 	switch j.Type {
 	case ContentTypeEnvironment:
-		id, errr := gears.NewIdentifier(j.Locator)
+		id, errr := containers.NewIdentifier(j.Locator)
 		if errr != nil {
 			resp.Failure(SimpleJobError{JobResponseInvalidRequest, fmt.Sprintf("Invalid environment identifier: %s", errr.Error())})
 			return

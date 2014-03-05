@@ -1,11 +1,11 @@
-package gears
+package containers
 
 import (
 	"io/ioutil"
 	"os"
 )
 
-func WriteGearState(id Identifier, active bool) error {
+func WriteContainerState(id Identifier, active bool) error {
 	contents := []byte(unitStateContents(id.UnitDefinitionPathFor(), active))
 	if err := ioutil.WriteFile(id.UnitPathFor(), contents, 0660); err != nil {
 		return err
@@ -13,7 +13,7 @@ func WriteGearState(id Identifier, active bool) error {
 	return nil
 }
 
-func WriteGearStateTo(file *os.File, id Identifier, active bool) error {
+func WriteContainerStateTo(file *os.File, id Identifier, active bool) error {
 	contents := []byte(unitStateContents(id.UnitDefinitionPathFor(), active))
 	if _, err := file.Write(contents); err != nil {
 		return err
@@ -24,9 +24,9 @@ func WriteGearStateTo(file *os.File, id Identifier, active bool) error {
 func unitStateContents(path string, active bool) string {
 	var target string
 	if active {
-		target = "gear-active"
+		target = "container-active"
 	} else {
-		target = "gear"
+		target = "container"
 	}
 
 	return ".include " + path + "\n\n[Install]\nWantedBy=" + target + ".target\n"

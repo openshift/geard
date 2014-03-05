@@ -23,9 +23,21 @@ echo
 
 seq=$[seq+1]
 
+header "List the ports from the container"
+curl "$base/container/ports?r=$gear"
+echo
+
+seq=$[seq+1]
+
 header "Follow the logs of the container for 30 seconds"
 curl "$base/container/log?r=$gear"
 echo
+
+header "Print status of the container over the API"
+curl "$base/container/status?r=$gear"
+echo
+
+seq=$[seq+1]
 
 if [ $islocal -eq 0 ]; then
   header "See the status of the container"
@@ -78,7 +90,7 @@ echo
 seq=$[seq+1]
 
 header "Add keys to both gears"
-curl "$base/keys?u=1" -X PUT -d "{\"keys\":[{\"type\":\"ssh-rsa\",\"value\":\"$keydata\"}],\"gears\":[{\"id\":\"$gear1\"},{\"id\":\"$gear2\"}]}"
+curl "$base/keys?u=1" -X PUT -d "{\"keys\":[{\"type\":\"ssh-rsa\",\"value\":\"$keydata\"}],\"containers\":[{\"id\":\"$gear1\"},{\"id\":\"$gear2\"}]}"
 echo
 
 seq=$[seq+1]

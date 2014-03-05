@@ -1,4 +1,4 @@
-package gears
+package containers
 
 import (
 	"errors"
@@ -39,9 +39,9 @@ func Clean() {
 
 func verifyDataPaths() error {
 	for _, path := range []string{
-		config.GearBasePath(),
-		filepath.Join(config.GearBasePath(), "home"),
-		filepath.Join(config.GearBasePath(), "bin"),
+		config.ContainerBasePath(),
+		filepath.Join(config.ContainerBasePath(), "home"),
+		filepath.Join(config.ContainerBasePath(), "bin"),
 	} {
 		if err := checkPath(path, os.FileMode(0775), true); err != nil {
 			return err
@@ -51,17 +51,17 @@ func verifyDataPaths() error {
 		}
 	}
 	for _, path := range []string{
-		filepath.Join(config.GearBasePath(), "targets"),
-		filepath.Join(config.GearBasePath(), "units"),
-		filepath.Join(config.GearBasePath(), "slices"),
-		filepath.Join(config.GearBasePath(), "git"),
-		filepath.Join(config.GearBasePath(), "env", "contents"),
-		filepath.Join(config.GearBasePath(), "access", "git", "read"),
-		filepath.Join(config.GearBasePath(), "access", "git", "write"),
-		filepath.Join(config.GearBasePath(), "access", "gears", "ssh"),
-		filepath.Join(config.GearBasePath(), "keys", "public"),
-		filepath.Join(config.GearBasePath(), "ports", "descriptions"),
-		filepath.Join(config.GearBasePath(), "ports", "interfaces"),
+		filepath.Join(config.ContainerBasePath(), "targets"),
+		filepath.Join(config.ContainerBasePath(), "units"),
+		filepath.Join(config.ContainerBasePath(), "slices"),
+		filepath.Join(config.ContainerBasePath(), "git"),
+		filepath.Join(config.ContainerBasePath(), "env", "contents"),
+		filepath.Join(config.ContainerBasePath(), "access", "git", "read"),
+		filepath.Join(config.ContainerBasePath(), "access", "git", "write"),
+		filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"),
+		filepath.Join(config.ContainerBasePath(), "keys", "public"),
+		filepath.Join(config.ContainerBasePath(), "ports", "descriptions"),
+		filepath.Join(config.ContainerBasePath(), "ports", "interfaces"),
 	} {
 		if err := checkPath(path, os.FileMode(0770), true); err != nil {
 			return err
@@ -76,12 +76,12 @@ func verifyDataPaths() error {
 
 func initializeTargets() error {
 	for _, target := range [][]string{
-		[]string{"gear", ""},
-		[]string{"gear-sockets", ""},
-		[]string{"gear-active", "multi-user.target"},
+		[]string{"container", ""},
+		[]string{"container-sockets", ""},
+		[]string{"container-active", "multi-user.target"},
 	} {
 		name, wants := target[0], target[1]
-		path := filepath.Join(config.GearBasePath(), "targets", name+".target")
+		path := filepath.Join(config.ContainerBasePath(), "targets", name+".target")
 		unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 		if os.IsExist(err) {
 			continue
@@ -90,16 +90,16 @@ func initializeTargets() error {
 		}
 
 		if errs := TargetUnitTemplate.Execute(unit, TargetUnit{name, wants}); errs != nil {
-			log.Printf("gear: Unable to write target %s: %v", name, errs)
+			log.Printf("init: Unable to write target %s: %v", name, errs)
 			continue
 		}
 		if errc := unit.Close(); errc != nil {
-			log.Printf("gear: Unable to close target %s: %v", name, errc)
+			log.Printf("init: Unable to close target %s: %v", name, errc)
 			continue
 		}
 
 		if _, errs := systemd.StartAndEnableUnit(systemd.Connection(), name+".target", path, "fail"); errs != nil {
-			log.Printf("gear: Unable to start and enable target %s: %v", name, errs)
+			log.Printf("init: Unable to start and enable target %s: %v", name, errs)
 			continue
 		}
 	}
@@ -108,10 +108,10 @@ func initializeTargets() error {
 
 func initializeSlices() error {
 	for _, name := range []string{
-		"gear",
-		"gear-small",
+		"container",
+		"container-small",
 	} {
-		path := filepath.Join(config.GearBasePath(), "slices", name+".slice")
+		path := filepath.Join(config.ContainerBasePath(), "slices", name+".slice")
 		unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 		if os.IsExist(err) {
 			continue
@@ -119,21 +119,21 @@ func initializeSlices() error {
 			return err
 		}
 
-		parent := "gear"
-		if name == "gear" {
+		parent := "container"
+		if name == "container" {
 			parent = ""
 		}
 		if errs := SliceUnitTemplate.Execute(unit, SliceUnit{name, parent}); errs != nil {
-			log.Printf("gear: Unable to write slice %s: %v", name, errs)
+			log.Printf("init: Unable to write slice %s: %v", name, errs)
 			continue
 		}
 		if errc := unit.Close(); errc != nil {
-			log.Printf("gear: Unable to close slice %s: %v", name, errc)
+			log.Printf("init: Unable to close slice %s: %v", name, errc)
 			continue
 		}
 
 		if _, errs := systemd.StartAndEnableUnit(systemd.Connection(), name+".slice", path, "fail"); errs != nil {
-			log.Printf("gear: Unable to start and enable slice %s: %v", name, errs)
+			log.Printf("init: Unable to start and enable slice %s: %v", name, errs)
 			continue
 		}
 	}
@@ -147,10 +147,10 @@ func checkPath(path string, mode os.FileMode, dir bool) error {
 		stat, _ = os.Lstat(path)
 	}
 	if err != nil {
-		return errors.New("gear: path (" + path + ") is not available: " + err.Error())
+		return errors.New("init: path (" + path + ") is not available: " + err.Error())
 	}
 	if stat.IsDir() != dir {
-		return errors.New("gear: path (" + path + ") must be a directory instead of a file")
+		return errors.New("init: path (" + path + ") must be a directory instead of a file")
 	}
 	return nil
 }
@@ -159,28 +159,28 @@ func disableAllUnits() {
 	systemd := systemd.Connection()
 
 	for _, path := range []string{
-		filepath.Join(config.GearBasePath(), "units"),
-		filepath.Join(config.GearBasePath(), "slices"),
-		filepath.Join(config.GearBasePath(), "targets"),
+		filepath.Join(config.ContainerBasePath(), "units"),
+		filepath.Join(config.ContainerBasePath(), "slices"),
+		filepath.Join(config.ContainerBasePath(), "targets"),
 	} {
 		filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 			if os.IsNotExist(err) {
 				return nil
 			}
 			if err != nil {
-				log.Printf("gear: Can't read %s: %v", p, err)
+				log.Printf("init: Can't read %s: %v", p, err)
 				return nil
 			}
 			if info.IsDir() {
 				return nil
 			}
 			if _, err := systemd.DisableUnitFiles([]string{p}, false); err != nil {
-				log.Printf("gear: Unable to disable %s: %+v", p, err)
+				log.Printf("init: Unable to disable %s: %+v", p, err)
 			}
 			return nil
 		})
 		if err := systemd.Reload(); err != nil {
-			log.Printf("gear: systemd reload failed: %+v", err)
+			log.Printf("init: systemd reload failed: %+v", err)
 		}
 	}
 }
@@ -238,8 +238,8 @@ func copyBinary(src string, dest string, setUid bool) error {
 
 func HasBinaries() bool {
 	for _, b := range []string{
-		path.Join(config.GearBasePath(), "bin", "switchns"),
-		path.Join(config.GearBasePath(), "bin", "gear"),
+		path.Join(config.ContainerBasePath(), "bin", "switchns"),
+		path.Join(config.ContainerBasePath(), "bin", "gear"),
 	} {
 		if _, err := os.Stat(b); err != nil {
 			return false
@@ -250,7 +250,7 @@ func HasBinaries() bool {
 
 func initializeBinaries() error {
 	srcDir := path.Dir(os.Args[0])
-	destDir := path.Join(config.GearBasePath(), "bin")
+	destDir := path.Join(config.ContainerBasePath(), "bin")
 	if err := copyBinary(path.Join(srcDir, "switchns"), path.Join(destDir, "switchns"), true); err != nil {
 		return err
 	}

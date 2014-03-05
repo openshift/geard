@@ -1,4 +1,4 @@
-package gears
+package containers
 
 import (
 	"bufio"
@@ -87,11 +87,11 @@ func FromPortPairHeader(s string) (PortPairs, error) {
 
 type portReservations []portReservation
 
-func GetExistingPorts(gearId Identifier) (PortPairs, error) {
+func GetExistingPorts(id Identifier) (PortPairs, error) {
 	var existing *os.File
 	var err error
 
-	existing, err = os.Open(gearId.UnitDefinitionPathFor())
+	existing, err = os.Open(id.UnitDefinitionPathFor())
 	if err != nil {
 		return nil, err
 	}
@@ -123,10 +123,10 @@ func readPortsFromUnitFile(r io.Reader) (PortPairs, error) {
 	return pairs, nil
 }
 
-func GetSocketActivation(gearId Identifier) (bool, string, error) {
+func GetSocketActivation(id Identifier) (bool, string, error) {
 	var err error
 	var existing *os.File
-	if existing, err = os.Open(gearId.UnitDefinitionPathFor()); err != nil {
+	if existing, err = os.Open(id.UnitDefinitionPathFor()); err != nil {
 		return false, "disabled", err
 	}
 
@@ -251,7 +251,7 @@ func (p portReservations) reserve(path string) error {
 type device string
 
 func (d device) DevicePath() string {
-	return filepath.Join(config.GearBasePath(), "ports", "interfaces", string(d))
+	return filepath.Join(config.ContainerBasePath(), "ports", "interfaces", string(d))
 }
 
 func (p Port) PortPathsFor() (base string, path string) {

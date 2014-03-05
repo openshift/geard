@@ -1,16 +1,16 @@
 package cmd
 
 import (
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 )
 
 type PortPairs struct {
-	*gears.PortPairs
+	*containers.PortPairs
 }
 
 func (p *PortPairs) Get() interface{} {
 	if p.PortPairs == nil {
-		return &gears.PortPairs{}
+		return &containers.PortPairs{}
 	}
 	return p.PortPairs
 }
@@ -23,7 +23,7 @@ func (p *PortPairs) String() string {
 }
 
 func (p *PortPairs) Set(s string) error {
-	ports, err := gears.FromPortPairHeader(s)
+	ports, err := containers.FromPortPairHeader(s)
 	if err != nil {
 		return err
 	}

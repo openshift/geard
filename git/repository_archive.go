@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/utils"
 	"io"
@@ -16,7 +16,7 @@ import (
 const ContentTypeGitArchive = "gitarchive"
 
 type GitArchiveContentRequest struct {
-	RepositoryId gears.Identifier
+	RepositoryId containers.Identifier
 	Ref          GitCommitRef
 }
 

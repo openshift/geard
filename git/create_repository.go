@@ -2,7 +2,7 @@ package git
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/systemd"
 	"github.com/smarterclayton/geard/utils"
@@ -20,7 +20,7 @@ var (
 )
 
 type CreateRepositoryRequest struct {
-	RepositoryId gears.Identifier
+	RepositoryId containers.Identifier
 	Image        string
 	CloneUrl     string
 }
@@ -91,7 +91,7 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 		}, true),
 		dbus.PropDescription(fmt.Sprintf("Create a repository (%s)", repositoryPath)),
 		dbus.PropRemainAfterExit(true),
-		dbus.PropSlice("gear.slice"),
+		dbus.PropSlice("container.slice"),
 	)
 	if err != nil {
 		log.Printf("job_create_repository: Could not start transient unit: %s", systemd.SprintSystemdError(err))

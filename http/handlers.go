@@ -3,7 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"github.com/smarterclayton/geard/gears"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/go-json-rest"
 	"io"
@@ -27,11 +27,11 @@ func (h *HttpInstallContainerRequest) Handler(conf *HttpConfiguration) JobHandle
 				return nil, err
 			}
 		}
-		gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
-		data.Id = gearId
+		data.Id = id
 		data.RequestIdentifier = reqid
 		data.Image = token.ResourceType()
 
@@ -48,11 +48,11 @@ func (h *HttpDeleteContainerRequest) HttpMethod() string { return "DELETE" }
 func (h *HttpDeleteContainerRequest) HttpPath() string   { return "/container" }
 func (h *HttpDeleteContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.DeleteContainerRequest{gearId}, nil
+		return &jobs.DeleteContainerRequest{id}, nil
 	}
 }
 
@@ -92,12 +92,12 @@ func (h *HttpContainerLogRequest) HttpMethod() string { return "GET" }
 func (h *HttpContainerLogRequest) HttpPath() string   { return "/container/log" }
 func (h *HttpContainerLogRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
 		return &jobs.ContainerLogRequest{
-			gearId,
+			id,
 			token.U,
 		}, nil
 	}
@@ -109,11 +109,11 @@ func (h *HttpContainerStatusRequest) HttpMethod() string { return "GET" }
 func (h *HttpContainerStatusRequest) HttpPath() string   { return "/container/status" }
 func (h *HttpContainerStatusRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.ContainerStatusRequest{Id: gearId}, nil
+		return &jobs.ContainerStatusRequest{Id: id}, nil
 	}
 }
 
@@ -123,12 +123,12 @@ func (h *HttpListContainerPortsRequest) HttpMethod() string { return "GET" }
 func (h *HttpListContainerPortsRequest) HttpPath() string   { return "/container/ports" }
 func (h *HttpListContainerPortsRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
 		return &jobs.ContainerPortsRequest{
-			gearId,
+			id,
 			token.U,
 		}, nil
 	}
@@ -167,11 +167,11 @@ func (h *HttpStartContainerRequest) HttpMethod() string { return "PUT" }
 func (h *HttpStartContainerRequest) HttpPath() string   { return "/container/started" }
 func (h *HttpStartContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.StartedContainerStateRequest{gearId}, nil
+		return &jobs.StartedContainerStateRequest{id}, nil
 	}
 }
 
@@ -184,11 +184,11 @@ func (h *HttpStopContainerRequest) HttpMethod() string { return "PUT" }
 func (h *HttpStopContainerRequest) HttpPath() string   { return "/container/stopped" }
 func (h *HttpStopContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		gearId, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.StoppedContainerStateRequest{gearId}, nil
+		return &jobs.StoppedContainerStateRequest{id}, nil
 	}
 }
 
@@ -233,7 +233,7 @@ func (h *HttpPutEnvironmentRequest) HttpMethod() string { return "PUT" }
 func (h *HttpPutEnvironmentRequest) HttpPath() string   { return "/environment" }
 func (h *HttpPutEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
@@ -262,7 +262,7 @@ func (h *HttpPatchEnvironmentRequest) HttpMethod() string { return "PATCH" }
 func (h *HttpPatchEnvironmentRequest) HttpPath() string   { return "/environment" }
 func (h *HttpPatchEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := gears.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(token.ResourceLocator())
 		if errg != nil {
 			return nil, errg
 		}
