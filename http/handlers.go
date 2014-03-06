@@ -103,7 +103,10 @@ func (h *HttpContainerLogRequest) Handler(conf *HttpConfiguration) JobHandler {
 	}
 }
 
-type HttpContainerStatusRequest jobs.ContainerStatusRequest
+type HttpContainerStatusRequest struct {
+	jobs.ContainerStatusRequest
+	DefaultRequest
+}
 
 func (h *HttpContainerStatusRequest) HttpMethod() string { return "GET" }
 func (h *HttpContainerStatusRequest) HttpPath() string   { return "/container/status" }
