@@ -21,8 +21,9 @@ type check interface {
 // output to the client.  Exits with 0 if all succeeded or the first error code.
 func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, on ...Locator) {
 	exitch := make(chan int, len(on))
-	stdout := log.New(cmd.Out(), "", log.Ldate|log.Ltime)
+	stdout := log.New(cmd.Out(), "", 0)
 	tasks := &sync.WaitGroup{}
+	single := len(on) == 1
 	local, remote := Locators(on).Group()
 
 	if len(local) > 0 {
@@ -63,7 +64,7 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 
 		tasks.Add(1)
 		go func() {
-			w := logstreamer.NewLogstreamer(stdout, host+" ", false)
+			w := logstreamer.NewLogstreamer(stdout, prefixUnless(host+" ", single), false)
 			defer w.Close()
 			defer tasks.Done()
 
@@ -112,8 +113,9 @@ func run(cmd *cobra.Command, localInit func(), init func(...Locator) jobs.Job, o
 // one job per identifier.
 func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, on ...Locator) {
 	exitch := make(chan int, len(on))
-	stdout := log.New(cmd.Out(), "", log.Ldate|log.Ltime)
+	stdout := log.New(cmd.Out(), "", 0)
 	tasks := &sync.WaitGroup{}
+	single := len(on) == 1
 	local, remote := Locators(on).Group()
 
 	if len(local) > 0 {
@@ -126,7 +128,7 @@ func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, 
 			code := 0
 			for i := range local {
 				job := init(local[i])
-				w := logstreamer.NewLogstreamer(stdout, local[i].String()+" ", false)
+				w := logstreamer.NewLogstreamer(stdout, prefixUnless(local[i].String()+" ", single), false)
 
 				if check, ok := job.(check); ok {
 					if err := check.Check(); err != nil {
@@ -166,7 +168,7 @@ func runEach(cmd *cobra.Command, localInit func(), init func(Locator) jobs.Job, 
 			code := 0
 			for j := range ids {
 				job := init(ids[j])
-				w := logstreamer.NewLogstreamer(stdout, ids[j].String()+" ", false)
+				w := logstreamer.NewLogstreamer(stdout, prefixUnless(ids[j].String()+" ", single), false)
 				if check, ok := job.(check); ok {
 					if err := check.Check(); err != nil {
 						fmt.Fprintf(w, "Not valid: %s", err.Error())
@@ -214,4 +216,11 @@ func fail(code int, format string, other ...interface{}) {
 		fmt.Fprintln(os.Stderr)
 	}
 	os.Exit(code)
+}
+
+func prefixUnless(prefix string, cond bool) string {
+	if cond {
+		return ""
+	}
+	return prefix
 }

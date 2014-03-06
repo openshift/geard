@@ -50,3 +50,7 @@ func (h *HttpStartContainerRequest) MarshalToToken(token *TokenData) {
 func (h *HttpStopContainerRequest) MarshalToToken(token *TokenData) {
 	token.R = string(h.Id)
 }
+
+func (h *HttpContainerStatusRequest) MarshalToToken(token *TokenData) {
+	token.R = string(h.Id)
+}

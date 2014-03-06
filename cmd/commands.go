@@ -74,6 +74,30 @@ func Execute() {
 	}
 	gearCmd.AddCommand(stopCmd)
 
+	statusCmd := &cobra.Command{
+		Use:   "status <name>...",
+		Short: "Retrieve the systemd status of one or more containers",
+		Long:  "Shows the equivalent of 'systemctl status container-<name>' for each listed unit",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 1 {
+				fail(1, "Valid arguments: <id> ...\n")
+			}
+			ids, err := NewRemoteIdentifiers(args)
+			if err != nil {
+				fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+			}
+
+			runEach(cmd, noop, func(on Locator) jobs.Job {
+				return &http.HttpContainerStatusRequest{
+					ContainerStatusRequest: jobs.ContainerStatusRequest{
+						Id: on.(*RemoteIdentifier).Id,
+					},
+				}
+			}, ids...)
+		},
+	}
+	gearCmd.AddCommand(statusCmd)
+
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "(Local) Start the gear server",
@@ -120,6 +144,8 @@ func needsSystemdAndData() {
 	systemd.Require()
 	containers.InitializeData()
 }
+
+var noop = func() {}
 
 func gear(cmd *cobra.Command, args []string) {
 	cmd.Help()
