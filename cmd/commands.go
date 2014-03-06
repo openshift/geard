@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/smarterclayton/cobra"
 	"github.com/smarterclayton/geard/containers"
@@ -53,7 +54,7 @@ func Execute() {
 		Long:  "Install a docker image as one or more systemd services on one or more servers.\n\nSpecify a location on a remote server with <host>[:<port>]/<name> instead of <name>.  The default port is 2223.",
 		Run:   installImage,
 	}
-	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>=<external>,...'.\nUse zero to request a port be assigned.")
+	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>=<external>,...'. Use zero to request a port be assigned.")
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately.")
 	gearCmd.AddCommand(installImageCmd)
 
@@ -78,23 +79,7 @@ func Execute() {
 		Use:   "status <name>...",
 		Short: "Retrieve the systemd status of one or more containers",
 		Long:  "Shows the equivalent of 'systemctl status container-<name>' for each listed unit",
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) < 1 {
-				fail(1, "Valid arguments: <id> ...\n")
-			}
-			ids, err := NewRemoteIdentifiers(args)
-			if err != nil {
-				fail(1, "You must pass one or more valid service names: %s\n", err.Error())
-			}
-
-			runEach(cmd, noop, func(on Locator) jobs.Job {
-				return &http.HttpContainerStatusRequest{
-					ContainerStatusRequest: jobs.ContainerStatusRequest{
-						Id: on.(*RemoteIdentifier).Id,
-					},
-				}
-			}, ids...)
-		},
+		Run:   containerStatus,
 	}
 	gearCmd.AddCommand(statusCmd)
 
@@ -133,19 +118,20 @@ func Execute() {
 	}
 	gearCmd.AddCommand(genAuthKeysCmd)
 
-	gearCmd.Execute()
+	if err := gearCmd.Execute(); err != nil {
+		fail(1, err.Error())
+	}
 }
 
 // Initializers for local command execution.
-func needsSystemd() {
+func needsSystemd() error {
 	systemd.Require()
+	return nil
 }
-func needsSystemdAndData() {
+func needsSystemdAndData() error {
 	systemd.Require()
-	containers.InitializeData()
+	return containers.InitializeData()
 }
-
-var noop = func() {}
 
 func gear(cmd *cobra.Command, args []string) {
 	cmd.Help()
@@ -180,17 +166,22 @@ func installImage(cmd *cobra.Command, args []string) {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
-	runEach(cmd, needsSystemdAndData, func(on Locator) jobs.Job {
-		return &http.HttpInstallContainerRequest{
-			InstallContainerRequest: jobs.InstallContainerRequest{
-				RequestIdentifier: jobs.NewRequestIdentifier(),
-				Id:                on.(*RemoteIdentifier).Id,
-				Image:             imageId,
-				Ports:             *portPairs.Get().(*containers.PortPairs),
-				Started:           start,
-			},
-		}
-	}, ids...)
+	Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpInstallContainerRequest{
+				InstallContainerRequest: jobs.InstallContainerRequest{
+					RequestIdentifier: jobs.NewRequestIdentifier(),
+					Id:                on.(*RemoteIdentifier).Id,
+					Image:             imageId,
+					Ports:             *portPairs.Get().(*containers.PortPairs),
+					Started:           start,
+				},
+			}
+		},
+		Output:    cmd.Out(),
+		LocalInit: needsSystemdAndData,
+	}.StreamAndExit()
 }
 
 func startContainer(cmd *cobra.Command, args []string) {
@@ -203,13 +194,18 @@ func startContainer(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
-	runEach(cmd, needsSystemd, func(on Locator) jobs.Job {
-		return &http.HttpStartContainerRequest{
-			StartedContainerStateRequest: jobs.StartedContainerStateRequest{
-				Id: on.(*RemoteIdentifier).Id,
-			},
-		}
-	}, ids...)
+	Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpStartContainerRequest{
+				StartedContainerStateRequest: jobs.StartedContainerStateRequest{
+					Id: on.(*RemoteIdentifier).Id,
+				},
+			}
+		},
+		Output:    cmd.Out(),
+		LocalInit: needsSystemd,
+	}.StreamAndExit()
 }
 
 func stopContainer(cmd *cobra.Command, args []string) {
@@ -222,13 +218,57 @@ func stopContainer(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
-	runEach(cmd, needsSystemd, func(on Locator) jobs.Job {
-		return &http.HttpStopContainerRequest{
-			StoppedContainerStateRequest: jobs.StoppedContainerStateRequest{
-				Id: on.(*RemoteIdentifier).Id,
-			},
+	Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpStopContainerRequest{
+				StoppedContainerStateRequest: jobs.StoppedContainerStateRequest{
+					Id: on.(*RemoteIdentifier).Id,
+				},
+			}
+		},
+		Output:    cmd.Out(),
+		LocalInit: needsSystemd,
+	}.StreamAndExit()
+}
+
+func containerStatus(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
+	}
+	ids, err := NewRemoteIdentifiers(args)
+	if err != nil {
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+
+	data, errors := Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpContainerStatusRequest{
+				ContainerStatusRequest: jobs.ContainerStatusRequest{
+					Id: on.(*RemoteIdentifier).Id,
+				},
+			}
+		},
+		Output:    cmd.Out(),
+		LocalInit: needsSystemd,
+	}.Gather()
+
+	for i := range data {
+		if buf, ok := data[i].(*bytes.Buffer); ok {
+			if i > 0 {
+				fmt.Fprintf(cmd.Out(), "\n-------------\n")
+			}
+			buf.WriteTo(cmd.Out())
 		}
-	}, ids...)
+	}
+	if len(errors) > 0 {
+		for i := range errors {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", errors[i])
+		}
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
 
 func initGear(cmd *cobra.Command, args []string) {

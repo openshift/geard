@@ -38,7 +38,7 @@ func (p PortPairs) ToHeader() string {
 			pairs.WriteString(",")
 		}
 		pairs.WriteString(strconv.Itoa(int(p[i].Internal)))
-		pairs.WriteString("=")
+		pairs.WriteString(":")
 		pairs.WriteString(strconv.Itoa(int(p[i].External)))
 	}
 	return pairs.String()
@@ -62,9 +62,9 @@ func FromPortPairHeader(s string) (PortPairs, error) {
 	ports := make(PortPairs, 0, len(pairs))
 	for i := range pairs {
 		pair := pairs[i]
-		value := strings.SplitN(pair, "=", 2)
+		value := strings.SplitN(pair, ":", 2)
 		if len(value) != 2 {
-			return PortPairs{}, errors.New(fmt.Sprintf("The port string '%s' must be comma separated pairs of ports", s))
+			return PortPairs{}, errors.New(fmt.Sprintf("The port string '%s' must be a comma delimited list of pairs <internal>:<external>,...", s))
 		}
 		internal, err := strconv.Atoi(value[0])
 		if err != nil {
@@ -109,7 +109,7 @@ func readPortsFromUnitFile(r io.Reader) (PortPairs, error) {
 			ports := strings.TrimPrefix(line, "X-PortMapping=")
 			var internal int
 			var external int
-			if _, err := fmt.Sscanf(ports, "%d,%d", &internal, &external); err != nil {
+			if _, err := fmt.Sscanf(ports, "%d:%d", &internal, &external); err != nil {
 				continue
 			}
 			if internal > 0 && internal < 65536 && external > 0 && external < 65536 {

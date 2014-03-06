@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/smarterclayton/geard/containers"
+	"os"
 )
 
 type PortPairs struct {
@@ -25,6 +27,7 @@ func (p *PortPairs) String() string {
 func (p *PortPairs) Set(s string) error {
 	ports, err := containers.FromPortPairHeader(s)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		return err
 	}
 	p.PortPairs = &ports
