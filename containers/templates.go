@@ -44,7 +44,7 @@ X-ContainerId={{.Id}}
 X-ContainerImage={{.Image}}
 X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
-{{range .PortPairs}}X-PortMapping={{.Internal}},{{.External}}
+{{range .PortPairs}}X-PortMapping={{.Internal}}:{{.External}}
 {{end}}
 `))
 
@@ -83,7 +83,7 @@ X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
 X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 X-SocketActivation=disabled
-{{range .PortPairs}}X-PortMapping={{.Internal}},{{.External}}
+{{range .PortPairs}}X-PortMapping={{.Internal}}:{{.External}}
 {{end}}
 `))
 
@@ -117,7 +117,7 @@ X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
 X-ContainerType=isolated
 X-SocketActivated={{.SocketActivationType}}
-{{range .PortPairs}}X-PortMapping={{.Internal}},{{.External}}
+{{range .PortPairs}}X-PortMapping={{.Internal}}:{{.External}}
 {{end}}
 `))
 
