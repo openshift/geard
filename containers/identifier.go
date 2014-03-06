@@ -112,6 +112,10 @@ func (i Identifier) PortDescriptionPathFor() string {
 	return utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "ports", "descriptions"), string(i), "")
 }
 
+func (i Identifier) ContainerFor() string {
+	return fmt.Sprintf("%s", i)
+}
+
 type JobIdentifier []byte
 
 // An identifier for an individual request
