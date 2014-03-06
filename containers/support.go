@@ -112,7 +112,7 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 		return err
 	}
 
-	if _, container, err = docker.GetContainer(dockerSocket, id.LoginFor(), true); err != nil {
+	if _, container, err = docker.GetContainer(dockerSocket, id.ContainerFor(), true); err != nil {
 		return err
 	}
 
