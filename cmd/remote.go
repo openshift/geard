@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const LocalHostName = "local"
+
 type Locator interface {
 	IsRemote() bool
 	Identity() string
@@ -81,7 +83,7 @@ func (h HostIdentifier) NewURI() (*url.URL, error) {
 	}, nil
 }
 
-func NewRemoteIdentifiers(values []string) ([]Locator, error) {
+func NewRemoteIdentifiers(values ...string) ([]Locator, error) {
 	out := make([]Locator, 0, len(values))
 	for i := range values {
 		r, err := NewRemoteIdentifier(values[i])
@@ -89,6 +91,22 @@ func NewRemoteIdentifiers(values []string) ([]Locator, error) {
 			return out, err
 		}
 		out = append(out, r)
+	}
+	return out, nil
+}
+
+func NewRemoteHostIdentifiers(values ...string) ([]Locator, error) {
+	out := make([]Locator, 0, len(values))
+	for i := range values {
+		value := values[i]
+		if value == LocalHostName {
+			out = append(out, &RemoteIdentifier{containers.InvalidIdentifier, ""})
+		} else {
+			if strings.Contains(value, "/") {
+				return []Locator{}, errors.New("Server identifiers may not have a slash")
+			}
+			out = append(out, &RemoteIdentifier{containers.InvalidIdentifier, HostIdentifier(value)})
+		}
 	}
 	return out, nil
 }

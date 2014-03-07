@@ -60,7 +60,11 @@ func (h *HttpDeleteContainerRequest) Handler(conf *HttpConfiguration) JobHandler
 	}
 }
 
-type HttpListContainersRequest jobs.ListContainersRequest
+type HttpListContainersRequest struct {
+	jobs.ListContainersRequest
+	DefaultRequest
+	Label string
+}
 
 func (h *HttpListContainersRequest) HttpMethod() string { return "GET" }
 func (h *HttpListContainersRequest) HttpPath() string   { return "/containers" }

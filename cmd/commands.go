@@ -121,6 +121,14 @@ func Execute() {
 	}
 	gearCmd.AddCommand(statusCmd)
 
+	listUnitsCmd := &cobra.Command{
+		Use:   "list-units <host>...",
+		Short: "Retrieve the list of services across all hosts",
+		Long:  "Shows the equivalent of 'systemctl list-units container-<name>' for each installed container",
+		Run:   listUnits,
+	}
+	gearCmd.AddCommand(listUnitsCmd)
+
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "(Local) Start the gear server",
@@ -235,7 +243,7 @@ func installImage(cmd *cobra.Command, args []string) {
 	if imageId == "" {
 		fail(1, "Argument 1 must be a Docker image to base the service on\n")
 	}
-	ids, err := NewRemoteIdentifiers(args[1:])
+	ids, err := NewRemoteIdentifiers(args[1:]...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
@@ -271,7 +279,7 @@ func setEnvironment(cmd *cobra.Command, args []string) {
 		fail(1, "Valid arguments: <name>... <key>=<value>...\n")
 	}
 
-	ids, err := NewRemoteIdentifiers(args[0:])
+	ids, err := NewRemoteIdentifiers(args[0:]...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
@@ -298,7 +306,7 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid environment ids: %s\n", err.Error())
 	}
@@ -335,7 +343,7 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
@@ -362,7 +370,7 @@ func startContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
@@ -388,7 +396,7 @@ func stopContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
@@ -414,7 +422,7 @@ func containerStatus(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
@@ -443,6 +451,47 @@ func containerStatus(cmd *cobra.Command, args []string) {
 			buf.WriteTo(os.Stdout)
 		}
 	}
+	if len(errors) > 0 {
+		for i := range errors {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", errors[i])
+		}
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func listUnits(cmd *cobra.Command, args []string) {
+	if len(args) == 0 {
+		args = []string{LocalHostName}
+	}
+	ids, err := NewRemoteHostIdentifiers(args...)
+	if err != nil {
+		fail(1, "You must pass zero or more valid host names (use '%s' or pass no arguments for the current server): %s\n", LocalHostName, err.Error())
+	}
+
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also display the set of containers via 'systemctl list-units'\n")
+	}
+	data, errors := Executor{
+		On: ids,
+		Group: func(on ...Locator) jobs.Job {
+			return &http.HttpListContainersRequest{
+				Label: string(on[0].(*RemoteIdentifier).Host),
+				ListContainersRequest: jobs.ListContainersRequest{},
+			}
+		},
+		Output:    os.Stdout,
+		LocalInit: needsSystemd,
+	}.Gather()
+
+	combined := http.ListContainersResponse{}
+	for i := range data {
+		if r, ok := data[i].(*http.ListContainersResponse); ok {
+			combined.Append(&r.ListContainersResponse)
+		}
+	}
+	combined.Sort()
+	combined.WriteTableTo(os.Stdout)
 	if len(errors) > 0 {
 		for i := range errors {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", errors[i])
