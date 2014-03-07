@@ -42,7 +42,7 @@ func (s *httpJobResponse) StreamResult() bool {
 }
 
 func (s *httpJobResponse) Success(t jobs.JobResponseSuccess) {
-	s.success(t, false)
+	s.success(t, false, false)
 }
 
 func (s *httpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interface{}) {
@@ -53,12 +53,12 @@ func (s *httpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interf
 			return
 		}
 		s.response.Header().Add("Content-Type", "text/plain")
-		s.success(t, false)
+		s.success(t, false, true)
 		tabular.WriteTableTo(s.response)
 		return
 	}
 	s.response.Header().Add("Content-Type", "application/json")
-	s.success(t, false)
+	s.success(t, false, true)
 	encoder := json.NewEncoder(s.response)
 	encoder.Encode(&data)
 }
@@ -69,7 +69,7 @@ func (s *httpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush, str
 	} else {
 		s.response.Header().Add("Content-Type", "text/plain")
 	}
-	s.success(t, !s.skipStreaming)
+	s.success(t, !s.skipStreaming, false)
 	var w io.Writer
 	if s.skipStreaming {
 		w = ioutil.Discard
@@ -81,7 +81,7 @@ func (s *httpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush, str
 	return w
 }
 
-func (s *httpJobResponse) success(t jobs.JobResponseSuccess, stream bool) {
+func (s *httpJobResponse) success(t jobs.JobResponseSuccess, stream, data bool) {
 	if s.failed {
 		panic("Cannot call Success() after failure")
 	}
@@ -96,15 +96,17 @@ func (s *httpJobResponse) success(t jobs.JobResponseSuccess, stream bool) {
 		s.pending = nil
 	}
 	s.succeeded = true
-	s.response.WriteHeader(s.statusCode(t, stream))
+	s.response.WriteHeader(s.statusCode(t, stream, data))
 }
 
-func (s *httpJobResponse) statusCode(t jobs.JobResponseSuccess, stream bool) int {
+func (s *httpJobResponse) statusCode(t jobs.JobResponseSuccess, stream, data bool) int {
 	switch {
 	case stream:
 		return http.StatusAccepted
-	default:
+	case data:
 		return http.StatusOK
+	default:
+		return http.StatusNoContent
 	}
 }
 

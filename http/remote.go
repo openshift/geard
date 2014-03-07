@@ -106,6 +106,17 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 		if _, err := io.Copy(w, resp.Body); err != nil {
 			return err
 		}
+	case code == 204:
+		data, err := job.MarshalHttpResponse(resp.Header, nil, ResponseTable)
+		if err != nil {
+			return err
+		}
+		if pending, ok := data.(map[string]interface{}); ok {
+			for k := range pending {
+				res.WritePendingSuccess(k, pending[k])
+			}
+		}
+		res.Success(jobs.JobResponseOk)
 	case code >= 200 && code < 300:
 		if !isJson {
 			return errors.New(fmt.Sprintf("remote: Response with %d status code had content type %s (should be application/json)", code, resp.Header.Get("Content-Type")))

@@ -18,12 +18,14 @@ import (
 )
 
 var (
-	pre        bool
-	post       bool
-	follow     bool
-	start      bool
-	listenAddr string
-	portPairs  PortPairs
+	pre         bool
+	post        bool
+	follow      bool
+	start       bool
+	resetEnv    bool
+	listenAddr  string
+	environment EnvironmentDescription
+	portPairs   PortPairs
 )
 
 var conf = http.HttpConfiguration{
@@ -49,14 +51,34 @@ func Execute() {
 	gearCmd.PersistentFlags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
 
 	installImageCmd := &cobra.Command{
-		Use:   "install <image> <name>...",
+		Use:   "install <image> <name>... <key>=<value>",
 		Short: "Install a docker image as a systemd service",
 		Long:  "Install a docker image as one or more systemd services on one or more servers.\n\nSpecify a location on a remote server with <host>[:<port>]/<name> instead of <name>.  The default port is 2223.",
 		Run:   installImage,
 	}
 	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>=<external>,...'. Use zero to request a port be assigned.")
-	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately.")
+	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
+	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
+	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
+	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
 	gearCmd.AddCommand(installImageCmd)
+
+	setEnvCmd := &cobra.Command{
+		Use:   "set-env <name>... <key>=<value>...",
+		Short: "Set environment variable values on servers",
+		Long:  "Adds the listed environment values to the specified locations. The name is the environment id that multiple containers may reference.",
+		Run:   setEnvironment,
+	}
+	setEnvCmd.Flags().BoolVar(&resetEnv, "reset", false, "Remove any existing values")
+	gearCmd.AddCommand(setEnvCmd)
+
+	envCmd := &cobra.Command{
+		Use:   "env <name>... <key>=<value>...",
+		Short: "Retrieve environment variable values from servers",
+		Long:  "Return all environment variables for each server as output",
+		Run:   showEnvironment,
+	}
+	gearCmd.AddCommand(envCmd)
 
 	startCmd := &cobra.Command{
 		Use:   "start <name>...",
@@ -154,9 +176,14 @@ func clean(cmd *cobra.Command, args []string) {
 }
 
 func installImage(cmd *cobra.Command, args []string) {
+	if err := environment.ExtractVariablesFrom(&args, true); err != nil {
+		fail(1, err.Error())
+	}
+
 	if len(args) < 2 {
 		fail(1, "Valid arguments: <image_name> <id> ...\n")
 	}
+
 	imageId := args[0]
 	if imageId == "" {
 		fail(1, "Argument 1 must be a Docker image to base the service on\n")
@@ -172,16 +199,87 @@ func installImage(cmd *cobra.Command, args []string) {
 			return &http.HttpInstallContainerRequest{
 				InstallContainerRequest: jobs.InstallContainerRequest{
 					RequestIdentifier: jobs.NewRequestIdentifier(),
-					Id:                on.(*RemoteIdentifier).Id,
-					Image:             imageId,
-					Ports:             *portPairs.Get().(*containers.PortPairs),
-					Started:           start,
+
+					Id:      on.(*RemoteIdentifier).Id,
+					Image:   imageId,
+					Started: start,
+
+					Ports:       *portPairs.Get().(*containers.PortPairs),
+					Environment: &environment.Description,
 				},
 			}
 		},
-		Output:    cmd.Out(),
+		Output:    os.Stdout,
 		LocalInit: needsSystemdAndData,
 	}.StreamAndExit()
+}
+
+func setEnvironment(cmd *cobra.Command, args []string) {
+	if err := environment.ExtractVariablesFrom(&args, false); err != nil {
+		fail(1, err.Error())
+	}
+
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <name>... <key>=<value>...\n")
+	}
+
+	ids, err := NewRemoteIdentifiers(args[0:])
+	if err != nil {
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+
+	Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			environment.Description.Id = on.(*RemoteIdentifier).Id
+			if resetEnv {
+				return &http.HttpPutEnvironmentRequest{
+					PutEnvironmentRequest: jobs.PutEnvironmentRequest{&environment.Description},
+				}
+			}
+			return &http.HttpPatchEnvironmentRequest{
+				PatchEnvironmentRequest: jobs.PatchEnvironmentRequest{&environment.Description},
+			}
+		},
+		Output:    os.Stdout,
+		LocalInit: needsSystemdAndData,
+	}.StreamAndExit()
+}
+
+func showEnvironment(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
+	}
+	ids, err := NewRemoteIdentifiers(args)
+	if err != nil {
+		fail(1, "You must pass one or more valid environment ids: %s\n", err.Error())
+	}
+
+	data, errors := Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpContentRequest{
+				ContentRequest: jobs.ContentRequest{
+					Locator: string(on.(*RemoteIdentifier).Id),
+					Type:    jobs.ContentTypeEnvironment,
+				},
+			}
+		},
+		Output: os.Stdout,
+	}.Gather()
+
+	for i := range data {
+		if buf, ok := data[i].(*bytes.Buffer); ok {
+			buf.WriteTo(os.Stdout)
+		}
+	}
+	if len(errors) > 0 {
+		for i := range errors {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", errors[i])
+		}
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
 
 func startContainer(cmd *cobra.Command, args []string) {
@@ -203,7 +301,7 @@ func startContainer(cmd *cobra.Command, args []string) {
 				},
 			}
 		},
-		Output:    cmd.Out(),
+		Output:    os.Stdout,
 		LocalInit: needsSystemd,
 	}.StreamAndExit()
 }
@@ -227,7 +325,7 @@ func stopContainer(cmd *cobra.Command, args []string) {
 				},
 			}
 		},
-		Output:    cmd.Out(),
+		Output:    os.Stdout,
 		LocalInit: needsSystemd,
 	}.StreamAndExit()
 }
@@ -250,16 +348,16 @@ func containerStatus(cmd *cobra.Command, args []string) {
 				},
 			}
 		},
-		Output:    cmd.Out(),
+		Output:    os.Stdout,
 		LocalInit: needsSystemd,
 	}.Gather()
 
 	for i := range data {
 		if buf, ok := data[i].(*bytes.Buffer); ok {
 			if i > 0 {
-				fmt.Fprintf(cmd.Out(), "\n-------------\n")
+				fmt.Fprintf(os.Stdout, "\n-------------\n")
 			}
-			buf.WriteTo(cmd.Out())
+			buf.WriteTo(os.Stdout)
 		}
 	}
 	if len(errors) > 0 {

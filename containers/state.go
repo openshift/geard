@@ -14,6 +14,10 @@ func WriteContainerState(id Identifier, active bool) error {
 }
 
 func WriteContainerStateTo(file *os.File, id Identifier, active bool) error {
+	if err := file.Truncate(0); err != nil {
+		return err
+	}
+
 	contents := []byte(unitStateContents(id.UnitDefinitionPathFor(), active))
 	if _, err := file.Write(contents); err != nil {
 		return err

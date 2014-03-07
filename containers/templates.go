@@ -37,6 +37,8 @@ ExecStart=/bin/sh -c '/usr/bin/docker inspect -format="Reusing {{"{{.ID}}"}}" "{
 ExecReload=/usr/bin/docker stop "{{.Id}}"
 ExecReload=/usr/bin/docker rm "{{.Id}}"
 
+TimeoutStartSec=5m
+
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
 # Container information
@@ -74,6 +76,8 @@ ExecStart=/usr/bin/docker run \
             "{{.Image}}"
 {{ end }}
 
+TimeoutStartSec=5m
+
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
 # Container information
@@ -107,6 +111,8 @@ ExecStart=/usr/bin/docker run \
             -u root -f -rm \
             "{{.Image}}" /.container.init
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
+
+TimeoutStartSec=5m
 
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
