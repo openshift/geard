@@ -62,7 +62,7 @@ type InstallContainerRequest struct {
 	SkipSocketProxy  bool
 
 	Ports        containers.PortPairs
-	Environment  *ExtendedEnvironmentData
+	Environment  *containers.EnvironmentDescription
 	NetworkLinks *containers.NetworkLinks
 
 	// Should the container be started by default
@@ -80,12 +80,12 @@ func (req *InstallContainerRequest) Check() error {
 	if req.Image == "" {
 		return errors.New("A container must have an image identifier")
 	}
-	if req.Environment != nil {
-		if req.Environment.Id == containers.InvalidIdentifier {
-			return errors.New("You must specify an environment identifier on creation.")
-		}
+	if req.Environment != nil && !req.Environment.Empty() {
 		if err := req.Environment.Check(); err != nil {
 			return err
+		}
+		if req.Environment.Id == containers.InvalidIdentifier {
+			return errors.New("You must specify an environment identifier on creation.")
 		}
 	}
 	if req.NetworkLinks != nil {
@@ -128,9 +128,12 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	// attempt to download the environment if it is remote
 	env := req.Environment
 	if env != nil {
-		if err := env.Fetch(); err != nil {
+		if err := env.Fetch(100 * 1024); err != nil {
 			resp.Failure(ErrContainerCreateFailed)
 			return
+		}
+		if env.Empty() {
+			env = nil
 		}
 	}
 

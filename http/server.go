@@ -67,7 +67,8 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 		&HttpPutEnvironmentRequest{},
 
 		&HttpContentRequest{},
-		&HttpContentRequest{Subpath: "*"},
+		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Subpath: "*"}},
+		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Type: jobs.ContentTypeEnvironment}},
 
 		&HttpCreateKeysRequest{},
 	}

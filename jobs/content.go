@@ -28,14 +28,16 @@ func (j *ContentRequest) Execute(resp JobResponse) {
 			resp.Failure(SimpleJobError{JobResponseInvalidRequest, fmt.Sprintf("Invalid environment identifier: %s", errr.Error())})
 			return
 		}
-		file, erro := os.OpenFile(id.EnvironmentPathFor(), os.O_RDONLY, 0660)
+		file, erro := os.Open(id.EnvironmentPathFor())
 		if erro != nil {
-			resp.Failure(SimpleJobError{JobResponseNotFound, fmt.Sprintf("Invalid environment: %s", erro.Error())})
+			resp.Failure(ErrEnvironmentNotFound)
 			return
 		}
+		defer file.Close()
 		w := resp.SuccessWithWrite(JobResponseOk, false, false)
 		if _, err := io.Copy(w, file); err != nil {
 			log.Printf("job_content: Unable to write environment file: %+v", err)
+			return
 		}
 	}
 }

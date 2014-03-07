@@ -54,3 +54,24 @@ func (h *HttpStopContainerRequest) MarshalToToken(token *TokenData) {
 func (h *HttpContainerStatusRequest) MarshalToToken(token *TokenData) {
 	token.R = string(h.Id)
 }
+
+func (h *HttpPutEnvironmentRequest) MarshalToHttp(w io.Writer) error {
+	encoder := json.NewEncoder(w)
+	return encoder.Encode(h.EnvironmentDescription)
+}
+func (h *HttpPutEnvironmentRequest) MarshalToToken(token *TokenData) {
+	token.R = string(h.EnvironmentDescription.Id)
+}
+
+func (h *HttpPatchEnvironmentRequest) MarshalToHttp(w io.Writer) error {
+	encoder := json.NewEncoder(w)
+	return encoder.Encode(h.EnvironmentDescription)
+}
+func (h *HttpPatchEnvironmentRequest) MarshalToToken(token *TokenData) {
+	token.R = string(h.EnvironmentDescription.Id)
+}
+
+func (h *HttpContentRequest) MarshalToToken(token *TokenData) {
+	token.R = string(h.ContentRequest.Locator)
+	//token.T = string(h.ContentRequest.Type) GOTCHA: Ensure subpath is set for each content request
+}

@@ -230,7 +230,10 @@ func (h *HttpBuildImageRequest) Handler(conf *HttpConfiguration) JobHandler {
 	}
 }
 
-type HttpPutEnvironmentRequest jobs.PutEnvironmentRequest
+type HttpPutEnvironmentRequest struct {
+	jobs.PutEnvironmentRequest
+	DefaultRequest
+}
 
 func (h *HttpPutEnvironmentRequest) HttpMethod() string { return "PUT" }
 func (h *HttpPutEnvironmentRequest) HttpPath() string   { return "/environment" }
@@ -241,7 +244,7 @@ func (h *HttpPutEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandler 
 			return nil, errg
 		}
 
-		data := jobs.ExtendedEnvironmentData{}
+		data := containers.EnvironmentDescription{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
 			if err := dec.Decode(&data); err != nil && err != io.EOF {
@@ -259,7 +262,10 @@ func (h *HttpPutEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandler 
 	}
 }
 
-type HttpPatchEnvironmentRequest jobs.PatchEnvironmentRequest
+type HttpPatchEnvironmentRequest struct {
+	jobs.PatchEnvironmentRequest
+	DefaultRequest
+}
 
 func (h *HttpPatchEnvironmentRequest) HttpMethod() string { return "PATCH" }
 func (h *HttpPatchEnvironmentRequest) HttpPath() string   { return "/environment" }
@@ -270,7 +276,7 @@ func (h *HttpPatchEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandle
 			return nil, errg
 		}
 
-		data := jobs.ExtendedEnvironmentData{}
+		data := containers.EnvironmentDescription{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
 			if err := dec.Decode(&data); err != nil && err != io.EOF {
@@ -288,26 +294,40 @@ func (h *HttpPatchEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandle
 	}
 }
 
-type HttpContentRequest jobs.ContentRequest
+type HttpContentRequest struct {
+	jobs.ContentRequest
+	DefaultRequest
+}
 
 func (h *HttpContentRequest) HttpMethod() string { return "GET" }
 func (h *HttpContentRequest) HttpPath() string {
-	if h.Subpath != "" {
-		return "/content/" + h.Subpath
+	var base string
+	switch h.Type {
+	case jobs.ContentTypeEnvironment:
+		base = "/environment"
+	default:
+		base = "/content"
 	}
-	return "/content"
+	if h.Subpath != "" {
+		return base + "/" + h.Subpath
+	}
+	return base
 }
 func (h *HttpContentRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
 		if token.ResourceLocator() == "" {
 			return nil, errors.New("You must specify the location of the content you want to access")
 		}
-		if token.ResourceType() == "" {
+		contentType := token.ResourceType()
+		if contentType == "" {
+			contentType = h.Type
+		}
+		if contentType == "" {
 			return nil, errors.New("You must specify the type of the content you want to access")
 		}
 
 		return &jobs.ContentRequest{
-			token.ResourceType(),
+			contentType,
 			token.ResourceLocator(),
 			r.PathParam("*"),
 		}, nil

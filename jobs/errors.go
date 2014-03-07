@@ -7,6 +7,7 @@ var (
 	ErrContainerCreateFailed   = SimpleJobError{JobResponseError, "Unable to create container."}
 	ErrContainerStartFailed    = SimpleJobError{JobResponseError, "Unable to start this container."}
 	ErrContainerStopFailed     = SimpleJobError{JobResponseError, "Unable to stop this container."}
+	ErrEnvironmentNotFound     = SimpleJobError{JobResponseNotFound, "Unable to find the requested environment."}
 	ErrEnvironmentUpdateFailed = SimpleJobError{JobResponseError, "Unable to update the specified environment."}
 	ErrListImagesFailed        = SimpleJobError{JobResponseError, "Unable to list docker images."}
 	ErrListContainersFailed    = SimpleJobError{JobResponseError, "Unable to list the installed containers."}
