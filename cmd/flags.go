@@ -51,10 +51,6 @@ type EnvironmentDescription struct {
 }
 
 func (e *EnvironmentDescription) ExtractVariablesFrom(args *[]string, generateId bool) error {
-	if err := e.Description.Fetch(1024 * 1024); err != nil {
-		log.Printf("Failed to get env")
-		return err
-	}
 	if e.Path != "" {
 		file, err := os.Open(e.Path)
 		if err != nil {
