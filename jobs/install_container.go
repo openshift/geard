@@ -275,7 +275,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	}
 
 	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, paths...); err != nil {
-		log.Printf("install_container: Could not enable container %s: %v", unitName, err)
+		log.Printf("install_container: Could not enable container %s (%v): %v", unitName, paths, err)
 		resp.Failure(ErrContainerCreateFailed)
 		return
 	}
