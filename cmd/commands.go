@@ -25,9 +25,10 @@ var (
 	post        bool
 	follow      bool
 	start       bool
-	resetEnv    bool
-	environment EnvironmentDescription
 	listenAddr  string
+	resetEnv    bool
+	simple      bool
+	environment EnvironmentDescription
 	portPairs   PortPairs
 	gitKeys     bool
 	gitRepoName string
@@ -64,6 +65,7 @@ func Execute() {
 	}
 	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>=<external>,...'. Use zero to request a port be assigned.")
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
+	installImageCmd.Flags().BoolVar(&simple, "simple", false, "Use a simple container (experimental)")
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
@@ -248,6 +250,7 @@ func installImage(cmd *cobra.Command, args []string) {
 					Id:      on.(*RemoteIdentifier).Id,
 					Image:   imageId,
 					Started: start,
+					Simple:  simple,
 
 					Ports:       *portPairs.Get().(*containers.PortPairs),
 					Environment: &environment.Description,
@@ -364,7 +367,9 @@ func startContainer(cmd *cobra.Command, args []string) {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	}
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
@@ -388,7 +393,9 @@ func stopContainer(cmd *cobra.Command, args []string) {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	}
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
@@ -412,6 +419,9 @@ func containerStatus(cmd *cobra.Command, args []string) {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also display the status of this container via 'systemctl status %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	}
 	data, errors := Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
