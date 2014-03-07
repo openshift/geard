@@ -24,14 +24,23 @@ type FuncBulk func(...Locator) jobs.Job
 type FuncSerial func(Locator) jobs.Job
 type FuncReact func(*CliJobResponse, io.Writer, interface{})
 
+// An executor runs a number of local or remote jobs in
+// parallel or sequentially.  You must set either .Group
+// or .Serial
 type Executor struct {
-	On     []Locator
-	Group  FuncBulk
+	On []Locator
+	// Given a set of locators on the same server, create one
+	// job that represents all ids.
+	Group FuncBulk
+	// Given a set of locators on the same server, create one
+	// job per locator.
 	Serial FuncSerial
 	// The stream to output to, will be set to DevNull by default
 	Output io.Writer
 	// Optional: specify an initializer for local execution
 	LocalInit FuncInit
+	// Optional: respond to successful calls
+	OnSuccess FuncReact
 	// Optional: respond to errors when they occur
 	OnFailure FuncReact
 }
@@ -192,6 +201,9 @@ Response:
 func (e *Executor) react(response *CliJobResponse, w io.Writer, job interface{}) *CliJobResponse {
 	if response.Error != nil && e.OnFailure != nil {
 		e.OnFailure(response, w, job)
+	}
+	if response.Error == nil && e.OnSuccess != nil {
+		e.OnSuccess(response, w, job)
 	}
 	return response
 }

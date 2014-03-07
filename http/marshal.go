@@ -43,6 +43,10 @@ func (h *HttpInstallContainerRequest) MarshalHttpResponse(headers http.Header, r
 	return nil, errors.New("Unexpected response body to HttpInstallContainerRequest")
 }
 
+func (h *HttpDeleteContainerRequest) MarshalToToken(token *TokenData) {
+	token.R = string(h.Id)
+}
+
 func (h *HttpStartContainerRequest) MarshalToToken(token *TokenData) {
 	token.R = string(h.Id)
 }

@@ -42,7 +42,11 @@ func (h *HttpInstallContainerRequest) Handler(conf *HttpConfiguration) JobHandle
 	}
 }
 
-type HttpDeleteContainerRequest jobs.DeleteContainerRequest
+type HttpDeleteContainerRequest struct {
+	jobs.DeleteContainerRequest
+	DefaultRequest
+	Label string
+}
 
 func (h *HttpDeleteContainerRequest) HttpMethod() string { return "DELETE" }
 func (h *HttpDeleteContainerRequest) HttpPath() string   { return "/container" }

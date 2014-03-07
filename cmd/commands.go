@@ -12,6 +12,7 @@ import (
 	"github.com/smarterclayton/geard/http"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/systemd"
+	"io"
 	"log"
 	nethttp "net/http"
 	"os"
@@ -67,6 +68,14 @@ func Execute() {
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
 	gearCmd.AddCommand(installImageCmd)
+
+	deleteCmd := &cobra.Command{
+		Use:   "delete <name>...",
+		Short: "Delete an installed container",
+		Long:  "Deletes one or more installed containers from the system.  Will not clean up unused images.",
+		Run:   deleteContainer,
+	}
+	gearCmd.AddCommand(deleteCmd)
 
 	setEnvCmd := &cobra.Command{
 		Use:   "set-env <name>... <key>=<value>...",
@@ -186,6 +195,10 @@ func needsSystemdAndData() error {
 	return containers.InitializeData()
 }
 
+func needsData() error {
+	return containers.InitializeData()
+}
+
 func gear(cmd *cobra.Command, args []string) {
 	cmd.Help()
 }
@@ -242,7 +255,7 @@ func installImage(cmd *cobra.Command, args []string) {
 			}
 		},
 		Output:    os.Stdout,
-		LocalInit: needsSystemdAndData,
+		LocalInit: needsData,
 	}.StreamAndExit()
 }
 
@@ -297,7 +310,8 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 				},
 			}
 		},
-		Output: os.Stdout,
+		LocalInit: needsData,
+		Output:    os.Stdout,
 	}.Gather()
 
 	for i := range data {
@@ -312,6 +326,33 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+func deleteContainer(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
+	}
+	ids, err := NewRemoteIdentifiers(args)
+	if err != nil {
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+
+	Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpDeleteContainerRequest{
+				Label: on.(*RemoteIdentifier).String(),
+				DeleteContainerRequest: jobs.DeleteContainerRequest{
+					Id: on.(*RemoteIdentifier).Id,
+				},
+			}
+		},
+		Output: os.Stdout,
+		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
+			fmt.Fprintf(w, "Deleted %s", job.(*http.HttpDeleteContainerRequest).Label)
+		},
+		LocalInit: needsData,
+	}.StreamAndExit()
 }
 
 func startContainer(cmd *cobra.Command, args []string) {
