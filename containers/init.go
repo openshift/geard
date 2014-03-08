@@ -42,6 +42,10 @@ func verifyDataPaths() error {
 		config.ContainerBasePath(),
 		filepath.Join(config.ContainerBasePath(), "home"),
 		filepath.Join(config.ContainerBasePath(), "bin"),
+		filepath.Join(config.ContainerBasePath(), "git"),
+		filepath.Join(config.ContainerBasePath(), "access", "git"),
+		filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"),
+		filepath.Join(config.ContainerBasePath(), "keys", "public"),
 	} {
 		if err := checkPath(path, os.FileMode(0775), true); err != nil {
 			return err
@@ -54,12 +58,9 @@ func verifyDataPaths() error {
 		filepath.Join(config.ContainerBasePath(), "targets"),
 		filepath.Join(config.ContainerBasePath(), "units"),
 		filepath.Join(config.ContainerBasePath(), "slices"),
-		filepath.Join(config.ContainerBasePath(), "git"),
 		filepath.Join(config.ContainerBasePath(), "env", "contents"),
 		filepath.Join(config.ContainerBasePath(), "access", "git", "read"),
 		filepath.Join(config.ContainerBasePath(), "access", "git", "write"),
-		filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"),
-		filepath.Join(config.ContainerBasePath(), "keys", "public"),
 		filepath.Join(config.ContainerBasePath(), "ports", "descriptions"),
 		filepath.Join(config.ContainerBasePath(), "ports", "interfaces"),
 	} {
@@ -76,31 +77,13 @@ func verifyDataPaths() error {
 
 func initializeTargets() error {
 	for _, target := range [][]string{
-		[]string{"container", ""},
-		[]string{"container-sockets", ""},
-		[]string{"container-active", "multi-user.target"},
+		{"container", ""},
+		{"container-sockets", ""},
+		{"container-active", "multi-user.target"},
 	} {
 		name, wants := target[0], target[1]
-		path := filepath.Join(config.ContainerBasePath(), "targets", name+".target")
-		unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
-		if os.IsExist(err) {
-			continue
-		} else if err != nil {
+		if err := systemd.InitializeSystemdFile(systemd.TargetType, name, TargetUnitTemplate, TargetUnit{name, wants}); err != nil {
 			return err
-		}
-
-		if errs := TargetUnitTemplate.Execute(unit, TargetUnit{name, wants}); errs != nil {
-			log.Printf("init: Unable to write target %s: %v", name, errs)
-			continue
-		}
-		if errc := unit.Close(); errc != nil {
-			log.Printf("init: Unable to close target %s: %v", name, errc)
-			continue
-		}
-
-		if _, errs := systemd.StartAndEnableUnit(systemd.Connection(), name+".target", path, "fail"); errs != nil {
-			log.Printf("init: Unable to start and enable target %s: %v", name, errs)
-			continue
 		}
 	}
 	return nil
@@ -111,30 +94,13 @@ func initializeSlices() error {
 		"container",
 		"container-small",
 	} {
-		path := filepath.Join(config.ContainerBasePath(), "slices", name+".slice")
-		unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
-		if os.IsExist(err) {
-			continue
-		} else if err != nil {
-			return err
-		}
-
 		parent := "container"
 		if name == "container" {
 			parent = ""
 		}
-		if errs := SliceUnitTemplate.Execute(unit, SliceUnit{name, parent}); errs != nil {
-			log.Printf("init: Unable to write slice %s: %v", name, errs)
-			continue
-		}
-		if errc := unit.Close(); errc != nil {
-			log.Printf("init: Unable to close slice %s: %v", name, errc)
-			continue
-		}
 
-		if _, errs := systemd.StartAndEnableUnit(systemd.Connection(), name+".slice", path, "fail"); errs != nil {
-			log.Printf("init: Unable to start and enable slice %s: %v", name, errs)
-			continue
+		if err := systemd.InitializeSystemdFile(systemd.SliceType, name, SliceUnitTemplate, SliceUnit{name, parent}); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -155,6 +121,17 @@ func checkPath(path string, mode os.FileMode, dir bool) error {
 	return nil
 }
 
+func isSystemdFile(filePath string) bool {
+	extention := filepath.Ext(filePath)
+	systemdExts := []string{".slice", ".service", ".socket", ".target"}
+	for _, e := range systemdExts {
+		if e == extention {
+			return true
+		}
+	}
+	return false
+}
+
 func disableAllUnits() {
 	systemd := systemd.Connection()
 
@@ -173,6 +150,13 @@ func disableAllUnits() {
 			}
 			if info.IsDir() {
 				return nil
+			}
+			if !isSystemdFile(p) {
+				return nil
+			}
+			fmt.Printf("Stopping and disabling %s\n", filepath.Base(p))
+			if status, err := systemd.StopUnit(filepath.Base(p), "fail"); err != nil {
+				log.Printf("init: Unable to stop %s: %v, %+v", p, status, err)
 			}
 			if _, err := systemd.DisableUnitFiles([]string{p}, false); err != nil {
 				log.Printf("init: Unable to disable %s: %+v", p, err)
@@ -256,6 +240,10 @@ func initializeBinaries() error {
 	}
 
 	if err := copyBinary(path.Join(srcDir, "gear"), path.Join(destDir, "gear"), false); err != nil {
+		return err
+	}
+
+	if err := copyBinary(path.Join(srcDir, "gear-auth-keys-command"), path.Join(destDir, "gear-auth-keys-command"), false); err != nil {
 		return err
 	}
 	return nil

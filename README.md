@@ -138,9 +138,9 @@ To create a new repository, ensure the /var/lib/gears/git directory is created a
 
     curl -X PUT "http://localhost:2223/token/__test__/repository?r=dddd"
 
-First creation will be slow while the ccoleman/githost image is pulled down.  Repository creation will use a systemd transient unit named <code>job-&lt;r&gt;</code> - to see status run:
+First creation will be slow while the ccoleman/githost image is pulled down.  Repository creation will create a systemd service file <code>git-&lt;r&gt;.service</code> To see status run:
 
-    systemctl status job-dddd
+    systemctl status git-dddd.service
 
 If you want to create a repository based on a source URL, pass <code>t=&lt;url&gt;</code> to the PUT repository call.  Once you've created a repository with at least one commit, you can stream a git archive zip file of the contents with:
 

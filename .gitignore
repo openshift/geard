@@ -1,10 +1,7 @@
 .vagrant
 geard.linux64
-geard.local
 go
 .project
-geard-switchns
-geard-util
-geard
 gear
 switchns
+gear-auth-keys-command

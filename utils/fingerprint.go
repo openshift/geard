@@ -14,5 +14,5 @@ func (f Fingerprint) ToShortName() string {
 }
 
 func (f Fingerprint) PublicKeyPathFor() string {
-	return IsolateContentPath(filepath.Join(config.ContainerBasePath(), "keys", "public"), f.ToShortName(), "")
+	return IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "keys", "public"), f.ToShortName(), "", 0775)
 }

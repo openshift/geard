@@ -3,7 +3,7 @@ package containers
 import (
 	"bufio"
 	"fmt"
-	d "github.com/fsouza/go-dockerclient"
+	dc "github.com/fsouza/go-dockerclient"
 	"github.com/smarterclayton/geard/config"
 	"github.com/smarterclayton/geard/docker"
 	"github.com/smarterclayton/geard/selinux"
@@ -21,8 +21,11 @@ import (
 )
 
 func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
-	var err error
-	var imgInfo *d.Image
+	var (
+		err     error
+		imgInfo *dc.Image
+		d       *docker.DockerClient
+	)
 
 	_, socketActivationType, err := GetSocketActivation(id)
 	if err != nil {
@@ -39,7 +42,11 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 		}
 	}
 
-	if imgInfo, err = docker.GetImage(dockerSocket, imageName); err != nil {
+	if d, err = docker.GetConnection(dockerSocket); err != nil {
+		return err
+	}
+
+	if imgInfo, err = d.GetImage(imageName); err != nil {
 		return err
 	}
 
@@ -57,7 +64,7 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 	defer file.Close()
 
 	volumes := make([]string, 0, 10)
-	for volPath, _ := range imgInfo.Config.Volumes {
+	for volPath := range imgInfo.Config.Volumes {
 		volumes = append(volumes, volPath)
 	}
 
@@ -104,25 +111,32 @@ func createUser(id Identifier) error {
 }
 
 func InitPostStart(dockerSocket string, id Identifier) error {
-	var u *user.User
-	var container *d.Container
-	var err error
+	var (
+		u         *user.User
+		container *dc.Container
+		err       error
+		d         *docker.DockerClient
+	)
 
 	if u, err = user.Lookup(id.LoginFor()); err != nil {
 		return err
 	}
 
-	if _, container, err = docker.GetContainer(dockerSocket, id.ContainerFor(), true); err != nil {
+	if d, err = docker.GetConnection(dockerSocket); err != nil {
 		return err
 	}
 
-	if err = generateAuthorizedKeys(id, u, container, true); err != nil {
+	if container, err = d.GetContainer(id.ContainerFor(), true); err != nil {
+		return err
+	}
+
+	if err = GenerateAuthorizedKeys(id, u, true, false); err != nil {
 		return err
 	}
 
 	if file, err := os.Open(id.NetworkLinksPathFor()); err == nil {
 		defer file.Close()
-		pid, err := docker.ChildProcessForContainer(container)
+		pid, err := d.ChildProcessForContainer(container)
 		if err != nil {
 			return err
 		}
@@ -135,31 +149,14 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 	return nil
 }
 
-func GenerateAuthorizedKeys(dockerSocket string, u *user.User) error {
-	var id Identifier
-	var container *d.Container
-	var err error
-
-	if u.Name != "Container user" {
-		return nil
-	}
-	if id, err = NewIdentifierFromUser(u); err != nil {
-		return err
-	}
-	if _, container, err = docker.GetContainer(dockerSocket, id.LoginFor(), false); err != nil {
-		return err
-	}
-	if err = generateAuthorizedKeys(id, u, container, false); err != nil {
-		return err
-	}
-	return nil
-}
-
-func generateAuthorizedKeys(id Identifier, u *user.User, container *d.Container, forceCreate bool) error {
-	var err error
-	var sshKeys []string
-	var destFile *os.File
-	var srcFile *os.File
+func GenerateAuthorizedKeys(id Identifier, u *user.User, forceCreate bool, printToStdOut bool) error {
+	var (
+		err      error
+		sshKeys  []string
+		destFile *os.File
+		srcFile  *os.File
+		w        *bufio.Writer
+	)
 
 	var authorizedKeysPortSpec string
 	ports, err := GetExistingPorts(id)
@@ -173,29 +170,37 @@ func generateAuthorizedKeys(id Identifier, u *user.User, container *d.Container,
 	}
 
 	sshKeys, err = filepath.Glob(path.Join(id.SshAccessBasePath(), "*"))
-	os.MkdirAll(id.HomePath(), 0700)
-	os.Mkdir(path.Join(id.HomePath(), ".ssh"), 0700)
-	authKeysPath := id.AuthKeysPathFor()
-	if _, err = os.Stat(authKeysPath); err != nil {
-		if !os.IsNotExist(err) {
+
+	if !printToStdOut {
+		os.MkdirAll(id.HomePath(), 0700)
+		os.Mkdir(path.Join(id.HomePath(), ".ssh"), 0700)
+		authKeysPath := id.AuthKeysPathFor()
+		if _, err = os.Stat(authKeysPath); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			if forceCreate {
+				os.Remove(authKeysPath)
+			} else {
+				return nil
+			}
+		}
+
+		if destFile, err = os.Create(authKeysPath); err != nil {
 			return err
 		}
+		defer destFile.Close()
+		w = bufio.NewWriter(destFile)
 	} else {
-		if forceCreate {
-			os.Remove(authKeysPath)
-		} else {
-			return nil
-		}
+		w = bufio.NewWriter(os.Stdout)
 	}
-
-	if destFile, err = os.Create(authKeysPath); err != nil {
-		return err
-	}
-	defer destFile.Close()
-	w := bufio.NewWriter(destFile)
 
 	for _, keyFile := range sshKeys {
-		s, _ := os.Stat(keyFile)
+		s, err := os.Stat(keyFile)
+		if err != nil {
+			continue
+		}
 		if s.IsDir() {
 			continue
 		}
@@ -208,33 +213,25 @@ func generateAuthorizedKeys(id Identifier, u *user.User, container *d.Container,
 	}
 	w.Flush()
 
-	uid, _ := strconv.Atoi(u.Uid)
-	gid, _ := strconv.Atoi(u.Gid)
+	if !printToStdOut {
+		uid, _ := strconv.Atoi(u.Uid)
+		gid, _ := strconv.Atoi(u.Gid)
 
-	for _, path := range []string{
-		id.HomePath(),
-		filepath.Join(id.HomePath(), ".ssh"),
-		filepath.Join(id.HomePath(), ".ssh", "authorized_keys"),
-	} {
-		if err := os.Chown(path, uid, gid); err != nil {
+		for _, path := range []string{
+			id.HomePath(),
+			filepath.Join(id.HomePath(), ".ssh"),
+			filepath.Join(id.HomePath(), ".ssh", "authorized_keys"),
+		} {
+			if err := os.Chown(path, uid, gid); err != nil {
+				return err
+			}
+		}
+
+		if err := selinux.RestoreCon(id.BaseHomePath(), true); err != nil {
 			return err
 		}
 	}
-
-	if err := selinux.RestoreCon(id.BaseHomePath(), true); err != nil {
-		return err
-	}
 	return nil
-}
-
-func getContainerPorts(container *d.Container) (string, []string, error) {
-	ipAddr := container.NetworkSettings.IPAddress
-	ports := []string{}
-	for pstr, _ := range container.NetworkSettings.Ports {
-		ports = append(ports, strings.Split(string(pstr), "/")[0])
-	}
-
-	return ipAddr, ports, nil
 }
 
 func getHostIPFromNamespace(name string) (*net.IPAddr, error) {

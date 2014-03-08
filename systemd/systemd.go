@@ -4,14 +4,25 @@ import (
 	"encoding/base64"
 	"fmt"
 	db "github.com/guelfey/go.dbus"
+	"github.com/smarterclayton/geard/config"
 	"github.com/smarterclayton/go-systemd/dbus"
 	"io"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
+	"text/template"
 	"time"
+)
+
+type SystemdFileType string
+
+const (
+	TargetType SystemdFileType = "target"
+	SliceType  SystemdFileType = "slice"
+	UnitType   SystemdFileType = "unit"
 )
 
 type Systemd interface {
@@ -39,6 +50,46 @@ type Systemd interface {
 	SubscribeUnitsCustom(time.Duration, int, func(*dbus.UnitStatus, *dbus.UnitStatus) bool, func(string) bool) (<-chan map[string]*dbus.UnitStatus, <-chan error)
 
 	Reload() error
+}
+
+func InitializeSystemdFile(fType SystemdFileType, name string, template *template.Template, values interface{}) error {
+	var partPath string
+	var ext string
+
+	switch {
+	case fType == TargetType:
+		partPath = "targets"
+		ext = ".target"
+	case fType == SliceType:
+		partPath = "slices"
+		ext = ".slice"
+	case fType == UnitType:
+		partPath = "units"
+		ext = ".service"
+	}
+
+	path := filepath.Join(config.ContainerBasePath(), partPath, name+ext)
+	unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
+	if os.IsExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	if errs := template.Execute(unit, values); errs != nil {
+		log.Printf("gear: Unable to write %s %s: %v", fType, name, errs)
+		return nil
+	}
+	if errc := unit.Close(); errc != nil {
+		log.Printf("gear: Unable to close target %s %s: %v", fType, name, errc)
+		return nil
+	}
+
+	if _, errs := StartAndEnableUnit(Connection(), name+ext, path, "fail"); errs != nil {
+		log.Printf("gear: Unable to start and enable %s %s: %v", fType, name, errs)
+	}
+
+	return nil
 }
 
 func StartAndEnableUnit(systemd Systemd, name, path, mode string) (string, error) {

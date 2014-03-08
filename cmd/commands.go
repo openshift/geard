@@ -7,6 +7,8 @@ import (
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/dispatcher"
 	"github.com/smarterclayton/geard/git"
+	githttp "github.com/smarterclayton/geard/git/http"
+	gitjobs "github.com/smarterclayton/geard/git/jobs"
 	"github.com/smarterclayton/geard/http"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/systemd"
@@ -23,9 +25,12 @@ var (
 	follow      bool
 	start       bool
 	resetEnv    bool
-	listenAddr  string
 	environment EnvironmentDescription
+	listenAddr  string
 	portPairs   PortPairs
+	gitKeys     bool
+	gitRepoName string
+	gitRepoURL  string
 )
 
 var conf = http.HttpConfiguration{
@@ -36,7 +41,7 @@ var conf = http.HttpConfiguration{
 		TrackDuplicateIds: 1000,
 	},
 	Extensions: []http.HttpExtension{
-		git.Routes,
+		githttp.Routes,
 	},
 }
 
@@ -132,17 +137,41 @@ func Execute() {
 	initGearCmd.Flags().BoolVarP(&post, "post", "", false, "Perform post-start initialization")
 	gearCmd.AddCommand(initGearCmd)
 
+	initRepoCmd := &cobra.Command{
+		Use:   "init-repo",
+		Short: `(Local) Setup the environment for a git repository`,
+		Long:  ``,
+		Run:   initRepository,
+	}
+	gearCmd.AddCommand(initRepoCmd)
+
 	genAuthKeysCmd := &cobra.Command{
 		Use:   "gen-auth-keys [<name>]",
-		Short: "(Local) Create the authorized_keys file for a container",
+		Short: "(Local) Create the authorized_keys file for a container or repository",
 		Long:  "Generate .ssh/authorized_keys file for the specified container id or (if container id is ommitted) for the current user",
 		Run:   genAuthKeys,
 	}
+	genAuthKeysCmd.Flags().BoolVar(&gitKeys, "git", false, "Create keys for a git repository")
 	gearCmd.AddCommand(genAuthKeysCmd)
+
+	sshAuthKeysCmd := &cobra.Command{
+		Use:   "auth-keys-command <user name>",
+		Short: "(Local) Generate authoried keys output for sshd.",
+		Long:  "Generate authoried keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
+		Run:   sshAuthKeysCommand,
+	}
+	gearCmd.AddCommand(sshAuthKeysCmd)
 
 	if err := gearCmd.Execute(); err != nil {
 		fail(1, err.Error())
 	}
+}
+
+func ExecuteSshAuthKeysCmd(args ...string) {
+	if len(args) != 2 {
+		os.Exit(2)
+	}
+	sshAuthKeysCommand(nil, args[1:])
 }
 
 // Initializers for local command execution.
@@ -150,8 +179,10 @@ func needsSystemd() error {
 	systemd.Require()
 	return nil
 }
+
 func needsSystemdAndData() error {
 	systemd.Require()
+	git.InitializeData()
 	return containers.InitializeData()
 }
 
@@ -163,6 +194,7 @@ func daemon(cmd *cobra.Command, args []string) {
 	systemd.Start()
 	containers.InitializeData()
 	containers.StartPortAllocator(4000, 60000)
+	git.InitializeData()
 	conf.Dispatcher.Start()
 
 	nethttp.Handle("/", conf.Handler())
@@ -373,19 +405,80 @@ func initGear(cmd *cobra.Command, args []string) {
 	if len(args) != 2 || !(pre || post) || (pre && post) {
 		fail(1, "Valid arguments: <id> <image_name> (--pre|--post)\n")
 	}
-	gearId, err := containers.NewIdentifier(args[0])
+	containerId, err := containers.NewIdentifier(args[0])
 	if err != nil {
 		fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 	}
 
 	switch {
 	case pre:
-		if err := containers.InitPreStart(conf.Docker.Socket, gearId, args[1]); err != nil {
+		if err := containers.InitPreStart(conf.Docker.Socket, containerId, args[1]); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	case post:
-		if err := containers.InitPostStart(conf.Docker.Socket, gearId); err != nil {
+		if err := containers.InitPostStart(conf.Docker.Socket, containerId); err != nil {
 			fail(2, "Unable to initialize container %s\n", err.Error())
+		}
+	}
+}
+
+func initRepository(cmd *cobra.Command, args []string) {
+	if len(args) < 1 || len(args) > 2 {
+		fail(1, "Valid arguments: <repo_id> [<repo_url>]\n")
+	}
+
+	repoId, err := containers.NewIdentifier(args[0])
+	if err != nil {
+		fail(1, "Argument 1 must be a valid repository identifier: %s\n", err.Error())
+	}
+
+	repoUrl := ""
+	if len(args) == 2 {
+		repoUrl = args[1]
+	}
+
+	needsSystemd()
+	if err := gitjobs.InitializeRepository(git.RepoIdentifier(repoId), repoUrl); err != nil {
+		fail(2, "Unable to initialize repository %s\n", err.Error())
+	}
+}
+
+func sshAuthKeysCommand(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fail(1, "Valid arguments: <login name>\n")
+	}
+
+	var (
+		u           *user.User
+		err         error
+		containerId containers.Identifier
+		repoId      git.RepoIdentifier
+	)
+
+	if u, err = user.Lookup(args[0]); err != nil {
+		fail(2, "Unable to lookup user")
+	}
+
+	isRepo := u.Name == "Repository user"
+	if isRepo {
+		repoId, err = git.NewIdentifierFromUser(u)
+		if err != nil {
+			fail(1, "Not a repo user: %s\n", err.Error())
+		}
+	} else {
+		containerId, err = containers.NewIdentifierFromUser(u)
+		if err != nil {
+			fail(1, "Not a container user: %s\n", err.Error())
+		}
+	}
+
+	if isRepo {
+		if err := git.GenerateAuthorizedKeys(repoId, u, false, true); err != nil {
+			fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
+		}
+	} else {
+		if err := containers.GenerateAuthorizedKeys(containerId, u, false, true); err != nil {
+			fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 		}
 	}
 }
@@ -395,24 +488,55 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 		fail(1, "Valid arguments: [<id>]\n")
 	}
 
-	var u *user.User
-	var err error
+	var (
+		u           *user.User
+		err         error
+		containerId containers.Identifier
+		repoId      git.RepoIdentifier
+		isRepo      bool
+	)
 
 	if len(args) == 1 {
-		gearId, err := containers.NewIdentifier(args[0])
+		containerId, err = containers.NewIdentifier(args[0])
 		if err != nil {
 			fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 		}
-		if u, err = user.Lookup(gearId.LoginFor()); err != nil {
+		if gitKeys {
+			repoId = git.RepoIdentifier(containerId)
+			u, err = user.Lookup(repoId.LoginFor())
+		} else {
+			u, err = user.Lookup(containerId.LoginFor())
+		}
+
+		if err != nil {
 			fail(2, "Unable to lookup user: %s", err.Error())
 		}
+		isRepo = gitKeys
 	} else {
 		if u, err = user.LookupId(strconv.Itoa(os.Getuid())); err != nil {
 			fail(2, "Unable to lookup user")
 		}
+		isRepo = u.Name == "Repository user"
+		if isRepo {
+			repoId, err = git.NewIdentifierFromUser(u)
+			if err != nil {
+				fail(1, "Not a repo user: %s\n", err.Error())
+			}
+		} else {
+			containerId, err = containers.NewIdentifierFromUser(u)
+			if err != nil {
+				fail(1, "Not a gear user: %s\n", err.Error())
+			}
+		}
 	}
 
-	if err := containers.GenerateAuthorizedKeys(conf.Docker.Socket, u); err != nil {
-		fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
+	if isRepo {
+		if err := git.GenerateAuthorizedKeys(repoId, u, false, false); err != nil {
+			fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
+		}
+	} else {
+		if err := containers.GenerateAuthorizedKeys(containerId, u, false, false); err != nil {
+			fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
+		}
 	}
 }
