@@ -17,6 +17,19 @@ import (
 
 type Port uint
 
+func (p Port) Check() error {
+	if p < 1 || p > 65535 {
+		return errors.New("Port must be between 1 and 65536")
+	}
+	return nil
+}
+func (p Port) CheckDefault() error {
+	if p < 0 || p > 65535 {
+		return errors.New("Port value must be an integer less than 65536")
+	}
+	return nil
+}
+
 type PortPair struct {
 	Internal Port
 	External Port

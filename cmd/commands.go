@@ -21,18 +21,19 @@ import (
 )
 
 var (
-	pre         bool
-	post        bool
-	follow      bool
-	start       bool
-	listenAddr  string
-	resetEnv    bool
-	simple      bool
-	environment EnvironmentDescription
-	portPairs   PortPairs
-	gitKeys     bool
-	gitRepoName string
-	gitRepoURL  string
+	pre          bool
+	post         bool
+	follow       bool
+	start        bool
+	listenAddr   string
+	resetEnv     bool
+	simple       bool
+	environment  EnvironmentDescription
+	portPairs    PortPairs
+	networkLinks NetworkLinks
+	gitKeys      bool
+	gitRepoName  string
+	gitRepoURL   string
 )
 
 var conf = http.HttpConfiguration{
@@ -63,7 +64,8 @@ func Execute() {
 		Long:  "Install a docker image as one or more systemd services on one or more servers.\n\nSpecify a location on a remote server with <host>[:<port>]/<name> instead of <name>.  The default port is 2223.",
 		Run:   installImage,
 	}
-	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>=<external>,...'. Use zero to request a port be assigned.")
+	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>:<external>,...'. Use zero to request a port be assigned.")
+	installImageCmd.Flags().VarP(&networkLinks, "net-links", "n", "List of comma separated port pairs to wire '<local_port>:<host>:<remote_port>,...'. Host and remote port may be empty.")
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
 	installImageCmd.Flags().BoolVar(&simple, "simple", false, "Use a simple container (experimental)")
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
@@ -260,8 +262,9 @@ func installImage(cmd *cobra.Command, args []string) {
 					Started: start,
 					Simple:  simple,
 
-					Ports:       *portPairs.Get().(*containers.PortPairs),
-					Environment: &environment.Description,
+					Ports:        *portPairs.Get().(*containers.PortPairs),
+					Environment:  &environment.Description,
+					NetworkLinks: networkLinks.NetworkLinks,
 				},
 			}
 		},

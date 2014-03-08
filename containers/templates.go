@@ -74,6 +74,7 @@ ExecStart=/usr/bin/docker run \
             -volumes-from "{{.Id}}" \
             -a stdout -a stderr {{.PortSpec}} \
             "{{.Image}}"
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{ end }}
 
 TimeoutStartSec=5m
@@ -184,11 +185,9 @@ type OutboundNetworkIptables struct {
 }
 
 var OutboundNetworkIptablesTemplate = template.Must(template.New("outbound_network.iptables").Parse(`
-*nat
 -A PREROUTING -d {{.LocalAddr}}/32 -p tcp -m tcp --dport {{.LocalPort}} -j DNAT --to-destination {{.DestAddr}}:{{.DestPort}}
 -A OUTPUT -d {{.LocalAddr}}/32 -p tcp -m tcp --dport {{.LocalPort}} -j DNAT --to-destination {{.DestAddr}}:{{.DestPort}}
 -A POSTROUTING -o eth0 -j SNAT --to-source {{.SourceAddr}}
-COMMIT
 `))
 
 type TargetUnit struct {
