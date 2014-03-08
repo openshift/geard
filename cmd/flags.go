@@ -45,16 +45,37 @@ func (p *PortPairs) Set(s string) error {
 	return nil
 }
 
+type NetworkLinks struct {
+	*containers.NetworkLinks
+}
+
+func (n *NetworkLinks) Get() interface{} {
+	return n.NetworkLinks
+}
+
+func (n *NetworkLinks) String() string {
+	if n.NetworkLinks == nil {
+		return ""
+	}
+	return n.NetworkLinks.ToCompact()
+}
+
+func (n *NetworkLinks) Set(s string) error {
+	links, err := containers.NewNetworkLinksFromString(s)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return err
+	}
+	n.NetworkLinks = &links
+	return nil
+}
+
 type EnvironmentDescription struct {
 	Description containers.EnvironmentDescription
 	Path        string
 }
 
 func (e *EnvironmentDescription) ExtractVariablesFrom(args *[]string, generateId bool) error {
-	if err := e.Description.Fetch(1024 * 1024); err != nil {
-		log.Printf("Failed to get env")
-		return err
-	}
 	if e.Path != "" {
 		file, err := os.Open(e.Path)
 		if err != nil {

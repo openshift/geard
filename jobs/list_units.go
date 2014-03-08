@@ -45,28 +45,37 @@ func unitsMatching(re *regexp.Regexp, found func(name string, unit *dbus.UnitSta
 
 type ListContainersRequest struct {
 }
-type containerResponse struct {
+type ContainerUnitResponse struct {
 	unitResponse
 	LoadState string
 	JobType   string `json:"JobType,omitempty"`
+	// Used by consumers
+	Server string `json:"Server,omitempty"`
 }
-type containerResponses []containerResponse
+type ContainerUnitResponses []ContainerUnitResponse
 
-func (c containerResponses) Less(a, b int) bool {
+func (c ContainerUnitResponses) Less(a, b int) bool {
 	return c[a].Id < c[b].Id
 }
-func (c containerResponses) Len() int {
+func (c ContainerUnitResponses) Len() int {
 	return len(c)
 }
-func (c containerResponses) Swap(a, b int) {
+func (c ContainerUnitResponses) Swap(a, b int) {
 	c[a], c[b] = c[b], c[a]
 }
 
-type listContainers struct {
-	Containers containerResponses
+type ListContainersResponse struct {
+	Containers ContainerUnitResponses
 }
 
-func (l *listContainers) WriteTableTo(w io.Writer) error {
+func (r *ListContainersResponse) Append(other *ListContainersResponse) {
+	r.Containers = append(r.Containers, other.Containers...)
+}
+func (r *ListContainersResponse) Sort() {
+	sort.Sort(r.Containers)
+}
+
+func (l *ListContainersResponse) WriteTableTo(w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 8, 4, 1, ' ', tabwriter.DiscardEmptyColumns)
 	if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", "ID", "ACTIVE", "SUB", "LOAD", "TYPE"); err != nil {
 		return err
@@ -84,10 +93,10 @@ func (l *listContainers) WriteTableTo(w io.Writer) error {
 var reContainerUnits = regexp.MustCompile("\\Acontainer-([^\\.]+)\\.service\\z")
 
 func (j *ListContainersRequest) Execute(resp JobResponse) {
-	r := &listContainers{make(containerResponses, 0)}
+	r := &ListContainersResponse{make(ContainerUnitResponses, 0)}
 
 	if err := unitsMatching(reContainerUnits, func(name string, unit *dbus.UnitStatus) {
-		r.Containers = append(r.Containers, containerResponse{
+		r.Containers = append(r.Containers, ContainerUnitResponse{
 			unitResponse{
 				name,
 				unit.ActiveState,
@@ -95,6 +104,7 @@ func (j *ListContainersRequest) Execute(resp JobResponse) {
 			},
 			unit.LoadState,
 			unit.JobType,
+			"",
 		})
 	}); err != nil {
 		log.Printf("list_units: Unable to list units from systemd: %v", err)
@@ -102,7 +112,7 @@ func (j *ListContainersRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	sort.Sort(r.Containers)
+	r.Sort()
 	resp.SuccessWithData(JobResponseOk, r)
 }
 

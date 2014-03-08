@@ -12,6 +12,7 @@ import (
 	"github.com/smarterclayton/geard/http"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/systemd"
+	"io"
 	"log"
 	nethttp "net/http"
 	"os"
@@ -20,17 +21,19 @@ import (
 )
 
 var (
-	pre         bool
-	post        bool
-	follow      bool
-	start       bool
-	resetEnv    bool
-	environment EnvironmentDescription
-	listenAddr  string
-	portPairs   PortPairs
-	gitKeys     bool
-	gitRepoName string
-	gitRepoURL  string
+	pre          bool
+	post         bool
+	follow       bool
+	start        bool
+	listenAddr   string
+	resetEnv     bool
+	simple       bool
+	environment  EnvironmentDescription
+	portPairs    PortPairs
+	networkLinks NetworkLinks
+	gitKeys      bool
+	gitRepoName  string
+	gitRepoURL   string
 )
 
 var conf = http.HttpConfiguration{
@@ -61,12 +64,22 @@ func Execute() {
 		Long:  "Install a docker image as one or more systemd services on one or more servers.\n\nSpecify a location on a remote server with <host>[:<port>]/<name> instead of <name>.  The default port is 2223.",
 		Run:   installImage,
 	}
-	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>=<external>,...'. Use zero to request a port be assigned.")
+	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>:<external>,...'. Use zero to request a port be assigned.")
+	installImageCmd.Flags().VarP(&networkLinks, "net-links", "n", "List of comma separated port pairs to wire '<local_port>:<host>:<remote_port>,...'. Host and remote port may be empty.")
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
+	installImageCmd.Flags().BoolVar(&simple, "simple", false, "Use a simple container (experimental)")
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
 	gearCmd.AddCommand(installImageCmd)
+
+	deleteCmd := &cobra.Command{
+		Use:   "delete <name>...",
+		Short: "Delete an installed container",
+		Long:  "Deletes one or more installed containers from the system.  Will not clean up unused images.",
+		Run:   deleteContainer,
+	}
+	gearCmd.AddCommand(deleteCmd)
 
 	setEnvCmd := &cobra.Command{
 		Use:   "set-env <name>... <key>=<value>...",
@@ -109,6 +122,14 @@ func Execute() {
 		Run:   containerStatus,
 	}
 	gearCmd.AddCommand(statusCmd)
+
+	listUnitsCmd := &cobra.Command{
+		Use:   "list-units <host>...",
+		Short: "Retrieve the list of services across all hosts",
+		Long:  "Shows the equivalent of 'systemctl list-units container-<name>' for each installed container",
+		Run:   listUnits,
+	}
+	gearCmd.AddCommand(listUnitsCmd)
 
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
@@ -186,6 +207,10 @@ func needsSystemdAndData() error {
 	return containers.InitializeData()
 }
 
+func needsData() error {
+	return containers.InitializeData()
+}
+
 func gear(cmd *cobra.Command, args []string) {
 	cmd.Help()
 }
@@ -220,7 +245,7 @@ func installImage(cmd *cobra.Command, args []string) {
 	if imageId == "" {
 		fail(1, "Argument 1 must be a Docker image to base the service on\n")
 	}
-	ids, err := NewRemoteIdentifiers(args[1:])
+	ids, err := NewRemoteIdentifiers(args[1:]...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
@@ -235,14 +260,16 @@ func installImage(cmd *cobra.Command, args []string) {
 					Id:      on.(*RemoteIdentifier).Id,
 					Image:   imageId,
 					Started: start,
+					Simple:  simple,
 
-					Ports:       *portPairs.Get().(*containers.PortPairs),
-					Environment: &environment.Description,
+					Ports:        *portPairs.Get().(*containers.PortPairs),
+					Environment:  &environment.Description,
+					NetworkLinks: networkLinks.NetworkLinks,
 				},
 			}
 		},
 		Output:    os.Stdout,
-		LocalInit: needsSystemdAndData,
+		LocalInit: needsData,
 	}.StreamAndExit()
 }
 
@@ -255,7 +282,7 @@ func setEnvironment(cmd *cobra.Command, args []string) {
 		fail(1, "Valid arguments: <name>... <key>=<value>...\n")
 	}
 
-	ids, err := NewRemoteIdentifiers(args[0:])
+	ids, err := NewRemoteIdentifiers(args[0:]...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
@@ -282,7 +309,7 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid environment ids: %s\n", err.Error())
 	}
@@ -297,7 +324,8 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 				},
 			}
 		},
-		Output: os.Stdout,
+		LocalInit: needsData,
+		Output:    os.Stdout,
 	}.Gather()
 
 	for i := range data {
@@ -314,16 +342,45 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 	os.Exit(0)
 }
 
-func startContainer(cmd *cobra.Command, args []string) {
+func deleteContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpDeleteContainerRequest{
+				Label: on.(*RemoteIdentifier).String(),
+				DeleteContainerRequest: jobs.DeleteContainerRequest{
+					Id: on.(*RemoteIdentifier).Id,
+				},
+			}
+		},
+		Output: os.Stdout,
+		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
+			fmt.Fprintf(w, "Deleted %s", job.(*http.HttpDeleteContainerRequest).Label)
+		},
+		LocalInit: needsData,
+	}.StreamAndExit()
+}
+
+func startContainer(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
+	}
+	ids, err := NewRemoteIdentifiers(args...)
+	if err != nil {
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	}
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
@@ -342,12 +399,14 @@ func stopContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	}
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
@@ -366,11 +425,14 @@ func containerStatus(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := NewRemoteIdentifiers(args)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
 		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also display the status of this container via 'systemctl status %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	}
 	data, errors := Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
@@ -392,6 +454,47 @@ func containerStatus(cmd *cobra.Command, args []string) {
 			buf.WriteTo(os.Stdout)
 		}
 	}
+	if len(errors) > 0 {
+		for i := range errors {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", errors[i])
+		}
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func listUnits(cmd *cobra.Command, args []string) {
+	if len(args) == 0 {
+		args = []string{LocalHostName}
+	}
+	ids, err := NewRemoteHostIdentifiers(args...)
+	if err != nil {
+		fail(1, "You must pass zero or more valid host names (use '%s' or pass no arguments for the current server): %s\n", LocalHostName, err.Error())
+	}
+
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also display the set of containers via 'systemctl list-units'\n")
+	}
+	data, errors := Executor{
+		On: ids,
+		Group: func(on ...Locator) jobs.Job {
+			return &http.HttpListContainersRequest{
+				Label: string(on[0].(*RemoteIdentifier).Host),
+				ListContainersRequest: jobs.ListContainersRequest{},
+			}
+		},
+		Output:    os.Stdout,
+		LocalInit: needsSystemd,
+	}.Gather()
+
+	combined := http.ListContainersResponse{}
+	for i := range data {
+		if r, ok := data[i].(*http.ListContainersResponse); ok {
+			combined.Append(&r.ListContainersResponse)
+		}
+	}
+	combined.Sort()
+	combined.WriteTableTo(os.Stdout)
 	if len(errors) > 0 {
 		for i := range errors {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", errors[i])

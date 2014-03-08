@@ -42,7 +42,11 @@ func (h *HttpInstallContainerRequest) Handler(conf *HttpConfiguration) JobHandle
 	}
 }
 
-type HttpDeleteContainerRequest jobs.DeleteContainerRequest
+type HttpDeleteContainerRequest struct {
+	jobs.DeleteContainerRequest
+	DefaultRequest
+	Label string
+}
 
 func (h *HttpDeleteContainerRequest) HttpMethod() string { return "DELETE" }
 func (h *HttpDeleteContainerRequest) HttpPath() string   { return "/container" }
@@ -56,7 +60,11 @@ func (h *HttpDeleteContainerRequest) Handler(conf *HttpConfiguration) JobHandler
 	}
 }
 
-type HttpListContainersRequest jobs.ListContainersRequest
+type HttpListContainersRequest struct {
+	jobs.ListContainersRequest
+	DefaultRequest
+	Label string
+}
 
 func (h *HttpListContainersRequest) HttpMethod() string { return "GET" }
 func (h *HttpListContainersRequest) HttpPath() string   { return "/containers" }

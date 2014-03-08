@@ -298,6 +298,7 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 		return err
 	}
 
+	fmt.Fprintf(stdin, "*nat\n")
 	for {
 		link := NetworkLink{}
 		if _, err := fmt.Fscanf(ports, "%v\t%v\t%s\n", &link.FromPort, &link.ToPort, &link.ToHost); err != nil {
@@ -325,6 +326,8 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 			}
 		}
 	}
+	fmt.Fprintf(stdin, "COMMIT\n")
+
 	stdin.Close()
 	if err := cmd.Wait(); err != nil {
 		log.Printf("network_links: iptables-restore did not successfully complete: %v", err)
