@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"github.com/smarterclayton/geard/containers"
+	"github.com/smarterclayton/geard/git"
 	"github.com/smarterclayton/geard/utils"
 	"log"
 	"os"
@@ -112,7 +113,7 @@ func (j *CreateKeysRequest) Execute(resp JobResponse) {
 		fingerprint := KeyFingerprint(pk)
 		path := fingerprint.PublicKeyPathFor()
 
-		if err := utils.AtomicWriteToContentPath(path, 0660, value); err != nil {
+		if err := utils.AtomicWriteToContentPath(path, 0664, value); err != nil {
 			failedKeys = append(failedKeys, KeyFailure{i, &key, err})
 			continue
 		}
@@ -121,13 +122,16 @@ func (j *CreateKeysRequest) Execute(resp JobResponse) {
 			p := j.Data.Containers[k]
 			if _, err := os.Stat(p.Id.UnitPathFor()); err != nil {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+				continue
 			}
 			if err := os.Symlink(path, p.Id.SshAccessPathFor(fingerprint)); err != nil && !os.IsExist(err) {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+				continue
 			}
 			if _, err := os.Stat(p.Id.AuthKeysPathFor()); err == nil {
 				if err := os.Remove(p.Id.AuthKeysPathFor()); err != nil {
 					failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+					continue
 				}
 			}
 		}
@@ -135,10 +139,19 @@ func (j *CreateKeysRequest) Execute(resp JobResponse) {
 			p := j.Data.Repositories[k]
 			if _, err := os.Stat(p.Id.RepositoryPathFor()); err != nil {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+				continue
 			}
 			accessPath := p.Id.GitAccessPathFor(fingerprint, p.Write)
 			if err := os.Symlink(path, accessPath); err != nil && !os.IsExist(err) {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+				continue
+			}
+			repoId := git.RepoIdentifier(p.Id)
+			if _, err := os.Stat(repoId.AuthKeysPathFor()); err == nil {
+				if err := os.Remove(repoId.AuthKeysPathFor()); err != nil {
+					failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+					continue
+				}
 			}
 		}
 	}

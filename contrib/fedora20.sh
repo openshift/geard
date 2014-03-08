@@ -1,10 +1,9 @@
 #!/bin/bash
-sudo yum install -y docker-io golang git hg bzr libselinux-devel accountservice
+sudo yum install -y docker-io golang git hg bzr libselinux-devel
 sudo usermod -a -G docker vagrant
 sudo systemctl enable docker.service
 sudo systemctl start docker
 sudo systemctl status docker
-sudo systemctl start accounts-daemon
 
 mkdir -p ~/go/src
 echo 'export GOPATH=~/go' >> ~/.bash_profile

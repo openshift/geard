@@ -3,7 +3,9 @@
 go get ./...
 go build -o gear .
 go install ./support/switchns
+go install ./support/gear-auth-keys-command
 
+sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
 sudo /usr/bin/cp -f $GOPATH/bin/switchns .
 sudo /usr/bin/cp -f gear /usr/bin/
 

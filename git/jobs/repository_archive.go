@@ -1,10 +1,10 @@
-package git
+package jobs
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
+	"github.com/smarterclayton/geard/git"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/utils"
 	"io"
@@ -16,7 +16,7 @@ import (
 const ContentTypeGitArchive = "gitarchive"
 
 type GitArchiveContentRequest struct {
-	RepositoryId containers.Identifier
+	RepositoryId git.RepoIdentifier
 	Ref          GitCommitRef
 }
 

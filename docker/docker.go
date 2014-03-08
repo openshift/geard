@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/fsouza/go-dockerclient/engine"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -15,6 +16,11 @@ import (
 type containerLookupResult struct {
 	Container *docker.Container
 	Error     error
+}
+
+type DockerClient struct {
+	client          *docker.Client
+	executionDriver string
 }
 
 func lookupContainer(containerName string, client *docker.Client, waitForContainer bool) containerLookupResult {
@@ -39,49 +45,52 @@ func lookupContainer(containerName string, client *docker.Client, waitForContain
 	return containerLookupResult{nil, fmt.Errorf("Container not active")}
 }
 
-func GetConnection(dockerSocket string) (*docker.Client, error) {
-	client, err := docker.NewClient(dockerSocket)
+func GetConnection(dockerSocket string) (*DockerClient, error) {
+	var (
+		client          *docker.Client
+		err             error
+		info            *engine.Env
+		executionDriver string
+	)
+
+	client, err = docker.NewClient(dockerSocket)
 	if err != nil {
 		fmt.Println("Unable to connect to docker server:", err.Error())
 		return nil, err
 	}
-	return client, nil
+
+	if info, err = client.Info(); err != nil {
+		return nil, err
+	}
+	executionDriver = info.Get("ExecutionDriver")
+
+	return &DockerClient{client, executionDriver}, nil
 }
 
-func GetContainer(dockerSocket string, containerName string, waitForContainer bool) (*docker.Client, *docker.Container, error) {
-	client, err := GetConnection(dockerSocket)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func (d *DockerClient) GetContainer(containerName string, waitForContainer bool) (*docker.Container, error) {
 	timeoutChannel := make(chan containerLookupResult, 1)
 	var container *docker.Container
-	go func() { timeoutChannel <- lookupContainer(containerName, client, waitForContainer) }()
+	go func() { timeoutChannel <- lookupContainer(containerName, d.client, waitForContainer) }()
 	select {
 	case cInfo := <-timeoutChannel:
 		if cInfo.Error != nil {
-			return nil, nil, cInfo.Error
+			return nil, cInfo.Error
 		}
 		container = cInfo.Container
 	case <-time.After(time.Minute):
-		return nil, nil, fmt.Errorf("Timeout waiting for container")
+		return nil, fmt.Errorf("Timeout waiting for container")
 	}
 
-	return client, container, nil
+	return container, nil
 }
 
-func GetImage(dockerSocket string, imageName string) (*docker.Image, error) {
-	client, err := GetConnection(dockerSocket)
-	if err != nil {
-		return nil, err
-	}
-
-	if img, err := client.InspectImage(imageName); err != nil {
+func (d *DockerClient) GetImage(imageName string) (*docker.Image, error) {
+	if img, err := d.client.InspectImage(imageName); err != nil {
 		if err == docker.ErrNoSuchImage {
-			if err := client.PullImage(docker.PullImageOptions{imageName, "", os.Stdout}, docker.AuthConfiguration{}); err != nil {
+			if err := d.client.PullImage(docker.PullImageOptions{imageName, "", os.Stdout}, docker.AuthConfiguration{}); err != nil {
 				return nil, err
 			}
-			return client.InspectImage(imageName)
+			return d.client.InspectImage(imageName)
 		}
 		return nil, err
 	} else {
@@ -89,27 +98,30 @@ func GetImage(dockerSocket string, imageName string) (*docker.Image, error) {
 	}
 }
 
-func ChildProcessForContainer(container *docker.Container) (int, error) {
-	//Parent pid (LXC or N-Spawn)
-	ppid := strconv.Itoa(container.State.Pid)
+func (d *DockerClient) ChildProcessForContainer(container *docker.Container) (int, error) {
+	if strings.HasPrefix(d.executionDriver, "lxc") {
+		//Parent pid (LXC or N-Spawn)
+		ppid := strconv.Itoa(container.State.Pid)
 
-	//Lookup any child of parent pid
-	files, _ := filepath.Glob(filepath.Join("/proc", "*", "stat"))
-	for _, file := range files {
-		bytes, err := ioutil.ReadFile(file)
-		if err != nil {
-			continue
-		}
-		pids := strings.Split(string(bytes), " ")
-		if pids[3] == ppid {
-			child := strings.Split(file, "/")[2]
-			pid, err := strconv.Atoi(child)
+		//Lookup any child of parent pid
+		files, _ := filepath.Glob(filepath.Join("/proc", "*", "stat"))
+		for _, file := range files {
+			bytes, err := ioutil.ReadFile(file)
 			if err != nil {
-				return 0, err
+				continue
 			}
-			return pid, nil
+			pids := strings.Split(string(bytes), " ")
+			if pids[3] == ppid {
+				child := strings.Split(file, "/")[2]
+				pid, err := strconv.Atoi(child)
+				if err != nil {
+					return 0, err
+				}
+				return pid, nil
+			}
 		}
+	} else {
+		return container.State.Pid, nil
 	}
-
 	return 0, errors.New(fmt.Sprintf("Unable to find child process for container", container.ID))
 }

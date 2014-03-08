@@ -17,6 +17,8 @@ type Identifier string
 var InvalidIdentifier = Identifier("")
 var allowedIdentifier = regexp.MustCompile("\\A[a-zA-Z0-9\\-\\.]{4,32}\\z")
 
+const IdentifierPrefix = "container-"
+
 func NewIdentifier(s string) (Identifier, error) {
 	switch {
 	case s == "":
@@ -28,7 +30,10 @@ func NewIdentifier(s string) (Identifier, error) {
 }
 
 func NewIdentifierFromUser(u *user.User) (Identifier, error) {
-	id := strings.TrimLeft(u.Username, "container-")
+	if !strings.HasPrefix(u.Username, IdentifierPrefix) || u.Name != "Container user" {
+		return InvalidIdentifier, errors.New("Not a container user")
+	}
+	id := strings.TrimLeft(u.Username, IdentifierPrefix)
 	return NewIdentifier(id)
 }
 
@@ -46,7 +51,7 @@ func (i Identifier) VersionedUnitPathFor(suffix string) string {
 }
 
 func (i Identifier) UnitNameFor() string {
-	return fmt.Sprintf("container-%s.service", i)
+	return fmt.Sprintf("%s%s.service", IdentifierPrefix, i)
 }
 
 func (i Identifier) SocketUnitPathFor() string {
@@ -55,11 +60,11 @@ func (i Identifier) SocketUnitPathFor() string {
 }
 
 func (i Identifier) SocketUnitNameFor() string {
-	return fmt.Sprintf("container-%s.socket", i)
+	return fmt.Sprintf("%s%s.socket", IdentifierPrefix, i)
 }
 
 func (i Identifier) LoginFor() string {
-	return fmt.Sprintf("container-%s", i)
+	return fmt.Sprintf("%s%s", IdentifierPrefix, i)
 }
 
 func (i Identifier) UnitNameForJob() string {
@@ -85,15 +90,15 @@ func (i Identifier) GitAccessPathFor(f utils.Fingerprint, write bool) string {
 	} else {
 		access = ".read"
 	}
-	return utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "access", "git"), string(i), f.ToShortName()+access)
+	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "access", "git"), string(i), f.ToShortName()+access, 0775)
 }
 
 func (i Identifier) SshAccessBasePath() string {
-	return utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"), string(i), "")
+	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"), string(i), "", 0775)
 }
 
 func (i Identifier) SshAccessPathFor(f utils.Fingerprint) string {
-	return utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"), string(i), f.ToShortName())
+	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"), string(i), f.ToShortName(), 0775)
 }
 
 func (i Identifier) BaseHomePath() string {

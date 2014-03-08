@@ -3,6 +3,8 @@
 go get -tags selinux ./...
 go build -tags selinux -o gear .
 go install -tags selinux ./support/switchns
+go install -tags selinux ./support/gear-auth-keys-command
 
+sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
 sudo /usr/bin/cp -f $GOPATH/bin/switchns .
 sudo /usr/bin/cp -f gear /usr/bin/
