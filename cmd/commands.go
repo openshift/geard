@@ -17,6 +17,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/user"
+	"reflect"
 	"strconv"
 )
 
@@ -287,7 +288,7 @@ func installImage(cmd *cobra.Command, args []string) {
 			}
 		},
 		Output:    os.Stdout,
-		LocalInit: needsData,
+		LocalInit: needsSystemdAndData,
 	}.StreamAndExit()
 }
 
@@ -565,8 +566,11 @@ func listUnits(cmd *cobra.Command, args []string) {
 
 	combined := http.ListContainersResponse{}
 	for i := range data {
+		log.Printf("local execute %+v", reflect.TypeOf(data[i]))
 		if r, ok := data[i].(*http.ListContainersResponse); ok {
 			combined.Append(&r.ListContainersResponse)
+		} else if j, ok := data[i].(*jobs.ListContainersResponse); ok {
+			combined.Append(j)
 		}
 	}
 	combined.Sort()

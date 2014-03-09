@@ -8,7 +8,7 @@ function header() {
 }
 
 port=${PORT:-8080}
-base=http://localhost:$port/token/__test__
+base=http://localhost:$port
 keydata=${KEYDATA:-"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}
 localpath=$(which systemctl)
 islocal=$?
@@ -18,23 +18,23 @@ gear=$seq
 gear1=$gear
 
 header "Create a container and expose a single port"
-curl "$base/container?r=$gear&t=pmorie%2Fsti-html-app" -X PUT -d '{"Ports":[{"Internal":8080}],"Started":true}'
+curl "$base/container/$gear" -X PUT -d '{"Image":"pmorie/sti-html-app", "Ports":[{"Internal":8080}],"Started":true}'
 echo
 
 seq=$[seq+1]
 
 header "List the ports from the container"
-curl "$base/container/ports?r=$gear"
+curl "$base/container/$gear/ports"
 echo
 
 seq=$[seq+1]
 
 header "Follow the logs of the container for 30 seconds"
-curl "$base/container/log?r=$gear"
+curl "$base/container/$gear/log"
 echo
 
 header "Print status of the container over the API"
-curl "$base/container/status?r=$gear"
+curl "$base/container/$gear/status"
 echo
 
 seq=$[seq+1]
@@ -49,19 +49,19 @@ gear=$[gear+1]
 gear2=$gear
 
 header "Create a second container"
-curl "$base/container?r=$gear&t=pmorie%2Fsti-html-app" -X PUT
+curl "$base/container/$gear" -H "Content-Type: application/json" -d '{"Image":"pmorie/sti-html-app"}' -X PUT
 echo
 
 seq=$[seq+1]
 
 header "Stop the second container"
-curl "$base/container/stopped?r=$gear" -X PUT
+curl "$base/container/$gear/stopped" -X PUT
 echo
 
 seq=$[seq+1]
 
 header "Start the second container"
-curl "$base/container/started?r=$gear" -X PUT
+curl "$base/container/$gear/started" -X PUT
 echo
 
 if [ $islocal -eq 0 ]; then
@@ -72,37 +72,37 @@ fi
 seq=$[seq+1]
 
 header "Set an environment resource"
-curl "$base/environment?t=&r=1000" -X PUT -d '{"env":[{"name":"foo","value":"bar"}]}'
+curl "$base/environment/1000" -X PUT  -H "Content-Type: application/json" -d '{"env":[{"name":"foo","value":"bar"}]}'
 echo
 
 seq=$[seq+1]
 
 header "Patch that environment resource"
-curl "$base/environment?t=&r=1000" -X PATCH -d '{"env":[{"name":"baz","value":"boo"}]}'
+curl "$base/environment/1000" -X PATCH  -H "Content-Type: application/json" -d '{"env":[{"name":"baz","value":"boo"}]}'
 echo
 
 seq=$[seq+1]
 
 header "Fetch environment resource"
-curl "$base/content?t=env&r=1000"
+curl "$base/environment/1000"
 echo
 
 seq=$[seq+1]
 
 header "Add keys to both gears"
-curl "$base/keys?u=1" -X PUT -d "{\"keys\":[{\"type\":\"ssh-rsa\",\"value\":\"$keydata\"}],\"containers\":[{\"id\":\"$gear1\"},{\"id\":\"$gear2\"}]}"
+curl "$base/keys" -X PUT  -H "Content-Type: application/json" -d "{\"keys\":[{\"type\":\"ssh-rsa\",\"value\":\"$keydata\"}],\"containers\":[{\"id\":\"$gear1\"},{\"id\":\"$gear2\"}]}"
 echo
 
 seq=$[seq+1]
 
 header "Build an image"
-curl "$base/build-image?u=imagefoo&t=pmorie%2ffedora-mock&r=http:%2F%2Fgithub.com%2Fopenshift%2Fsinatra-example.git" -X PUT
+curl "$base/build-image" -X POST -H "Content-Type: application/json" -d '{"BaseImage":"pmorie/fedora-mock","Source":"http://github.com/openshift/sinatra-example.git","Tag":"mybuild-1"}'
 
 seq=$[seq+1]
 repo=${REPO:-$(date +%s)00}
 
 header "Create an empty repository"
-curl "$base/repository?r=$repo" -X PUT
+curl "$base/repository/$repo" -X PUT
 echo
 
 if [ $islocal -eq 0 ]; then
@@ -115,7 +115,7 @@ seq=$[seq+1]
 repo=$[repo+1]
 
 header "Create a cloned repository"
-curl "$base/repository?r=$repo&t=http:%2F%2Fgithub.com%2Fsmarterclayton%2F/docker-cartridge-examples" -X PUT
+curl "$base/repository/$repo"  -H "Content-Type: application/json" -d '{"CloneUrl":"http://github.com/smarterclayton/docker-cartridge-examples"}' -X PUT
 echo
 
 if [ $islocal -eq 0 ]; then

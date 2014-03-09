@@ -26,13 +26,13 @@ var (
 )
 
 type CreateRepositoryRequest struct {
-	RepositoryId git.RepoIdentifier
-	CloneUrl     string
+	Id       git.RepoIdentifier
+	CloneUrl string
 }
 
 func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
-	path := j.RepositoryId.UnitPathFor()
-	unitName := j.RepositoryId.UnitNameFor()
+	path := j.Id.UnitPathFor()
+	unitName := j.Id.UnitNameFor()
 	var status string
 	var err error
 	unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
@@ -47,18 +47,18 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 	}
 
 	args := git.GitUserUnit{
-		GitRepo:        j.RepositoryId,
+		GitRepo:        j.Id,
 		ExecutablePath: filepath.Join(config.ContainerBasePath(), "bin", "gear"),
 		GitURL:         j.CloneUrl,
 	}
 
 	if err := git.UnitGitRepoTemplate.Execute(unit, args); err != nil {
-		log.Printf("job_create_repository: Unable to write %s %s: %v", "unit", j.RepositoryId, err)
+		log.Printf("job_create_repository: Unable to write %s %s: %v", "unit", j.Id, err)
 		resp.Failure(ErrRepositoryCreateFailed)
 		return
 	}
 	if errc := unit.Close(); errc != nil {
-		log.Printf("job_create_repository: Unable to close target %s %s: %v", "unit", j.RepositoryId, errc)
+		log.Printf("job_create_repository: Unable to close target %s %s: %v", "unit", j.Id, errc)
 		resp.Failure(ErrRepositoryCreateFailed)
 		return
 	}

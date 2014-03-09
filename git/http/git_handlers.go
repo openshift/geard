@@ -21,7 +21,7 @@ type httpCreateRepositoryRequest gitjobs.CreateRepositoryRequest
 
 func (h *httpCreateRepositoryRequest) HttpMethod() string { return "PUT" }
 func (h *httpCreateRepositoryRequest) HttpPath() string {
-	return http.Inline("/repository/:id", string(h.RepositoryId))
+	return http.Inline("/repository/:id", string(h.Id))
 }
 func (h *httpCreateRepositoryRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {

@@ -5,7 +5,7 @@ Gear(d) is an opinionated tool for installing Docker images as containers onto a
 
     $ sudo gear install pmorie/sti-html-app my-sample-service
 
-to install the public image <code>pmorie/sti-html-app</code> to systemd on the local box with the service name "gear-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (port 8080 is the default):
+to install the public image <code>pmorie/sti-html-app</code> to systemd on the local box with the service name "container-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (port 8080 is the default):
 
     $ sudo gear daemon
     2014/02/21 02:59:42 ports: searching block 41, 4000-4099
@@ -19,13 +19,13 @@ You can also use the gear command against a remote daemon:
 
 The gear daemon and local commands must run as root to interface with the Docker daemon and systemd over DBus.
 
-### What's a gear?
+### What's a container?
 
 A gear is a specific type of Linux container - for those familiar with Docker, it's a started container with some bound ports, some shared environment, some linking, some resource isolation and allocation, and some opionated defaults about configuration that ease use.  Here's some of those defaults:
 
 1. **Gears are isolated from each other and the host, except where they're explicitly connected**
 
-   By default, a gear doesn't have access to the host system processes or files, except where an administrator explicitly chooses, just like Docker.
+   By default, a container doesn't have access to the host system processes or files, except where an administrator explicitly chooses, just like Docker.
 
 2. **Gears are portable across hosts**
 
@@ -41,46 +41,76 @@ A gear is a specific type of Linux container - for those familiar with Docker, i
 
    A consequence of per gear uids is that each container can be placed in its own user namespace - the users within the container might be defined by the image creator, but the system sees a consistent user.
 
-5. **The default network configuration of a gear is simple**
+5. **The default network configuration of a container is simple**
 
-   By default a gear will have 0..N ports exposed and the system will automatically allocate those ports.  An admin may choose to override or change those mappings at runtime, or apply rules to the system that are applied each time a new gear is added.
+   By default a container will have 0..N ports exposed and the system will automatically allocate those ports.  An admin may choose to override or change those mappings at runtime, or apply rules to the system that are applied each time a new gear is added.
 
 
-### Actions on a gear
+### Actions on a container
 
-Here are the initial set of supported gear actions - these should map cleanly to Docker, systemd, or a very simple combination of the two.  Geard unifies the services, but does not reinterpret them.
+Here are the initial set of supported container actions - these should map cleanly to Docker, systemd, or a very simple combination of the two.  Geard unifies the services, but does not reinterpret them.
 
-*   Create a new system unit file that runs a single docker image (install and start a gear)
+*   Create a new system unit file that runs a single docker image (install and start a container)
 
-        $ gear install pmorie/sti-html-app localhost:8080/my-sample-service
-        $ curl -X PUT "http://localhost:8080/token/__test__/container?t=pmorie%2Fsti-html-app&r=my-sample-service
+        $ gear install pmorie/sti-html-app localhost:8080/my-sample-service --start
+        $ curl -X PUT "http://localhost:8080/container/my-sample-service" -H "Content-Type: application/json" -d '{"Image": "pmorie/sti-html-app", "Started":true}'
 
-*   Stop or start a gear
+*   Stop, start, and restart a container
 
         $ gear stop localhost:8080/my-sample-service
-        $ curl -X PUT "http://localhost:8080/token/__test__/container/stopped?r=my-sample-service
+        $ curl -X PUT "http://localhost:8080/container/my-sample-service/stopped"
         $ gear start localhost:8080/my-sample-service
-        $ curl -X PUT "http://localhost:8080/token/__test__/container/started?r=my-sample-service
+        $ curl -X PUT "http://localhost:8080/container/my-sample-service/started"
+        $ gear restart localhost:8080/my-sample-service
+        $ curl -X POST "http://localhost:8080/container/my-sample-service/restart"
 
-*   Fetch the logs for a gear
+*   View the systemd status of a container
 
-        $ curl -X PUT "http://localhost:8080/token/__test__/container/log?r=my-sample-service
+        $ gear status localhost:8080/my-sample-service
+        $ curl "http://localhost:8080/container/my-sample-service/status"
+
+*   Tail the logs for a container (will end after 30 seconds)
+
+        $ curl "http://localhost:8080/container/my-sample-service/log"
+
+*   List all installed containers (for one or more servers)
+
+        $ gear list-units localhost:8080
+        $ curl "http://localhost:8080/containers"
 
 *   Create a new empty Git repository
 
-        $ curl -X PUT "http://localhost:8080/token/__test__/repository?r=my-sample-repo
+        $ curl -X PUT "http://localhost:8080/repository/my-sample-repo"
 
 *   Link containers with local loopback ports (127.0.0.2:8081 -> 9.8.23.14:8080)
-*   Set a public key as enabling SSH or Git SSH access to a gear or repository (respectively)
+
+        $ gear link -n=8081:9.8.23.14:8080 localhost:8080/my-sample-service
+
+*   Set a public key as enabling SSH or Git SSH access to a container or repository (respectively)
+
+        $ curl -X POST "http://localhost:8080/keys" -H "Content-Type: application/json" -d '{"Keys": [{"Type":"ssh-rsa","Value":"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}], "Containers": [{"Id": "my-sample-service"}]}'
+
 *   Enable SSH access to join a container for a set of authorized keys
 *   Build a new image from a source URL and base image
+
+        $ curl -X POST "http://localhost:8080/build-image" -H "Content-Type: application/json" -d '{"BaseImage":"pmorie/fedora-mock","Source":"http://github.com/openshift/sinatra-example.git","Tag":"mybuild-1"}'
+
 *   Fetch a Git archive zip for a repository
-*   Set and retrieve environment files for sharing between gears (patch and pull operations)
+
+        $ curl "http://localhost:8080/repository/my-sample-repo/archive/master"
+
+*   Set and retrieve environment files for sharing between containers (patch and pull operations)
+
+        $ gear set-env localhost:8080/my-sample-service A=B B=C
+        $ gear env localhost:8080/my-sample-service
+        $ curl "http://localhost:8080/environment/my-sample-service"
+        $ gear set-env localhost:8080/my-sample-service --reset
+
 *   More....
 
 The daemon is focused on allowing an administrator to easily ensure a given docker container will *always* run on the system by taking advantage of systemd.  It depends on the upcoming "foreground" mode of Docker which will allow the launching process to remain the parent of the container processes - this means that on termination the parent (systemd) can auto restart the process, set additional namespace options, and in general customize more deeply the behavior of the process.
 
-Each geard unit is assigned a unique Unix user and is the user context that the container is run under for quota and security purposes.  An SELinux MCS category label will automatically be assigned to the container, ensuring that each container is more deeply isolated.  Containers are added to a default systemd slice that may have cgroup rules applied to limit them.
+Each geard unit can be assigned a unique Unix user (defaults to true, can use --simple to bypass) and is the user context that the container is run under for quota and security purposes.  An SELinux MCS category label will automatically be assigned to the container, ensuring that each container is more deeply isolated.  Containers are added to a default systemd slice that may have cgroup rules applied to limit them.
 
 A container may also be optionally enabled for public key SSH access for a set of known keys under the user identifier associated with the container.  On SSH, they'll join the running namespace for that container.
 
@@ -99,60 +129,9 @@ Take the systemd unit file in <code>contrib/geard.service</code> and enable it o
 
     curl https://raw.github.com/smarterclayton/geard/master/contrib/geard.service > /usr/lib/systemd/system/geard.service
     systemctl enable /usr/lib/systemd/system/geard.service
-    mkdir -p /var/lib/gears/units
     systemctl start geard
 
-The docker image that is downloaded binds 8080 in the docker container to localhost:2223.
-
-To build an image from a source repository and base image:
-
-    curl -X PUT "http://localhost:2223/token/__test__/build-image?r=git%3A%2F%2Fgithub.com%2Fpmorie%2Fsimple-html&t=pmorie%2Ffedora-mock"
-    
-The first time it executes it'll download the latest Docker image for geard which may take a few minutes.  After it's started, make the following curl call:
-
-    curl -X PUT "http://localhost:2223/token/__test__/container?t=test-app&r=0001" -d '{"ports":[{"external":4343,"internal":8080}]}'
-    
-This will install a new systemd unit to <code>/var/lib/gears/units/gear-0001.service</code> and invoke start, and expose the port 8080 at 4343 on the host.  Use
-
-    systemctl status gear-0001
-    
-to see whether the startup succeeded.  If you set the external port to 0 or omit the field, geard will allocate a port for you between 4000 and 60000.
-
-A brief note: the /token/__test__ prefix (and the r, t, u, d, and i parameters) are intended to be replaced with a cryptographic token embedded in the URL path.  This will allow the daemon to take an encrypted token from a known public key and decrypt and verify authenticity.  For testing purposes the __test__ token allows the keys inside the proposed token to be passed as request parameters instead.
-
-To start that gear, run:
-
-    curl -X PUT "http://localhost:2223/token/__test__/container/started?r=0001"
-
-and to stop run:
-
-    curl -X PUT "http://localhost:2223/token/__test__/container/stopped?r=0001"
-
-To stream the logs from the gear over http, run:
-
-    curl -X GET "http://localhost:2223/token/__test__/container/log?r=0001"
-
-The logs will close after 30 seconds.
-
-To create a new repository, ensure the /var/lib/gears/git directory is created and then run:
-
-    curl -X PUT "http://localhost:2223/token/__test__/repository?r=dddd"
-
-First creation will be slow while the ccoleman/githost image is pulled down.  Repository creation will create a systemd service file <code>git-&lt;r&gt;.service</code> To see status run:
-
-    systemctl status git-dddd.service
-
-If you want to create a repository based on a source URL, pass <code>t=&lt;url&gt;</code> to the PUT repository call.  Once you've created a repository with at least one commit, you can stream a git archive zip file of the contents with:
-
-    curl "http://localhost:2223/token/__test__/content?t=gitarchive&r=eeee"
-
-To set an environment file:
-
-    curl -X PUT "http://localhost:2223/token/__test__/environment?r=1000" -d '{"env":[{"name":"foo","value":"bar"}]}'
-
-and to retrieve that environment (in normalized env file form)
-
-    curl "http://localhost:2223/token/__test__/content?t=env&r=1000"
+The docker image that is downloaded binds 8080 in the docker container to localhost:2223.  The gear executable inside that image (at /bin/gear) is capable of either connecting to one or more remote hosts, or to talk to the local system.  By default it will run as a daemon inside the Docker image.
 
 See [contrib/example.sh](contrib/example.sh) and [contrib/stress.sh](contrib/stress.sh) for more examples of API calls.
 
@@ -206,42 +185,43 @@ Assumptions:
 
 The on disk structure of geard is exploratory at the moment.  The major components are described below:
 
-    /var/lib/gears/
+    /var/lib/containers/
       All content is located under this root
 
       units/
         ab/
-          gear-abcdef.service  # systemd unit file that points to the definition
+          container-abcdef.service  # systemd unit file that points to the definition
           abcdef/
             definition         # hardlink with the full spec for this service
             <requestid>        # a particular version of the unit file.
 
-        A gear is considered present on this system if a service file exists inside the namespaced gear directory.
+        A container is considered present on this system if a service file exists inside the namespaced container
+        directory.
 
         The unit file is "enabled" in systemd (symlinked to systemd's unit directory) upon creation, and "disabled"
         (unsymlinked) on the remove operation.  The definition can be updated atomically (write new definition,
-        update hardlink) when a new version of the gear is deployed to the system.
+        update hardlink) when a new version of the container is deployed to the system.
 
       targets/
-        gear.target         # default target
-        gear-active.target  # active target
+        container.target         # default target
+        container-active.target  # active target
 
-        All gears are assigned to one of these two targets - on create or start, they have
-        "WantedBy=gear-active.target".  If a gear is stopped via the API it is altered to be 
-        "WantedBy=gear.target".  In this fashion the disk structure for each unit reflects whether the gear
-        should be started on reboot vs. being explicitly idled.  Also, assuming the /var/lib/gears directory
+        All containers are assigned to one of these two targets - on create or start, they have
+        "WantedBy=container-active.target".  If a container is stopped via the API it is altered to be 
+        "WantedBy=container.target".  In this fashion the disk structure for each unit reflects whether the container
+        should be started on reboot vs. being explicitly idled.  Also, assuming the /var/lib/containers directory
         is an attached disk, on node recovery each *.service file is enabled with systemd and then the
-        "gear-active.target" can be started.
+        "container-active.target" can be started.
 
       slices/
-        gear.slice        # default slice
-        gear-small.slice  # more limited slice
+        container.slice        # default slice
+        container-small.slice  # more limited slice
 
         All slice units are created in this directory.  At the moment, the two slices are defaults and are created
         on first startup of the process, enabled, then started.  More advanced cgroup settings must be configured
         after creation, which is outside the scope of this prototype.
 
-        All containers are created in the "gear-small" slice at the moment.
+        All containers are created in the "container-small" slice at the moment.
 
       env/
         contents/
@@ -251,39 +231,39 @@ The on disk structure of geard is exploratory at the moment.  The major componen
             Files storing environment variables and values in KEY="VALUE" (one per line) form.
 
       data/
-        TBD (reserved for gear unique volumes)
+        TBD (reserved for container unique volumes)
 
       ports/
         links/
           3f/
             3fabc98341ac3fe...24  # text file describing internal->external links to other networks
 
-            Each gear has one file with one line per network link, internal port first, a tab, then 
+            Each container has one file with one line per network link, internal port first, a tab, then
             external port, then external host IP / DNS.
-            
+
             On startup, gear init --post attempts to convert this file to a set of iptables rules in
             the container to outbound traffic.
 
         interfaces/
           1/
             49/
-              4900  # softlink to the gear's unit file
+              4900  # softlink to the container's unit file
 
               To allocate a port, the daemon scans a block (49) of 100 ports for a set of free ports.  If no ports
               are found, it continues to the next block.  Currently the daemon starts at the low end of the port
               range and walks disk until it finds the first free port.  Worst case is that the daemon would do
               many directory reads (30-50) until it finds a gap.
 
-              To remove a gear, the unit file is deleted, and then any broken softlinks can be deleted.
+              To remove a container, the unit file is deleted, and then any broken softlinks can be deleted.
 
               The first subdirectory represents an interface, to allow future expansion of the external IP space
               onto multiple devices, or to allow multiple external ports to be bound to the same IP (for VPC)
 
               Example script:
 
-                sudo find /var/lib/gears/ports/interfaces -type l -printf "%l %f " -exec cut -f 1-2 {} \;
+                sudo find /var/lib/containers/ports/interfaces -type l -printf "%l %f " -exec cut -f 1-2 {} \;
 
-              prints the port description path (of which the name of the path is the gear id), the public port,
+              prints the port description path (of which the name of the path is the container id), the public port,
               and the value of the description file (which might have multiple lines).  Would show what ports
               are mismatched.
 
@@ -298,13 +278,13 @@ The on disk structure of geard is exploratory at the moment.  The major componen
           Any key that has zero incoming links can be deleted.
 
       access/
-        gears/
+        containers/
           3f/
-            3fabc98341ac3fe...24/  # gear id
-              key1  # softlink to a public key authorized to access this gear
+            3fabc98341ac3fe...24/  # container id
+              key1  # softlink to a public key authorized to access this container
 
-              The names of the softlink should map to an gear id or gear label (future) - each gear id should match
-              to a user on the system to allow sshd to login via the gear id.  In the future, improvements in sshd
+              The names of the softlink should map to an container id or container label (future) - each container id should match
+              to a user on the system to allow sshd to login via the container id.  In the future, improvements in sshd
               may allow us to use virtual users.
 
         git/
