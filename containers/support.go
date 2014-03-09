@@ -140,7 +140,7 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("PID %d", pid)
+		log.Printf("Updating network namespaces for %d", pid)
 		if err := updateNamespaceNetworkLinks(pid, "127.0.0.2", file); err != nil {
 			return err
 		}

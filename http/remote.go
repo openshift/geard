@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"time"
 )
 
 type Locator interface {
@@ -28,9 +27,10 @@ type RemoteJob interface {
 }
 type RemoteExecutable interface {
 	RemoteJob
-	MarshalToToken(token *TokenData)
-	MarshalToHttp(io.Writer) error
-	MarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error)
+	MarshalRequestIdentifier() jobs.RequestIdentifier
+	MarshalUrlQuery(*url.Values)
+	MarshalHttpRequestBody(io.Writer) error
+	UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error)
 }
 
 type HttpDispatcher struct {
@@ -56,22 +56,25 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 	if errn != nil {
 		return errn
 	}
-	token := &TokenData{}
-	job.MarshalToToken(token)
-	if len(token.I) == 0 {
-		token.SetRequestIdentifier(jobs.NewRequestIdentifier())
+
+	id := job.MarshalRequestIdentifier()
+	if len(id) == 0 {
+		id = jobs.NewRequestIdentifier()
 	}
-	token.D = int(time.Now().Unix())
+
 	query := &url.Values{}
-	token.ToValues(query)
+	job.MarshalUrlQuery(query)
 
 	req := httpreq
-	req.Header.Add("If-Match", "api="+ApiVersion())
-	req.Header.Add("Content-Type", "application/json")
-	req.URL.Path = "/token/__test__" + job.HttpPath()
+	req.Header.Set("X-Request-Id", id.String())
+	req.Header.Set("If-Match", "api="+ApiVersion())
+	req.Header.Set("Content-Type", "application/json")
+	//TODO: introduce API version per job
+	//TODO: content request signing for GETs
+	req.URL.Path = job.HttpPath()
 	req.URL.RawQuery = query.Encode()
 	go func() {
-		if err := job.MarshalToHttp(writer); err != nil {
+		if err := job.MarshalHttpRequestBody(writer); err != nil {
 			h.log.Printf("remote: Error when writing to http: %v", err)
 			writer.CloseWithError(err)
 		} else {
@@ -93,7 +96,7 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 		if isJson {
 			return errors.New("Decoding of streaming JSON has not been implemented")
 		}
-		data, err := job.MarshalHttpResponse(resp.Header, nil, ResponseTable)
+		data, err := job.UnmarshalHttpResponse(resp.Header, nil, ResponseTable)
 		if err != nil {
 			return err
 		}
@@ -107,7 +110,7 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 			return err
 		}
 	case code == 204:
-		data, err := job.MarshalHttpResponse(resp.Header, nil, ResponseTable)
+		data, err := job.UnmarshalHttpResponse(resp.Header, nil, ResponseTable)
 		if err != nil {
 			return err
 		}
@@ -121,7 +124,7 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 		if !isJson {
 			return errors.New(fmt.Sprintf("remote: Response with %d status code had content type %s (should be application/json)", code, resp.Header.Get("Content-Type")))
 		}
-		data, err := job.MarshalHttpResponse(nil, resp.Body, ResponseJson)
+		data, err := job.UnmarshalHttpResponse(nil, resp.Body, ResponseJson)
 		if err != nil {
 			return err
 		}

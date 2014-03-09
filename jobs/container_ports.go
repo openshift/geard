@@ -6,8 +6,7 @@ import (
 )
 
 type ContainerPortsRequest struct {
-	Id     containers.Identifier
-	UserId string
+	Id containers.Identifier
 }
 
 type containerPortsResponse struct {

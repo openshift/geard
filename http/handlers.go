@@ -5,8 +5,10 @@ import (
 	"errors"
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/jobs"
+	"github.com/smarterclayton/geard/utils"
 	"github.com/smarterclayton/go-json-rest"
 	"io"
+	"regexp"
 )
 
 type DefaultRequest struct{}
@@ -17,9 +19,9 @@ type HttpInstallContainerRequest struct {
 }
 
 func (h *HttpInstallContainerRequest) HttpMethod() string { return "PUT" }
-func (h *HttpInstallContainerRequest) HttpPath() string   { return "/container" }
+func (h *HttpInstallContainerRequest) HttpPath() string   { return Inline("/container/:id", string(h.Id)) }
 func (h *HttpInstallContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		data := HttpInstallContainerRequest{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
@@ -27,13 +29,12 @@ func (h *HttpInstallContainerRequest) Handler(conf *HttpConfiguration) JobHandle
 				return nil, err
 			}
 		}
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
 		data.Id = id
-		data.RequestIdentifier = reqid
-		data.Image = token.ResourceType()
+		data.RequestIdentifier = context.Id
 
 		if err := data.Check(); err != nil {
 			return nil, err
@@ -49,10 +50,10 @@ type HttpDeleteContainerRequest struct {
 }
 
 func (h *HttpDeleteContainerRequest) HttpMethod() string { return "DELETE" }
-func (h *HttpDeleteContainerRequest) HttpPath() string   { return "/container" }
+func (h *HttpDeleteContainerRequest) HttpPath() string   { return Inline("/container/:id", string(h.Id)) }
 func (h *HttpDeleteContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
@@ -69,7 +70,7 @@ type HttpListContainersRequest struct {
 func (h *HttpListContainersRequest) HttpMethod() string { return "GET" }
 func (h *HttpListContainersRequest) HttpPath() string   { return "/containers" }
 func (h *HttpListContainersRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		return &jobs.ListContainersRequest{}, nil
 	}
 }
@@ -79,7 +80,7 @@ type HttpListBuildsRequest jobs.ListBuildsRequest
 func (h *HttpListBuildsRequest) HttpMethod() string { return "GET" }
 func (h *HttpListBuildsRequest) HttpPath() string   { return "/builds" }
 func (h *HttpListBuildsRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		return &jobs.ListBuildsRequest{}, nil
 	}
 }
@@ -89,7 +90,7 @@ type HttpListImagesRequest jobs.ListImagesRequest
 func (h *HttpListImagesRequest) HttpMethod() string { return "GET" }
 func (h *HttpListImagesRequest) HttpPath() string   { return "/images" }
 func (h *HttpListImagesRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		return &jobs.ListImagesRequest{conf.Docker.Socket}, nil
 	}
 }
@@ -97,16 +98,15 @@ func (h *HttpListImagesRequest) Handler(conf *HttpConfiguration) JobHandler {
 type HttpContainerLogRequest jobs.ContainerLogRequest
 
 func (h *HttpContainerLogRequest) HttpMethod() string { return "GET" }
-func (h *HttpContainerLogRequest) HttpPath() string   { return "/container/log" }
+func (h *HttpContainerLogRequest) HttpPath() string   { return Inline("/container/:id/log", string(h.Id)) }
 func (h *HttpContainerLogRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
 		return &jobs.ContainerLogRequest{
 			id,
-			token.U,
 		}, nil
 	}
 }
@@ -117,10 +117,12 @@ type HttpContainerStatusRequest struct {
 }
 
 func (h *HttpContainerStatusRequest) HttpMethod() string { return "GET" }
-func (h *HttpContainerStatusRequest) HttpPath() string   { return "/container/status" }
+func (h *HttpContainerStatusRequest) HttpPath() string {
+	return Inline("/container/:id/status", string(h.Id))
+}
 func (h *HttpContainerStatusRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
@@ -131,16 +133,17 @@ func (h *HttpContainerStatusRequest) Handler(conf *HttpConfiguration) JobHandler
 type HttpListContainerPortsRequest jobs.ContainerPortsRequest
 
 func (h *HttpListContainerPortsRequest) HttpMethod() string { return "GET" }
-func (h *HttpListContainerPortsRequest) HttpPath() string   { return "/container/ports" }
+func (h *HttpListContainerPortsRequest) HttpPath() string {
+	return Inline("/container/:id/ports", string(h.Id))
+}
 func (h *HttpListContainerPortsRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
 		return &jobs.ContainerPortsRequest{
 			id,
-			token.U,
 		}, nil
 	}
 }
@@ -151,7 +154,7 @@ func (h *HttpCreateKeysRequest) HttpMethod() string { return "PUT" }
 func (h *HttpCreateKeysRequest) HttpPath() string   { return "/keys" }
 func (h *HttpCreateKeysRequest) Streamable() bool   { return false }
 func (h *HttpCreateKeysRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		data := jobs.ExtendedCreateKeysData{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
@@ -163,7 +166,6 @@ func (h *HttpCreateKeysRequest) Handler(conf *HttpConfiguration) JobHandler {
 			return nil, err
 		}
 		return &jobs.CreateKeysRequest{
-			token.U,
 			&data,
 		}, nil
 	}
@@ -175,10 +177,12 @@ type HttpStartContainerRequest struct {
 }
 
 func (h *HttpStartContainerRequest) HttpMethod() string { return "PUT" }
-func (h *HttpStartContainerRequest) HttpPath() string   { return "/container/started" }
+func (h *HttpStartContainerRequest) HttpPath() string {
+	return Inline("/container/:id/started", string(h.Id))
+}
 func (h *HttpStartContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
@@ -192,10 +196,12 @@ type HttpStopContainerRequest struct {
 }
 
 func (h *HttpStopContainerRequest) HttpMethod() string { return "PUT" }
-func (h *HttpStopContainerRequest) HttpPath() string   { return "/container/stopped" }
+func (h *HttpStopContainerRequest) HttpPath() string {
+	return Inline("/container/:id/stopped", string(h.Id))
+}
 func (h *HttpStopContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
@@ -203,23 +209,31 @@ func (h *HttpStopContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 	}
 }
 
+type HttpRestartContainerRequest struct {
+	jobs.RestartContainerRequest
+	DefaultRequest
+}
+
+func (h *HttpRestartContainerRequest) HttpMethod() string { return "POST" }
+func (h *HttpRestartContainerRequest) HttpPath() string {
+	return Inline("/container/:id/restart", string(h.Id))
+}
+func (h *HttpRestartContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
+		if errg != nil {
+			return nil, errg
+		}
+		return &jobs.RestartContainerRequest{id}, nil
+	}
+}
+
 type HttpBuildImageRequest jobs.BuildImageRequest
 
-func (h *HttpBuildImageRequest) HttpMethod() string { return "PUT" }
+func (h *HttpBuildImageRequest) HttpMethod() string { return "POST" }
 func (h *HttpBuildImageRequest) HttpPath() string   { return "/build-image" }
 func (h *HttpBuildImageRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		if token.ResourceLocator() == "" {
-			return nil, errors.New("You must specify the application source to build")
-		}
-		if token.ResourceType() == "" {
-			return nil, errors.New("You must specify a base image")
-		}
-
-		source := token.ResourceLocator() // token.R
-		baseImage := token.ResourceType() // token.T
-		tag := token.U
-
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		data := jobs.ExtendedBuildImageData{}
 		if r.Body != nil {
 			dec := json.NewDecoder(r.Body)
@@ -227,12 +241,12 @@ func (h *HttpBuildImageRequest) Handler(conf *HttpConfiguration) JobHandler {
 				return nil, err
 			}
 		}
+		data.Name = context.Id.String()
+		if err := data.Check(); err != nil {
+			return nil, err
+		}
 
 		return &jobs.BuildImageRequest{
-			reqid.String(),
-			source,
-			baseImage,
-			tag,
 			&data,
 		}, nil
 	}
@@ -244,10 +258,10 @@ type HttpPutEnvironmentRequest struct {
 }
 
 func (h *HttpPutEnvironmentRequest) HttpMethod() string { return "PUT" }
-func (h *HttpPutEnvironmentRequest) HttpPath() string   { return "/environment" }
+func (h *HttpPutEnvironmentRequest) HttpPath() string   { return Inline("/environment/:id", string(h.Id)) }
 func (h *HttpPutEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
@@ -264,9 +278,7 @@ func (h *HttpPutEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandler 
 		}
 		data.Id = id
 
-		return &jobs.PutEnvironmentRequest{
-			&data,
-		}, nil
+		return &jobs.PutEnvironmentRequest{data}, nil
 	}
 }
 
@@ -276,10 +288,12 @@ type HttpPatchEnvironmentRequest struct {
 }
 
 func (h *HttpPatchEnvironmentRequest) HttpMethod() string { return "PATCH" }
-func (h *HttpPatchEnvironmentRequest) HttpPath() string   { return "/environment" }
+func (h *HttpPatchEnvironmentRequest) HttpPath() string {
+	return Inline("/environment/:id", string(h.Id))
+}
 func (h *HttpPatchEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		id, errg := containers.NewIdentifier(token.ResourceLocator())
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		id, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
 		}
@@ -296,9 +310,7 @@ func (h *HttpPatchEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandle
 		}
 		data.Id = id
 
-		return &jobs.PatchEnvironmentRequest{
-			&data,
-		}, nil
+		return &jobs.PatchEnvironmentRequest{data}, nil
 	}
 }
 
@@ -312,21 +324,21 @@ func (h *HttpContentRequest) HttpPath() string {
 	var base string
 	switch h.Type {
 	case jobs.ContentTypeEnvironment:
-		base = "/environment"
+		base = "/environment/:id"
 	default:
-		base = "/content"
+		base = "/content/:id"
 	}
 	if h.Subpath != "" {
 		return base + "/" + h.Subpath
 	}
-	return base
+	return Inline(base, h.ContentRequest.Locator)
 }
 func (h *HttpContentRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		if token.ResourceLocator() == "" {
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		if r.PathParam("id") == "" {
 			return nil, errors.New("You must specify the location of the content you want to access")
 		}
-		contentType := token.ResourceType()
+		contentType := r.URL.Query().Get("type")
 		if contentType == "" {
 			contentType = h.Type
 		}
@@ -336,22 +348,26 @@ func (h *HttpContentRequest) Handler(conf *HttpConfiguration) JobHandler {
 
 		return &jobs.ContentRequest{
 			contentType,
-			token.ResourceLocator(),
+			r.PathParam("id"),
 			r.PathParam("*"),
 		}, nil
 	}
 }
 
-type HttpLinkContainersRequest jobs.LinkContainersRequest
+type HttpLinkContainersRequest struct {
+	Label string
+	jobs.LinkContainersRequest
+	DefaultRequest
+}
 
-func (h *HttpLinkContainersRequest) HttpMethod() string { return "PUT" }
+func (h *HttpLinkContainersRequest) HttpMethod() string { return "POST" }
 func (h *HttpLinkContainersRequest) HttpPath() string   { return "/containers/links" }
 func (h *HttpLinkContainersRequest) Handler(conf *HttpConfiguration) JobHandler {
-	return func(reqid jobs.RequestIdentifier, token *TokenData, r *rest.Request) (jobs.Job, error) {
-		data := jobs.ExtendedLinkContainersData{}
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		data := &jobs.ContainerLinks{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
-			if err := dec.Decode(&data); err != nil && err != io.EOF {
+			if err := dec.Decode(data); err != nil && err != io.EOF {
 				return nil, err
 			}
 		}
@@ -360,8 +376,21 @@ func (h *HttpLinkContainersRequest) Handler(conf *HttpConfiguration) JobHandler 
 			return nil, err
 		}
 
-		return &jobs.LinkContainersRequest{
-			&data,
-		}, nil
+		return &jobs.LinkContainersRequest{data}, nil
 	}
+}
+
+var reSplat = regexp.MustCompile("\\:[a-z\\*]+")
+
+func Inline(s string, with ...string) string {
+	match := 0
+	return string(reSplat.ReplaceAllFunc([]byte(s), func(p []byte) []byte {
+		repl := with[match]
+		match += 1
+		if repl == "" {
+			return p
+		} else {
+			return []byte(utils.EncodeUrlPath(repl))
+		}
+	}))
 }

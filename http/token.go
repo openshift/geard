@@ -4,8 +4,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"github.com/smarterclayton/geard/jobs"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -21,14 +21,7 @@ type TokenData struct {
 }
 
 func (t *TokenData) RequestId() (jobs.RequestIdentifier, error) {
-	b, err := hex.DecodeString(t.I)
-	if err != nil {
-		return nil, err
-	}
-	if len(b) != 16 {
-		return nil, errors.New("Request ID must be exactly 16 bytes (32 hexadecimal characters) in length.")
-	}
-	return jobs.RequestIdentifier(b), nil
+	return jobs.NewRequestIdentifierFromString(t.I)
 }
 func (t *TokenData) SetRequestIdentifier(id jobs.RequestIdentifier) {
 	t.I = hex.EncodeToString(id)
@@ -94,4 +87,35 @@ func firstParam(m map[string][]string, k string) string {
 		}
 	}
 	return ""
+}
+
+func extractToken(segment string, r *http.Request) (token *TokenData, id jobs.RequestIdentifier, rerr *apiRequestError) {
+	if segment == "__test__" {
+		t, err := NewTokenFromMap(r.URL.Query())
+		if err != nil {
+			rerr = &apiRequestError{err, "Invalid test query: " + err.Error(), http.StatusForbidden}
+			return
+		}
+		token = t
+	} else {
+		t, err := NewTokenFromString(segment)
+		if err != nil {
+			rerr = &apiRequestError{err, "Invalid authorization token", http.StatusForbidden}
+			return
+		}
+		token = t
+	}
+
+	if token.I == "" {
+		id = jobs.NewRequestIdentifier()
+	} else {
+		i, errr := token.RequestId()
+		if errr != nil {
+			rerr = &apiRequestError{errr, "Unable to parse token for this request: " + errr.Error(), http.StatusBadRequest}
+			return
+		}
+		id = i
+	}
+
+	return
 }

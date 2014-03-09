@@ -17,6 +17,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/user"
+	"reflect"
 	"strconv"
 )
 
@@ -91,12 +92,21 @@ func Execute() {
 	gearCmd.AddCommand(setEnvCmd)
 
 	envCmd := &cobra.Command{
-		Use:   "env <name>... <key>=<value>...",
-		Short: "Retrieve environment variable values from servers",
-		Long:  "Return all environment variables for each server as output",
+		Use:   "env <name>...",
+		Short: "Retrieve environment variable values by id",
+		Long:  "Return the environment variables matching the provided ids",
 		Run:   showEnvironment,
 	}
 	gearCmd.AddCommand(envCmd)
+
+	linkCmd := &cobra.Command{
+		Use:   "link <name>...",
+		Short: "Set network links for the named containers",
+		Long:  "Sets the network links for the named containers. A restart may be required to use the latest links.",
+		Run:   linkContainers,
+	}
+	linkCmd.Flags().VarP(&networkLinks, "net-links", "n", "List of comma separated port pairs to wire '<local_port>:<host>:<remote_port>,...'. Host and remote port may be empty.")
+	gearCmd.AddCommand(linkCmd)
 
 	startCmd := &cobra.Command{
 		Use:   "start <name>...",
@@ -114,6 +124,15 @@ func Execute() {
 		Run:   stopContainer,
 	}
 	gearCmd.AddCommand(stopCmd)
+
+	restartCmd := &cobra.Command{
+		Use:   "restart <name>...",
+		Short: "Invoke systemd to restart a container",
+		Long:  "Queues the restart and immediately returns.", //  Use -f to attach to the logs.",
+		Run:   restartContainer,
+	}
+	//startCmd.Flags().BoolVarP(&follow, "follow", "f", false, "Attach to the logs after startup")
+	gearCmd.AddCommand(restartCmd)
 
 	statusCmd := &cobra.Command{
 		Use:   "status <name>...",
@@ -269,7 +288,7 @@ func installImage(cmd *cobra.Command, args []string) {
 			}
 		},
 		Output:    os.Stdout,
-		LocalInit: needsData,
+		LocalInit: needsSystemdAndData,
 	}.StreamAndExit()
 }
 
@@ -293,11 +312,11 @@ func setEnvironment(cmd *cobra.Command, args []string) {
 			environment.Description.Id = on.(*RemoteIdentifier).Id
 			if resetEnv {
 				return &http.HttpPutEnvironmentRequest{
-					PutEnvironmentRequest: jobs.PutEnvironmentRequest{&environment.Description},
+					PutEnvironmentRequest: jobs.PutEnvironmentRequest{environment.Description},
 				}
 			}
 			return &http.HttpPatchEnvironmentRequest{
-				PatchEnvironmentRequest: jobs.PatchEnvironmentRequest{&environment.Description},
+				PatchEnvironmentRequest: jobs.PatchEnvironmentRequest{environment.Description},
 			}
 		},
 		Output:    os.Stdout,
@@ -369,6 +388,38 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 	}.StreamAndExit()
 }
 
+func linkContainers(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
+	}
+	ids, err := NewRemoteIdentifiers(args...)
+	if err != nil {
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+	if networkLinks.NetworkLinks == nil {
+		networkLinks.NetworkLinks = &containers.NetworkLinks{}
+	}
+
+	Executor{
+		On: ids,
+		Group: func(on ...Locator) jobs.Job {
+			links := &jobs.ContainerLinks{make([]jobs.ContainerLink, 0, len(on))}
+			for i := range on {
+				links.Links = append(links.Links, jobs.ContainerLink{on[i].(*RemoteIdentifier).Id, *networkLinks.NetworkLinks})
+			}
+			return &http.HttpLinkContainersRequest{
+				Label: on[0].String(),
+				LinkContainersRequest: jobs.LinkContainersRequest{links},
+			}
+		},
+		Output:    os.Stdout,
+		LocalInit: needsData,
+		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
+			fmt.Fprintf(w, "Links set on %s\n", job.(*http.HttpLinkContainersRequest).Label)
+		},
+	}.StreamAndExit()
+}
+
 func startContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		fail(1, "Valid arguments: <id> ...\n")
@@ -412,6 +463,32 @@ func stopContainer(cmd *cobra.Command, args []string) {
 		Serial: func(on Locator) jobs.Job {
 			return &http.HttpStopContainerRequest{
 				StoppedContainerStateRequest: jobs.StoppedContainerStateRequest{
+					Id: on.(*RemoteIdentifier).Id,
+				},
+			}
+		},
+		Output:    os.Stdout,
+		LocalInit: needsSystemd,
+	}.StreamAndExit()
+}
+
+func restartContainer(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
+	}
+	ids, err := NewRemoteIdentifiers(args...)
+	if err != nil {
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl restart %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	}
+	Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpRestartContainerRequest{
+				RestartContainerRequest: jobs.RestartContainerRequest{
 					Id: on.(*RemoteIdentifier).Id,
 				},
 			}
@@ -489,8 +566,11 @@ func listUnits(cmd *cobra.Command, args []string) {
 
 	combined := http.ListContainersResponse{}
 	for i := range data {
+		log.Printf("local execute %+v", reflect.TypeOf(data[i]))
 		if r, ok := data[i].(*http.ListContainersResponse); ok {
 			combined.Append(&r.ListContainersResponse)
+		} else if j, ok := data[i].(*jobs.ListContainersResponse); ok {
+			combined.Append(j)
 		}
 	}
 	combined.Sort()

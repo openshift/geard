@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"errors"
 	"fmt"
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/systemd"
@@ -13,17 +14,30 @@ import (
 )
 
 type BuildImageRequest struct {
-	Name      string
-	Source    string
-	BaseImage string
-	Tag       string
-	Data      *ExtendedBuildImageData
+	*ExtendedBuildImageData
 }
 
 type ExtendedBuildImageData struct {
+	Name         string
+	Source       string
+	Tag          string
+	BaseImage    string
 	RuntimeImage string
 	Clean        bool
 	Verbose      bool
+}
+
+func (e *ExtendedBuildImageData) Check() error {
+	if e.Name == "" {
+		return errors.New("An identifier must be specified for this build")
+	}
+	if e.BaseImage == "" {
+		return errors.New("A base image is required to start a build")
+	}
+	if e.Source == "" {
+		return errors.New("A source input is required to start a build")
+	}
+	return nil
 }
 
 const buildImage = "pmorie/sti-builder"
@@ -80,16 +94,16 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 	}
 	log.Printf("build_image: Will execute %v", startCmd)
 
-	if j.Data.RuntimeImage != "" {
+	if j.RuntimeImage != "" {
 		startCmd = append(startCmd, "--runtime-image")
-		startCmd = append(startCmd, j.Data.RuntimeImage)
+		startCmd = append(startCmd, j.RuntimeImage)
 	}
 
-	if j.Data.Clean {
+	if j.Clean {
 		startCmd = append(startCmd, "--clean")
 	}
 
-	if j.Data.Verbose {
+	if j.Verbose {
 		startCmd = append(startCmd, "-l")
 		startCmd = append(startCmd, "DEBUG")
 	}

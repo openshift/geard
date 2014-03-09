@@ -3,6 +3,8 @@ package jobs
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
+	"errors"
 	"io"
 	"strings"
 )
@@ -43,14 +45,47 @@ type JobError interface {
 	ResponseData() interface{} // May be nil if no data is returned to a client
 }
 
+type JobContext struct {
+	Id   RequestIdentifier
+	User string
+}
+
 type RequestIdentifier []byte
 
 func (r RequestIdentifier) String() string {
-	return strings.Trim(base64.URLEncoding.EncodeToString(r), "=")
+	return strings.Trim(r.Exact(), "=")
+}
+
+func (r RequestIdentifier) Exact() string {
+	return base64.URLEncoding.EncodeToString(r)
 }
 
 func NewRequestIdentifier() RequestIdentifier {
 	i := make(RequestIdentifier, 16)
 	rand.Read(i)
 	return i
+}
+
+func NewRequestIdentifierFromString(s string) (RequestIdentifier, error) {
+	var raw []byte
+	switch len(s) {
+	case 32:
+		b, err := hex.DecodeString(s)
+		if err != nil {
+			return nil, err
+		}
+		raw = b
+	case 22:
+		s = s + "=="
+		fallthrough
+	case 24:
+		b, err := base64.URLEncoding.DecodeString(s)
+		if err != nil {
+			return nil, err
+		}
+		raw = b
+	default:
+		return nil, errors.New("Request ID must be 22 base64 characters or 32 hexadecimal characters.")
+	}
+	return RequestIdentifier(raw), nil
 }

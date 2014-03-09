@@ -12,23 +12,56 @@ import (
 
 var rateLimitChanges uint64 = 400 * 1000 /* in microseconds */
 
-func inStateOrTooSoon(unit string, active bool, rateLimit uint64) (bool, bool) {
-	if props, erru := systemd.Connection().GetUnitProperties(unit); erru == nil {
-		switch props["ActiveState"] {
-		case "active", "activating":
-			if active {
-				return true, false
+func propIncludesString(value interface{}, key string) bool {
+	if arr, ok := value.([]string); ok {
+		for i := range arr {
+			if arr[i] == key {
+				return true
 			}
-		case "inactive", "deactivating", "failed":
+		}
+	}
+	return false
+}
+
+func inStateOrTooSoon(unit string, active, transition bool, rateLimit uint64) (inState bool, tooSoon bool, markedActive bool) {
+	if props, erru := systemd.Connection().GetUnitProperties(unit); erru == nil {
+
+		markedActive = propIncludesString(props["WantedBy"], "container-active.target")
+
+		switch props["ActiveState"] {
+		case "active":
+			if active {
+				inState = true
+				return
+			}
+		case "activating":
+			if active {
+				inState = true
+				return
+			} else if transition {
+				tooSoon = true
+				return
+			}
+		case "inactive", "failed":
 			if !active {
-				return true, false
+				inState = true
+				return
+			}
+		case "deactivating":
+			if !active {
+				inState = true
+				return
+			} else if transition {
+				tooSoon = true
+				return
 			}
 		}
 		if arr, ok := props["Job"].([]interface{}); ok {
 			if i, ok := arr[0].(int); ok {
 				if i != 0 {
 					log.Printf("alter_container_state: There is an enqueued job against unit %s: %d", unit, i)
-					return true, false
+					inState = true
+					return
 				}
 			}
 		}
@@ -37,19 +70,25 @@ func inStateOrTooSoon(unit string, active bool, rateLimit uint64) (bool, bool) {
 			if inact, ok := props["InactiveEnterTimestamp"]; ok {
 				t1 := act.(uint64)
 				t2 := inact.(uint64)
-				if !active {
+				if transition {
+					// compare against the most recent value
+					if t1 > t2 {
+						t1, t2 = t2, t1
+					}
+				} else if !active {
 					t1, t2 = t2, t1
 				}
 				if t2 > t1 {
 					diff := uint64(now) - t2
 					if diff < rateLimit {
-						return false, true
+						tooSoon = true
+						return
 					}
 				}
 			}
 		}
 	}
-	return false, false
+	return
 }
 
 type StartedContainerStateRequest struct {
@@ -60,21 +99,23 @@ func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
-	in_state, too_soon := inStateOrTooSoon(unitName, true, rateLimitChanges)
-	if in_state {
+	inState, tooSoon, markedActive := inStateOrTooSoon(unitName, true, false, rateLimitChanges)
+	if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s starting\n", j.Id)
 		return
 	}
-	if too_soon {
+	if tooSoon {
 		resp.Failure(ErrStartRequestThrottled)
 		return
 	}
 
-	if errs := containers.WriteContainerState(j.Id, true); errs != nil {
-		log.Print("alter_container_state: Unable to write state file: ", errs)
-		resp.Failure(ErrContainerStartFailed)
-		return
+	if !markedActive {
+		if errs := containers.WriteContainerState(j.Id, true); errs != nil {
+			log.Print("alter_container_state: Unable to write state file: ", errs)
+			resp.Failure(ErrContainerStartFailed)
+			return
+		}
 	}
 
 	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {
@@ -88,7 +129,7 @@ func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 	}
 
 	if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
-		log.Printf("install_container: Could not start container %s: %v", unitName, err)
+		log.Printf("alter_container_state: Could not start container %s: %v", unitName, err)
 		resp.Failure(ErrContainerStartFailed)
 		return
 	}
@@ -102,21 +143,23 @@ type StoppedContainerStateRequest struct {
 }
 
 func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
-	in_state, too_soon := inStateOrTooSoon(j.Id.UnitNameFor(), false, rateLimitChanges)
-	if in_state {
+	inState, tooSoon, markedActive := inStateOrTooSoon(j.Id.UnitNameFor(), false, false, rateLimitChanges)
+	if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
 		return
 	}
-	if too_soon {
+	if tooSoon {
 		resp.Failure(ErrStopRequestThrottled)
 		return
 	}
 
-	if errs := containers.WriteContainerState(j.Id, false); errs != nil {
-		log.Print("alter_container_state: Unable to write state file: ", errs)
-		resp.Failure(ErrContainerStopFailed)
-		return
+	if markedActive {
+		if errs := containers.WriteContainerState(j.Id, false); errs != nil {
+			log.Print("alter_container_state: Unable to write state file: ", errs)
+			resp.Failure(ErrContainerStopFailed)
+			return
+		}
 	}
 
 	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
@@ -166,4 +209,51 @@ func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 	default:
 		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
 	}
+}
+
+type RestartContainerRequest struct {
+	Id containers.Identifier
+}
+
+func (j *RestartContainerRequest) Execute(resp JobResponse) {
+	unitName := j.Id.UnitNameFor()
+	unitPath := j.Id.UnitPathFor()
+
+	inState, tooSoon, markedActive := inStateOrTooSoon(unitName, false, true, rateLimitChanges)
+	if inState {
+		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
+		fmt.Fprintf(w, "Container %s restarting\n", j.Id)
+		return
+	}
+	if tooSoon {
+		resp.Failure(ErrRestartRequestThrottled)
+		return
+	}
+
+	if !markedActive {
+		if errs := containers.WriteContainerState(j.Id, true); errs != nil {
+			log.Print("alter_container_state: Unable to write state file: ", errs)
+			resp.Failure(ErrContainerRestartFailed)
+			return
+		}
+	}
+
+	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {
+		if systemd.IsNoSuchUnit(err) || systemd.IsFileNotFound(err) {
+			resp.Failure(ErrContainerNotFound)
+			return
+		}
+		log.Printf("alter_container_state: Could not enable container %s: %v", unitName, err)
+		resp.Failure(ErrContainerRestartFailed)
+		return
+	}
+
+	if err := systemd.Connection().RestartUnitJob(unitName, "fail"); err != nil {
+		log.Printf("alter_container_state: Could not restart container %s: %v", unitName, err)
+		resp.Failure(ErrContainerRestartFailed)
+		return
+	}
+
+	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
+	fmt.Fprintf(w, "Container %s restarting\n", j.Id)
 }

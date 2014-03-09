@@ -12,8 +12,7 @@ import (
 )
 
 type CreateKeysRequest struct {
-	UserId string
-	Data   *ExtendedCreateKeysData
+	*ExtendedCreateKeysData
 }
 
 type ExtendedCreateKeysData struct {
@@ -101,8 +100,8 @@ func KeyFingerprint(key ssh.PublicKey) utils.Fingerprint {
 
 func (j *CreateKeysRequest) Execute(resp JobResponse) {
 	failedKeys := []KeyFailure{}
-	for i := range j.Data.Keys {
-		key := j.Data.Keys[i]
+	for i := range j.Keys {
+		key := j.Keys[i]
 		pk, _, _, _, ok := ssh.ParseAuthorizedKey([]byte(key.Value))
 		if !ok {
 			failedKeys = append(failedKeys, KeyFailure{i, &key, errors.New("Unable to parse key")})
@@ -118,8 +117,8 @@ func (j *CreateKeysRequest) Execute(resp JobResponse) {
 			continue
 		}
 
-		for k := range j.Data.Containers {
-			p := j.Data.Containers[k]
+		for k := range j.Containers {
+			p := j.Containers[k]
 			if _, err := os.Stat(p.Id.UnitPathFor()); err != nil {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
 				continue
@@ -135,8 +134,8 @@ func (j *CreateKeysRequest) Execute(resp JobResponse) {
 				}
 			}
 		}
-		for k := range j.Data.Repositories {
-			p := j.Data.Repositories[k]
+		for k := range j.Repositories {
+			p := j.Repositories[k]
 			if _, err := os.Stat(p.Id.RepositoryPathFor()); err != nil {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
 				continue
