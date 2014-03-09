@@ -98,6 +98,15 @@ func Execute() {
 	}
 	gearCmd.AddCommand(envCmd)
 
+	linkCmd := &cobra.Command{
+		Use:   "link <name>...",
+		Short: "Set network links for the named containers",
+		Long:  "Sets the network links for the named containers. A restart may be required to use the latest links.",
+		Run:   linkContainers,
+	}
+	linkCmd.Flags().VarP(&networkLinks, "net-links", "n", "List of comma separated port pairs to wire '<local_port>:<host>:<remote_port>,...'. Host and remote port may be empty.")
+	gearCmd.AddCommand(linkCmd)
+
 	startCmd := &cobra.Command{
 		Use:   "start <name>...",
 		Short: "Invoke systemd to start a container",
@@ -375,6 +384,38 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 			fmt.Fprintf(w, "Deleted %s", job.(*http.HttpDeleteContainerRequest).Label)
 		},
 		LocalInit: needsData,
+	}.StreamAndExit()
+}
+
+func linkContainers(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
+	}
+	ids, err := NewRemoteIdentifiers(args...)
+	if err != nil {
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+	if networkLinks.NetworkLinks == nil {
+		networkLinks.NetworkLinks = &containers.NetworkLinks{}
+	}
+
+	Executor{
+		On: ids,
+		Group: func(on ...Locator) jobs.Job {
+			links := &jobs.ContainerLinks{make([]jobs.ContainerLink, 0, len(on))}
+			for i := range on {
+				links.Links = append(links.Links, jobs.ContainerLink{on[i].(*RemoteIdentifier).Id, *networkLinks.NetworkLinks})
+			}
+			return &http.HttpLinkContainersRequest{
+				Label: on[0].String(),
+				LinkContainersRequest: jobs.LinkContainersRequest{links},
+			}
+		},
+		Output:    os.Stdout,
+		LocalInit: needsData,
+		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
+			fmt.Fprintf(w, "Links set on %s\n", job.(*http.HttpLinkContainersRequest).Label)
+		},
 	}.StreamAndExit()
 }
 

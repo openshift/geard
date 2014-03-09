@@ -354,16 +354,20 @@ func (h *HttpContentRequest) Handler(conf *HttpConfiguration) JobHandler {
 	}
 }
 
-type HttpLinkContainersRequest jobs.LinkContainersRequest
+type HttpLinkContainersRequest struct {
+	Label string
+	jobs.LinkContainersRequest
+	DefaultRequest
+}
 
-func (h *HttpLinkContainersRequest) HttpMethod() string { return "PUT" }
+func (h *HttpLinkContainersRequest) HttpMethod() string { return "POST" }
 func (h *HttpLinkContainersRequest) HttpPath() string   { return "/containers/links" }
 func (h *HttpLinkContainersRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
-		data := jobs.ExtendedLinkContainersData{}
+		data := &jobs.ContainerLinks{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
-			if err := dec.Decode(&data); err != nil && err != io.EOF {
+			if err := dec.Decode(data); err != nil && err != io.EOF {
 				return nil, err
 			}
 		}
@@ -372,9 +376,7 @@ func (h *HttpLinkContainersRequest) Handler(conf *HttpConfiguration) JobHandler 
 			return nil, err
 		}
 
-		return &jobs.LinkContainersRequest{
-			&data,
-		}, nil
+		return &jobs.LinkContainersRequest{data}, nil
 	}
 }
 

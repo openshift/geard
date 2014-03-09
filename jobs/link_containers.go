@@ -25,11 +25,11 @@ func (link *ContainerLink) Check() error {
 	return nil
 }
 
-type ExtendedLinkContainersData struct {
+type ContainerLinks struct {
 	Links []ContainerLink
 }
 
-func (link *ExtendedLinkContainersData) Check() error {
+func (link *ContainerLinks) Check() error {
 	if len(link.Links) == 0 {
 		return errors.New("One or more links must be specified.")
 	}
@@ -42,14 +42,12 @@ func (link *ExtendedLinkContainersData) Check() error {
 }
 
 type LinkContainersRequest struct {
-	Data *ExtendedLinkContainersData
+	*ContainerLinks
 }
 
 func (j *LinkContainersRequest) Execute(resp JobResponse) {
-	data := j.Data
-
-	for i := range data.Links {
-		if errw := data.Links[i].NetworkLinks.Write(data.Links[i].Id.NetworkLinksPathFor(), false); errw != nil {
+	for i := range j.Links {
+		if errw := j.Links[i].NetworkLinks.Write(j.Links[i].Id.NetworkLinksPathFor(), false); errw != nil {
 			resp.Failure(ErrLinkContainersFailed)
 			return
 		}

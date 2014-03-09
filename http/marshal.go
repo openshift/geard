@@ -56,6 +56,11 @@ func (h *HttpPatchEnvironmentRequest) MarshalHttpRequestBody(w io.Writer) error 
 	return encoder.Encode(h.EnvironmentDescription)
 }
 
+func (h *HttpLinkContainersRequest) MarshalHttpRequestBody(w io.Writer) error {
+	encoder := json.NewEncoder(w)
+	return encoder.Encode(h.LinkContainersRequest)
+}
+
 // Apply the "label" from the job to the response
 type ListContainersResponse struct {
 	jobs.ListContainersResponse
