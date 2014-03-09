@@ -9,8 +9,7 @@ import (
 )
 
 type ContainerLogRequest struct {
-	Id     containers.Identifier
-	UserId string
+	Id containers.Identifier
 }
 
 func (j *ContainerLogRequest) Execute(resp JobResponse) {

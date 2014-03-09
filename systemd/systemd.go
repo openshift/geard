@@ -33,6 +33,7 @@ type Systemd interface {
 	StopUnitJob(name string, mode string) error
 	ReloadUnit(name string, mode string) (string, error)
 	RestartUnit(name string, mode string) (string, error)
+	RestartUnitJob(name string, mode string) error
 	TryRestartUnit(name string, mode string) (string, error)
 	ReloadOrRestartUnit(name string, mode string) (string, error)
 	ReloadOrTryRestartUnit(name string, mode string) (string, error)

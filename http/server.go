@@ -25,7 +25,7 @@ type HttpConfiguration struct {
 	Extensions []HttpExtension
 }
 
-type JobHandler func(jobs.RequestIdentifier, *TokenData, *rest.Request) (jobs.Job, error)
+type JobHandler func(*jobs.JobContext, *rest.Request) (jobs.Job, error)
 
 type HttpJobHandler interface {
 	RemoteJob
@@ -54,6 +54,7 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 
 		&HttpStartContainerRequest{},
 		&HttpStopContainerRequest{},
+		&HttpRestartContainerRequest{},
 
 		&HttpLinkContainersRequest{},
 
@@ -66,11 +67,13 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 		&HttpPatchEnvironmentRequest{},
 		&HttpPutEnvironmentRequest{},
 
+		&HttpCreateKeysRequest{},
+
 		&HttpContentRequest{},
 		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Subpath: "*"}},
 		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Type: jobs.ContentTypeEnvironment}},
 
-		&HttpCreateKeysRequest{},
+		//&HttpEncryptedRequest{},
 	}
 
 	for i := range conf.Extensions {
@@ -90,101 +93,87 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 }
 
 func (conf *HttpConfiguration) jobRestHandler(handler HttpJobHandler) rest.Route {
-	method := handler.Handler(conf)
 	return rest.Route{
 		handler.HttpMethod(),
-		"/token/:token" + handler.HttpPath(),
-		func(w *rest.ResponseWriter, r *rest.Request) {
-			match := r.Header.Get("If-Match")
-			segments := strings.Split(match, ",")
-			for i := range segments {
-				if strings.HasPrefix(segments[i], "api=") {
-					if segments[i][4:] != ApiVersion() {
-						http.Error(w, fmt.Sprintf("Current API version %s does not match requested %s", ApiVersion(), segments[i][4:]), http.StatusPreconditionFailed)
-						return
-					}
+		handler.HttpPath(),
+		conf.handleWithMethod(handler.Handler(conf)),
+	}
+}
+
+func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.ResponseWriter, *rest.Request) {
+	return func(w *rest.ResponseWriter, r *rest.Request) {
+		match := r.Header.Get("If-Match")
+		segments := strings.Split(match, ",")
+		for i := range segments {
+			if strings.HasPrefix(segments[i], "api=") {
+				if segments[i][4:] != ApiVersion() {
+					http.Error(w, fmt.Sprintf("Current API version %s does not match requested %s", ApiVersion(), segments[i][4:]), http.StatusPreconditionFailed)
+					return
 				}
 			}
+		}
 
-			token, id, errt := extractToken(r.PathParam("token"), r.Request)
-			if errt != nil {
-				log.Println(errt)
-				http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
+		context := &jobs.JobContext{}
+
+		requestId := r.Header.Get("X-Request-Id")
+		if requestId == "" {
+			context.Id = jobs.NewRequestIdentifier()
+		} else {
+			id, err := jobs.NewRequestIdentifierFromString(requestId)
+			if err != nil {
+				http.Error(w, "X-Request-Id must be a 32 character hexadecimal string", http.StatusBadRequest)
 				return
 			}
+			context.Id = id
+		}
 
-			if token.D == 0 {
-				log.Println("http: Recommend passing 'd' as an argument for the current date")
-			}
-			if token.U == "" {
-				log.Println("http: Recommend passing 'u' as an argument for the associated user")
-			}
+		/*token, id, errt := extractToken(r.PathParam("token"), r.Request)
+		if errt != nil {
+			log.Println(errt)
+			http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
+			return
+		}
 
-			job, errh := method(id, token, r)
-			if errh != nil {
-				if errh != ErrHandledResponse {
-					http.Error(w, "Invalid request: "+errh.Error()+"\n", http.StatusBadRequest)
-				}
-				return
-			}
+		if token.D == 0 {
+			log.Println("http: Recommend passing 'd' as an argument for the current date")
+		}
+		if token.U == "" {
+			log.Println("http: Recommend passing 'u' as an argument for the associated user")
+		}*/
 
-			mode := ResponseJson
-			if r.Header.Get("Accept") == "text/plain" {
-				mode = ResponseTable
+		job, errh := method(context, r)
+		if errh != nil {
+			if errh != ErrHandledResponse {
+				http.Error(w, "Invalid request: "+errh.Error()+"\n", http.StatusBadRequest)
 			}
+			return
+		}
 
-			canStream := true
-			if streaming, ok := job.(HttpStreamable); ok {
-				canStream = streaming.Streamable()
-			}
-			response := NewHttpJobResponse(w.ResponseWriter, !canStream, mode)
+		mode := ResponseJson
+		if r.Header.Get("Accept") == "text/plain" {
+			mode = ResponseTable
+		}
 
-			wait, errd := conf.Dispatcher.Dispatch(id, job, response)
-			if errd == jobs.ErrRanToCompletion {
-				http.Error(w, errd.Error(), http.StatusNoContent)
-				return
-			} else if errd != nil {
-				serveRequestError(w, apiRequestError{errd, errd.Error(), http.StatusServiceUnavailable})
-				return
-			}
-			<-wait
-		},
+		canStream := true
+		if streaming, ok := job.(HttpStreamable); ok {
+			canStream = streaming.Streamable()
+		}
+		response := NewHttpJobResponse(w.ResponseWriter, !canStream, mode)
+
+		wait, errd := conf.Dispatcher.Dispatch(context.Id, job, response)
+		if errd == jobs.ErrRanToCompletion {
+			http.Error(w, errd.Error(), http.StatusNoContent)
+			return
+		} else if errd != nil {
+			serveRequestError(w, apiRequestError{errd, errd.Error(), http.StatusServiceUnavailable})
+			return
+		}
+		<-wait
 	}
 }
 
 func limitedBodyReader(r *rest.Request) io.Reader {
 	return io.LimitReader(r.Body, 100*1024)
-}
-
-func extractToken(segment string, r *http.Request) (token *TokenData, id jobs.RequestIdentifier, rerr *apiRequestError) {
-	if segment == "__test__" {
-		t, err := NewTokenFromMap(r.URL.Query())
-		if err != nil {
-			rerr = &apiRequestError{err, "Invalid test query: " + err.Error(), http.StatusForbidden}
-			return
-		}
-		token = t
-	} else {
-		t, err := NewTokenFromString(segment)
-		if err != nil {
-			rerr = &apiRequestError{err, "Invalid authorization token", http.StatusForbidden}
-			return
-		}
-		token = t
-	}
-
-	if token.I == "" {
-		id = jobs.NewRequestIdentifier()
-	} else {
-		i, errr := token.RequestId()
-		if errr != nil {
-			rerr = &apiRequestError{errr, "Unable to parse token for this request: " + errr.Error(), http.StatusBadRequest}
-			return
-		}
-		id = i
-	}
-
-	return
 }
 
 type apiRequestError struct {

@@ -91,9 +91,9 @@ func Execute() {
 	gearCmd.AddCommand(setEnvCmd)
 
 	envCmd := &cobra.Command{
-		Use:   "env <name>... <key>=<value>...",
-		Short: "Retrieve environment variable values from servers",
-		Long:  "Return all environment variables for each server as output",
+		Use:   "env <name>...",
+		Short: "Retrieve environment variable values by id",
+		Long:  "Return the environment variables matching the provided ids",
 		Run:   showEnvironment,
 	}
 	gearCmd.AddCommand(envCmd)
@@ -114,6 +114,15 @@ func Execute() {
 		Run:   stopContainer,
 	}
 	gearCmd.AddCommand(stopCmd)
+
+	restartCmd := &cobra.Command{
+		Use:   "restart <name>...",
+		Short: "Invoke systemd to restart a container",
+		Long:  "Queues the restart and immediately returns.", //  Use -f to attach to the logs.",
+		Run:   restartContainer,
+	}
+	//startCmd.Flags().BoolVarP(&follow, "follow", "f", false, "Attach to the logs after startup")
+	gearCmd.AddCommand(restartCmd)
 
 	statusCmd := &cobra.Command{
 		Use:   "status <name>...",
@@ -293,11 +302,11 @@ func setEnvironment(cmd *cobra.Command, args []string) {
 			environment.Description.Id = on.(*RemoteIdentifier).Id
 			if resetEnv {
 				return &http.HttpPutEnvironmentRequest{
-					PutEnvironmentRequest: jobs.PutEnvironmentRequest{&environment.Description},
+					PutEnvironmentRequest: jobs.PutEnvironmentRequest{environment.Description},
 				}
 			}
 			return &http.HttpPatchEnvironmentRequest{
-				PatchEnvironmentRequest: jobs.PatchEnvironmentRequest{&environment.Description},
+				PatchEnvironmentRequest: jobs.PatchEnvironmentRequest{environment.Description},
 			}
 		},
 		Output:    os.Stdout,
@@ -412,6 +421,32 @@ func stopContainer(cmd *cobra.Command, args []string) {
 		Serial: func(on Locator) jobs.Job {
 			return &http.HttpStopContainerRequest{
 				StoppedContainerStateRequest: jobs.StoppedContainerStateRequest{
+					Id: on.(*RemoteIdentifier).Id,
+				},
+			}
+		},
+		Output:    os.Stdout,
+		LocalInit: needsSystemd,
+	}.StreamAndExit()
+}
+
+func restartContainer(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fail(1, "Valid arguments: <id> ...\n")
+	}
+	ids, err := NewRemoteIdentifiers(args...)
+	if err != nil {
+		fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+
+	if len(ids) == 1 && !ids[0].IsRemote() {
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl restart %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
+	}
+	Executor{
+		On: ids,
+		Serial: func(on Locator) jobs.Job {
+			return &http.HttpRestartContainerRequest{
+				RestartContainerRequest: jobs.RestartContainerRequest{
 					Id: on.(*RemoteIdentifier).Id,
 				},
 			}

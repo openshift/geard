@@ -5,7 +5,7 @@ import (
 )
 
 type PutEnvironmentRequest struct {
-	*containers.EnvironmentDescription
+	containers.EnvironmentDescription
 }
 
 func (j *PutEnvironmentRequest) Execute(resp JobResponse) {
@@ -22,7 +22,7 @@ func (j *PutEnvironmentRequest) Execute(resp JobResponse) {
 }
 
 type PatchEnvironmentRequest struct {
-	*containers.EnvironmentDescription
+	containers.EnvironmentDescription
 }
 
 func (j *PatchEnvironmentRequest) Execute(resp JobResponse) {

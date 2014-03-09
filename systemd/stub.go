@@ -46,6 +46,11 @@ func (c *StubSystemd) RestartUnit(name string, mode string) (string, error) {
 	return "", errors.New("Not implemented")
 }
 
+func (c *StubSystemd) RestartUnitJob(name string, mode string) error {
+	log.Print("stub_systemd: RestartUnitJob", name, mode)
+	return nil
+}
+
 func (c *StubSystemd) TryRestartUnit(name string, mode string) (string, error) {
 	return "", errors.New("Not implemented")
 }

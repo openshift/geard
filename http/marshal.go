@@ -8,30 +8,30 @@ import (
 	"github.com/smarterclayton/geard/jobs"
 	"io"
 	"net/http"
+	"net/url"
 	"text/tabwriter"
 )
 
-func (h *DefaultRequest) MarshalToHttp(w io.Writer) error {
+func (h *DefaultRequest) MarshalHttpRequestBody(w io.Writer) error {
 	return nil
 }
-func (h *DefaultRequest) MarshalToToken(token *TokenData) {
+func (h *DefaultRequest) MarshalRequestIdentifier() jobs.RequestIdentifier {
+	return jobs.RequestIdentifier{}
 }
-func (h *DefaultRequest) MarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
+func (h *DefaultRequest) MarshalUrlQuery(query *url.Values) {
+}
+func (h *DefaultRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
 	if r != nil {
 		return nil, errors.New("Unexpected response body to request")
 	}
 	return nil, nil
 }
 
-func (h *HttpInstallContainerRequest) MarshalToHttp(w io.Writer) error {
+func (h *HttpInstallContainerRequest) MarshalHttpRequestBody(w io.Writer) error {
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(h)
 }
-func (h *HttpInstallContainerRequest) MarshalToToken(token *TokenData) {
-	token.R = string(h.Id)
-	token.T = h.Image
-}
-func (h *HttpInstallContainerRequest) MarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
+func (h *HttpInstallContainerRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
 	if r == nil {
 		pending := make(map[string]interface{})
 		if s := headers.Get("X-PortMapping"); s != "" {
@@ -46,41 +46,14 @@ func (h *HttpInstallContainerRequest) MarshalHttpResponse(headers http.Header, r
 	return nil, errors.New("Unexpected response body to HttpInstallContainerRequest")
 }
 
-func (h *HttpDeleteContainerRequest) MarshalToToken(token *TokenData) {
-	token.R = string(h.Id)
-}
-
-func (h *HttpStartContainerRequest) MarshalToToken(token *TokenData) {
-	token.R = string(h.Id)
-}
-
-func (h *HttpStopContainerRequest) MarshalToToken(token *TokenData) {
-	token.R = string(h.Id)
-}
-
-func (h *HttpContainerStatusRequest) MarshalToToken(token *TokenData) {
-	token.R = string(h.Id)
-}
-
-func (h *HttpPutEnvironmentRequest) MarshalToHttp(w io.Writer) error {
+func (h *HttpPutEnvironmentRequest) MarshalHttpRequestBody(w io.Writer) error {
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(h.EnvironmentDescription)
 }
-func (h *HttpPutEnvironmentRequest) MarshalToToken(token *TokenData) {
-	token.R = string(h.EnvironmentDescription.Id)
-}
 
-func (h *HttpPatchEnvironmentRequest) MarshalToHttp(w io.Writer) error {
+func (h *HttpPatchEnvironmentRequest) MarshalHttpRequestBody(w io.Writer) error {
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(h.EnvironmentDescription)
-}
-func (h *HttpPatchEnvironmentRequest) MarshalToToken(token *TokenData) {
-	token.R = string(h.EnvironmentDescription.Id)
-}
-
-func (h *HttpContentRequest) MarshalToToken(token *TokenData) {
-	token.R = string(h.ContentRequest.Locator)
-	//token.T = string(h.ContentRequest.Type) GOTCHA: Ensure subpath is set for each content request
 }
 
 // Apply the "label" from the job to the response
@@ -103,7 +76,7 @@ func (l *ListContainersResponse) WriteTableTo(w io.Writer) error {
 	return nil
 }
 
-func (h *HttpListContainersRequest) MarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
+func (h *HttpListContainersRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
 	if r == nil {
 		return nil, errors.New("Unexpected empty response body to HttpListContainersRequest")
 	}
