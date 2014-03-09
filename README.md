@@ -19,7 +19,7 @@ You can also use the gear command against a remote daemon:
 
 The gear daemon and local commands must run as root to interface with the Docker daemon and systemd over DBus.
 
-### What's a container?
+### What's a gear?
 
 A gear is a specific type of Linux container - for those familiar with Docker, it's a started container with some bound ports, some shared environment, some linking, some resource isolation and allocation, and some opionated defaults about configuration that ease use.  Here's some of those defaults:
 
