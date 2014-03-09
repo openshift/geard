@@ -125,6 +125,11 @@ func (c *Conn) RestartUnit(name string, mode string) (string, error) {
 	return c.runJob("RestartUnit", name, mode)
 }
 
+func (c *Conn) RestartUnitJob(name string, mode string) error {
+	_, err := c.startJob("RestartUnit", name, mode)
+	return err
+}
+
 // TryRestartUnit is like RestartUnit, except that a service that isn't running
 // is not affected by the restart.
 func (c *Conn) TryRestartUnit(name string, mode string) (string, error) {
