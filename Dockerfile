@@ -9,12 +9,10 @@ ADD     . /go/src/github.com/smarterclayton/geard
 WORKDIR   /go/src/github.com/smarterclayton/geard
 RUN \
    go get -tags selinux ./... && \
-   go build -tags selinux -o gear . && \
-   /bin/cp ./gear /bin/gear && \
-   go install -tags selinux ./support/switchns && \
-   /bin/cp $GOPATH/bin/switchns /bin/switchns && \
-   go install -tags selinux ./support/gear-auth-keys-command && \
-   /bin/cp $GOPATH/bin/gear-auth-keys-command /bin/gear-auth-keys-command && \
+   go install -tags selinux github.com/smarterclayton/geard/cmd/gear && \
+   go install -tags selinux github.com/smarterclayton/geard/support/switchns && \
+   go install -tags selinux github.com/smarterclayton/geard/support/gear-auth-keys-command && \
+   /bin/cp -f $GOPATH/bin/{gear,switchns,gear-auth-keys-command} /bin/ && \
    rm -rf $GOPATH
 
 # Create an environment for Git execution
