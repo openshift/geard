@@ -10,10 +10,8 @@ import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -102,32 +100,26 @@ func (s *IntegrationTestSuite) SetUpTest(c *C) {
 
 // TestXxxx methods are identified as test cases
 func (s *IntegrationTestSuite) TestCleanBuild(c *C) {
-	tag := "geard/fake-app"
-	gitRepo := "git://github.com/pmorie/simple-html"
-	baseImage := "pmorie/sti-fake"
-	extendedParams := jobs.ExtendedBuildImageData{"", true, true}
+	extendedParams := jobs.ExtendedBuildImageData{
+		Tag:       "geard/fake-app",
+		Source:    "git://github.com/pmorie/simple-html",
+		BaseImage: "pmorie/sti-fake",
+		Clean:     true,
+		Verbose:   true,
+	}
 
-	s.buildImage(c, gitRepo, baseImage, tag, extendedParams)
-	s.checkForImage(c, tag)
+	s.buildImage(c, extendedParams)
+	s.checkForImage(c, extendedParams.Tag)
 
-	containerId := s.createContainer(c, tag)
+	containerId := s.createContainer(c, extendedParams.Tag)
 	defer s.removeContainer(containerId)
 	s.checkBasicBuildState(c, containerId)
 }
 
-func (s *IntegrationTestSuite) buildImage(c *C, sourceRepo string, baseImage string, tag string, extendedParams jobs.ExtendedBuildImageData) {
-	// Request parameters are the fields of Token (token.go)
-	values := url.Values{}
-	values.Set("u", tag)
-	values.Set("d", "1")
-	values.Set("r", sourceRepo)
-	values.Set("t", baseImage)
-	values.Set("i", strconv.Itoa(s.requestId()))
-	params := values.Encode()
-
-	url := fmt.Sprintf("http://localhost:%s/token/__test__/build-image?%s", s.daemonPort, params)
+func (s *IntegrationTestSuite) buildImage(c *C, extendedParams jobs.ExtendedBuildImageData) {
+	url := fmt.Sprintf("http://localhost:%s/build-image", s.daemonPort)
 	b, _ := json.Marshal(extendedParams)
-	req, _ := http.NewRequest("PUT", url, bytes.NewReader(b))
+	req, _ := http.NewRequest("POST", url, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	req.ParseForm()
 
