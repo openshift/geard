@@ -138,7 +138,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	}
 
 	// open and lock the base path (to prevent simultaneous updates)
-	state, exists, err := utils.OpenFileExclusive(unitPath, 0660)
+	state, exists, err := utils.OpenFileExclusive(unitPath, 0664)
 	if err != nil {
 		log.Print("install_container: Unable to lock unit file: ", err)
 		resp.Failure(ErrContainerCreateFailed)
@@ -146,7 +146,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	defer state.Close()
 
 	// write a new file to disk that describes the new service
-	unit, err := utils.CreateFileExclusive(unitVersionPath, 0660)
+	unit, err := utils.CreateFileExclusive(unitVersionPath, 0664)
 	if err != nil {
 		log.Print("install_container: Unable to open unit file definition: ", err)
 		resp.Failure(ErrContainerCreateFailed)

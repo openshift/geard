@@ -43,6 +43,7 @@ func verifyDataPaths() error {
 		filepath.Join(config.ContainerBasePath(), "home"),
 		filepath.Join(config.ContainerBasePath(), "bin"),
 		filepath.Join(config.ContainerBasePath(), "git"),
+		filepath.Join(config.ContainerBasePath(), "units"),
 		filepath.Join(config.ContainerBasePath(), "access", "git"),
 		filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"),
 		filepath.Join(config.ContainerBasePath(), "keys", "public"),
@@ -56,7 +57,6 @@ func verifyDataPaths() error {
 	}
 	for _, path := range []string{
 		filepath.Join(config.ContainerBasePath(), "targets"),
-		filepath.Join(config.ContainerBasePath(), "units"),
 		filepath.Join(config.ContainerBasePath(), "slices"),
 		filepath.Join(config.ContainerBasePath(), "env", "contents"),
 		filepath.Join(config.ContainerBasePath(), "access", "git", "read"),
