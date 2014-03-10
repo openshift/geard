@@ -38,7 +38,7 @@ func NewIdentifierFromUser(u *user.User) (Identifier, error) {
 }
 
 func (i Identifier) UnitPathFor() string {
-	base := utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "units"), string(i), "")
+	base := utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "units"), string(i), "", 0775)
 	return filepath.Join(filepath.Dir(base), i.UnitNameFor())
 }
 
@@ -47,7 +47,7 @@ func (i Identifier) UnitDefinitionPathFor() string {
 }
 
 func (i Identifier) VersionedUnitPathFor(suffix string) string {
-	return utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "units"), string(i), suffix)
+	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "units"), string(i), suffix, 0775)
 }
 
 func (i Identifier) UnitNameFor() string {
@@ -55,7 +55,7 @@ func (i Identifier) UnitNameFor() string {
 }
 
 func (i Identifier) SocketUnitPathFor() string {
-	base := utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "units"), string(i), "")
+	base := utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "units"), string(i), "", 0775)
 	return filepath.Join(filepath.Dir(base), i.SocketUnitNameFor())
 }
 
