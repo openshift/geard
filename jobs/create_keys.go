@@ -141,9 +141,17 @@ func (j *CreateKeysRequest) Execute(resp JobResponse) {
 				continue
 			}
 			accessPath := p.Id.GitAccessPathFor(fingerprint, p.Write)
+
 			if err := os.Symlink(path, accessPath); err != nil && !os.IsExist(err) {
 				failedKeys = append(failedKeys, KeyFailure{i, &key, err})
 				continue
+			}
+			negAccessPath := p.Id.GitAccessPathFor(fingerprint, !p.Write)
+			if err := os.Remove(negAccessPath); err != nil {
+				if _, ok := err.(*os.PathError); !ok {
+					failedKeys = append(failedKeys, KeyFailure{i, &key, err})
+					continue
+				}
 			}
 			repoId := git.RepoIdentifier(p.Id)
 			if _, err := os.Stat(repoId.AuthKeysPathFor()); err == nil {
