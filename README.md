@@ -123,15 +123,43 @@ The geard code depends on:
 * systemd 207 (Fedora 20 or newer)
 * Docker 0.7 or newer
 
-You can get a vagrant F20 box from http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_fedora-20_chef-provisionerless.box
+You'll also need the following to try it out in a development vm:
 
-Take the systemd unit file in <code>contrib/geard.service</code> and enable it on your system (assumes Docker is installed) with: 
+* Vagrant
+* VirtualBox
 
-    curl https://raw.github.com/smarterclayton/geard/master/contrib/geard.service > /usr/lib/systemd/system/geard.service
-    systemctl enable /usr/lib/systemd/system/geard.service
-    systemctl start geard
+To start up a development vm, all you have to do is:
 
-The docker image that is downloaded binds 8080 in the docker container to localhost:2223.  The gear executable inside that image (at /bin/gear) is capable of either connecting to one or more remote hosts, or to talk to the local system.  By default it will run as a daemon inside the Docker image.
+    git clone git@github.com:smarterclayton/geard && cd geard
+    vagrant up
+
+The `geard` project is set up such that `vagrant up` will download and install `geard`'s dependencies as well as installing and enabling the systemd unit to run `geard` in a docker container under systemd.
+
+Once `vagrant up` is running, you can ssh into the vm:
+
+    vagrant ssh
+
+The `contrib/build` script allows you to build and run the project in two different ways:
+
+1.  Build binaries locally and run the daemon interactively with `gear daemon`
+1.  Build a docker image and run the containerized daemon as a systemd unit
+
+### Building and running locally
+
+To build and run locally, run the following commands in an ssh session to your development vm:
+
+    contrib/build -s
+    gear daemon
+
+The gear daemon's logs will go to the console in this case.
+
+### Building and running in a container
+
+To build a Docker image and run the containerized daemon as a systemd unit:
+
+    contrib/build -d
+
+This will build the Docker image and start the geard.service systemd unit (as well as restart the unit if it is already running).
 
 See [contrib/example.sh](contrib/example.sh) and [contrib/stress.sh](contrib/stress.sh) for more examples of API calls.
 
