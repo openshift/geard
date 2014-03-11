@@ -3,7 +3,7 @@
 function usage() {
 	echo "build [-s] [-d]"
 	echo "-s builds with selinux enabled"
-	echo "-d handles starting/stopping systemd service"
+	echo "-d builds/deploys systemd service with docker"
 	exit 1
 }
 
@@ -25,11 +25,16 @@ if $use_selinux; then
 fi
 
 #GOOS=linux GOARCH=amd64 go build -o geard.linux64 geard/main.go
-go get ./...
-go install $tags github.com/smarterclayton/geard/cmd/gear
-go install $tags github.com/smarterclayton/geard/support/switchns
-go install $tags github.com/smarterclayton/geard/support/gear-auth-keys-command
 
-sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
-sudo /usr/bin/cp -f $GOPATH/bin/switchns .
-sudo /usr/bin/cp -f $GOPATH/bin/gear /usr/bin/
+if $handle_systemd; then
+	docker build -rm -t ccoleman/geard /vagrant && sudo systemctl restart geard.service	
+else
+	go get ./...
+	go install $tags github.com/smarterclayton/geard/cmd/gear
+	go install $tags github.com/smarterclayton/geard/support/switchns
+	go install $tags github.com/smarterclayton/geard/support/gear-auth-keys-command
+
+	sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
+	sudo /usr/bin/cp -f $GOPATH/bin/switchns .
+	sudo /usr/bin/cp -f $GOPATH/bin/gear /usr/bin/
+fi
