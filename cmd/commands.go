@@ -6,6 +6,7 @@ import (
 	"github.com/smarterclayton/cobra"
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/dispatcher"
+	"github.com/smarterclayton/geard/encrypted"
 	"github.com/smarterclayton/geard/git"
 	githttp "github.com/smarterclayton/geard/git/http"
 	gitjobs "github.com/smarterclayton/geard/git/jobs"
@@ -17,6 +18,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/user"
+	"path/filepath"
 	"reflect"
 	"strconv"
 )
@@ -29,6 +31,7 @@ var (
 	listenAddr   string
 	resetEnv     bool
 	simple       bool
+	keyPath      string
 	environment  EnvironmentDescription
 	portPairs    PortPairs
 	networkLinks NetworkLinks
@@ -57,6 +60,7 @@ func Execute() {
 		Long:  "A commandline client and server that allows Docker containers to be installed to Systemd in an opinionated and distributed fashion.\n\nComplete documentation is available at http://github.com/smarterclayton/geard",
 		Run:   gear,
 	}
+	gearCmd.PersistentFlags().StringVar(&(keyPath), "key-path", "", "Specify the directory containing the server private key and trusted client public keys")
 	gearCmd.PersistentFlags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
 
 	installImageCmd := &cobra.Command{
@@ -235,13 +239,23 @@ func gear(cmd *cobra.Command, args []string) {
 }
 
 func daemon(cmd *cobra.Command, args []string) {
+	api := conf.Handler()
+	nethttp.Handle("/", api)
+
+	if keyPath != "" {
+		config, err := encrypted.NewTokenConfiguration(filepath.Join(keyPath, "server"), filepath.Join(keyPath, "client.pub"))
+		if err != nil {
+			fail(1, "Unable to load token configuration: %s", err.Error())
+		}
+		nethttp.Handle("/token/", nethttp.StripPrefix("/token", config.Handler(api)))
+	}
+
 	systemd.Start()
 	containers.InitializeData()
 	containers.StartPortAllocator(4000, 60000)
 	git.InitializeData()
 	conf.Dispatcher.Start()
 
-	nethttp.Handle("/", conf.Handler())
 	log.Printf("Listening for HTTP on %s ...", listenAddr)
 	log.Fatal(nethttp.ListenAndServe(listenAddr, nil))
 }
