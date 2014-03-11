@@ -1,185 +1,168 @@
-package utils
+package tests
 
 import (
-	"bytes"
-	"encoding/json"
-	"flag"
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
-	"github.com/smarterclayton/geard/jobs"
-	"io/ioutil"
-	. "launchpad.net/gocheck"
+	"github.com/smarterclayton/geard/containers"
+	"github.com/smarterclayton/geard/docker"
+	chk "launchpad.net/gocheck"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 )
 
-/*
- * The REST API needs a unique request id per HTTP request.
- * This is a quickie impl that will be flaky at scale but is good
- * enough for now, probably
- */
-type RequestIdGenerator struct {
-	startTime int64
+//Hookup gocheck with go test
+func Test(t *testing.T) {
+	chk.TestingT(t)
 }
 
-func NewRequestIdGenerator() *RequestIdGenerator {
-	return &RequestIdGenerator{time.Now().UnixNano()}
-}
-
-func (r *RequestIdGenerator) requestId() int {
-	return int(time.Now().UnixNano() - r.startTime)
-}
-
-// Register gocheck with the 'testing' runner
-func Test(t *testing.T) { TestingT(t) }
+var _ = chk.Suite(&IntegrationTestSuite{})
 
 type IntegrationTestSuite struct {
-	dockerClient *docker.Client
-	daemonPort   string
-	requestIdGen *RequestIdGenerator
-	cmd          *exec.Cmd
+	dockerClient  *docker.DockerClient
+	daemonURI     string
+	containerIds  []containers.Identifier
+	repositoryIds []string
 }
 
-var integration = flag.Bool("integration", false, "Include integration tests")
-
-// Register IntegrationTestSuite with the gocheck suite manager
-var _ = Suite(&IntegrationTestSuite{})
-
-func (s *IntegrationTestSuite) requestId() int {
-	return s.requestIdGen.requestId()
-}
-
-// Suite/Test fixtures are provided by gocheck
-func (s *IntegrationTestSuite) SetUpSuite(c *C) {
-	if !*integration {
-		c.Skip("-integration not provided")
+func (s *IntegrationTestSuite) assertFilePresent(c *chk.C, path string, perm os.FileMode, readableByNobodyUser bool) {
+	info, err := os.Stat(path)
+	c.Assert(err, chk.IsNil)
+	if (info.Mode() & os.ModeSymlink) != 0 {
+		linkedFile, err := os.Readlink(path)
+		c.Assert(err, chk.IsNil)
+		s.assertFilePresent(c, linkedFile, perm, readableByNobodyUser)
+	} else {
+		c.Assert(info.Mode().Perm(), chk.Equals, perm)
 	}
+
+	if readableByNobodyUser {
+		for i := path; i != "/"; i = filepath.Dir(i) {
+			info, err = os.Stat(i)
+			c.Assert(err, chk.IsNil)
+			c.Assert(info.Mode().Perm()&0005, chk.Not(chk.Equals), 0)
+		}
+	}
+}
+
+func (s *IntegrationTestSuite) assertFileAbsent(c *chk.C, path string) {
+	c.Logf("assertFileAbsent(%v,%v,%v)", path)
+	_, err := os.Stat(path)
+	c.Assert(err, chk.Not(chk.IsNil))
+}
+
+func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Identifier, state string) {
+	switch {
+	case state == "deleted":
+		for i := 0; i < 15; i++ {
+			_, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
+			if err == nil {
+				time.Sleep(time.Second)
+			} else {
+				break
+			}
+		}
+		_, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
+		c.Assert(err, chk.Not(chk.IsNil))
+	case state == "running":
+		container, err := s.dockerClient.GetContainer(id.ContainerFor(), true)
+		c.Assert(err, chk.IsNil)
+		c.Assert(container.State.Running, chk.Equals, true)
+	case state == "stopped":
+		container, err := s.dockerClient.GetContainer(id.ContainerFor(), true)
+		c.Assert(err, chk.IsNil)
+		c.Assert(container.State.Running, chk.Equals, false)
+	}
+}
+
+func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
+	var err error
 
 	travis := os.Getenv("TRAVIS")
-
 	if travis != "" {
-		s.cmd = s.startDaemon(c)
+		c.Skip("-skip run on Travis")
 	}
 
-	s.dockerClient, _ = docker.NewClient("unix:///var/run/docker.sock")
-	s.requestIdGen = NewRequestIdGenerator()
-	s.daemonPort = os.Getenv("DAEMON_PORT")
+	s.daemonURI = os.Getenv("GEARD_URI")
+	if s.daemonURI == "" {
+		s.daemonURI = "localhost:8080"
+	}
 
-	if s.daemonPort == "" {
-		s.daemonPort = "8080"
+	dockerURI := os.Getenv("DOCKER_URI")
+	if dockerURI == "" {
+		dockerURI = "unix:///var/run/docker.sock"
+	}
+	s.dockerClient, err = docker.GetConnection(dockerURI)
+	c.Assert(err, chk.IsNil)
+}
+
+func (s *IntegrationTestSuite) SetupTest(c *chk.C) {
+
+}
+
+func (s *IntegrationTestSuite) TearDownTest(c *chk.C) {
+	for _, id := range s.containerIds {
+		hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+		cmd := exec.Command("/var/lib/containers/bin/gear", "delete", hostContainerId)
+		data, err := cmd.CombinedOutput()
+		c.Log(string(data))
+		if err != nil {
+			c.Logf("Container %v did not cleanup properly", id)
+		}
 	}
 }
 
-func (s *IntegrationTestSuite) TearDownSuite(c *C) {
-	s.stopDaemon()
+func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest001")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
+
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4000", "--start")
+	data, err := cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerState(c, id, "running")
+
+	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
+	paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
+	c.Assert(err, chk.IsNil)
+	for _, p := range paths {
+		s.assertFilePresent(c, p, 0664, true)
+	}
+	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	ports, err := containers.GetExistingPorts(id)
+	c.Assert(err, chk.IsNil)
+	resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
+	c.Assert(err, chk.IsNil)
+	c.Assert(resp.StatusCode, chk.Equals, 200)
 }
 
-func (s *IntegrationTestSuite) startDaemon(c *C) *exec.Cmd {
-	cmd := exec.Command("sudo", "./gear", "daemon")
-	err := cmd.Start()
+func (s *IntegrationTestSuite) TestIsolateInstallImage(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest002")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
 
-	c.Assert(err, IsNil, Commentf("Couldn't start daemon: %+v", err))
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	time.Sleep(30 * time.Second)
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId)
+	data, err := cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerState(c, id, "deleted") //never started
 
-	return cmd
-}
-
-func (s *IntegrationTestSuite) stopDaemon() {
-	if s.cmd != nil {
-		s.cmd.Process.Kill()
+	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
+	paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
+	c.Assert(err, chk.IsNil)
+	for _, p := range paths {
+		s.assertFilePresent(c, p, 0664, true)
 	}
 }
 
-func (s *IntegrationTestSuite) SetUpTest(c *C) {
-	s.dockerClient.RemoveImage("geard/fake-app")
-}
-
-// TestXxxx methods are identified as test cases
-func (s *IntegrationTestSuite) TestCleanBuild(c *C) {
-	extendedParams := jobs.ExtendedBuildImageData{
-		Tag:       "geard/fake-app",
-		Source:    "git://github.com/pmorie/simple-html",
-		BaseImage: "pmorie/sti-fake",
-		Clean:     true,
-		Verbose:   true,
-	}
-
-	s.buildImage(c, extendedParams)
-	s.checkForImage(c, extendedParams.Tag)
-
-	containerId := s.createContainer(c, extendedParams.Tag)
-	defer s.removeContainer(containerId)
-	s.checkBasicBuildState(c, containerId)
-}
-
-func (s *IntegrationTestSuite) buildImage(c *C, extendedParams jobs.ExtendedBuildImageData) {
-	url := fmt.Sprintf("http://localhost:%s/build-image", s.daemonPort)
-	b, _ := json.Marshal(extendedParams)
-	req, _ := http.NewRequest("POST", url, bytes.NewReader(b))
-	req.Header.Set("Content-Type", "application/json")
-	req.ParseForm()
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	c.Assert(err, IsNil, Commentf("Failed to start build"))
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-
-	c.Logf("Response Body: %s", body)
-	c.Assert(resp.StatusCode, Equals, 202, Commentf("Bad response: %+v Body: %s", resp, body))
-}
-
-func (s *IntegrationTestSuite) checkForImage(c *C, tag string) {
-	_, err := s.dockerClient.InspectImage(tag)
-	c.Assert(err, IsNil, Commentf("Couldn't find built image"))
-}
-
-func (s *IntegrationTestSuite) createContainer(c *C, image string) string {
-	config := docker.Config{Image: image, AttachStdout: false, AttachStdin: false}
-	container, err := s.dockerClient.CreateContainer(docker.CreateContainerOptions{Name: "", Config: &config})
-	c.Assert(err, IsNil, Commentf("Couldn't create container from image %s", image))
-
-	err = s.dockerClient.StartContainer(container.ID, &docker.HostConfig{})
-	c.Assert(err, IsNil, Commentf("Couldn't start container: %s", container.ID))
-
-	exitCode, err := s.dockerClient.WaitContainer(container.ID)
-	c.Assert(exitCode, Equals, 0, Commentf("Bad exit code from container: %d", exitCode))
-
-	return container.ID
-}
-
-func (s *IntegrationTestSuite) removeContainer(cId string) {
-	s.dockerClient.RemoveContainer(docker.RemoveContainerOptions{cId, true})
-}
-
-func (s *IntegrationTestSuite) checkFileExists(c *C, cId string, filePath string) {
-	err := s.dockerClient.CopyFromContainer(docker.CopyFromContainerOptions{ioutil.Discard, cId, filePath})
-
-	c.Assert(err, IsNil, Commentf("Couldn't find file %s in container %s", filePath, cId))
-}
-
-func (s *IntegrationTestSuite) checkBasicBuildState(c *C, cId string) {
-	s.checkFileExists(c, cId, "/sti-fake/prepare-invoked")
-	s.checkFileExists(c, cId, "/sti-fake/run-invoked")
-	s.checkFileExists(c, cId, "/sti-fake/src/index.html")
-}
-
-func (s *IntegrationTestSuite) checkIncrementalBuildState(c *C, cId string) {
-	s.checkBasicBuildState(c, cId)
-	s.checkFileExists(c, cId, "/sti-fake/save-artifacts-invoked")
-}
-
-func (s *IntegrationTestSuite) checkExtendedBuildState(c *C, cId string) {
-	s.checkFileExists(c, cId, "/sti-fake/prepare-invoked")
-	s.checkFileExists(c, cId, "/sti-fake/run-invoked")
-}
-
-func (s *IntegrationTestSuite) checkIncrementalExtendedBuildState(c *C, cId string) {
-	s.checkExtendedBuildState(c, cId)
-	s.checkFileExists(c, cId, "/sti-fake/src/save-artifacts-invoked")
+func (s *IntegrationTestSuite) TearDownSuite(c *chk.C) {
 }
