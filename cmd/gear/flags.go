@@ -1,12 +1,13 @@
-package cmd
+package main
 
 import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
 	"log"
 	"os"
+
+	"github.com/smarterclayton/geard/containers"
 )
 
 func GenerateId() string {

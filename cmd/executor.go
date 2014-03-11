@@ -255,7 +255,7 @@ func (jobs jobSet) remotes() (remotes remoteJobSet, err error) {
 	return
 }
 
-func fail(code int, format string, other ...interface{}) {
+func Fail(code int, format string, other ...interface{}) {
 	fmt.Fprintf(os.Stderr, format, other...)
 	if !strings.HasSuffix(format, "\n") {
 		fmt.Fprintln(os.Stderr)
