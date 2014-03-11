@@ -6,6 +6,7 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"github.com/fsouza/go-dockerclient/engine"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -99,9 +100,11 @@ func (d *DockerClient) GetImage(imageName string) (*docker.Image, error) {
 }
 
 func (d *DockerClient) ChildProcessForContainer(container *docker.Container) (int, error) {
-	if strings.HasPrefix(d.executionDriver, "lxc") {
+	log.Printf("docker: execution driver %s", d.executionDriver)
+	if d.executionDriver == "" || strings.HasPrefix(d.executionDriver, "lxc") {
 		//Parent pid (LXC or N-Spawn)
 		ppid := strconv.Itoa(container.State.Pid)
+		log.Printf("docker: parent pid %s", ppid)
 
 		//Lookup any child of parent pid
 		files, _ := filepath.Glob(filepath.Join("/proc", "*", "stat"))

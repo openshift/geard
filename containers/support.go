@@ -2,6 +2,7 @@ package containers
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	dc "github.com/fsouza/go-dockerclient"
 	"github.com/smarterclayton/geard/config"
@@ -139,6 +140,9 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 		pid, err := d.ChildProcessForContainer(container)
 		if err != nil {
 			return err
+		}
+		if pid < 2 {
+			return errors.New("support: child PID is not correct")
 		}
 		log.Printf("Updating network namespaces for %d", pid)
 		if err := updateNamespaceNetworkLinks(pid, "127.0.0.2", file); err != nil {
