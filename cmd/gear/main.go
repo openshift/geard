@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/smarterclayton/geard/cmd"
 	_ "net/http/pprof"
+
+	"github.com/smarterclayton/geard/cmd"
 )
 
 func main() {

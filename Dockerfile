@@ -10,8 +10,8 @@ WORKDIR   /go/src/github.com/smarterclayton/geard
 RUN \
    go get -tags selinux ./... && \
    go install -tags selinux github.com/smarterclayton/geard/cmd/gear && \
-   go install -tags selinux github.com/smarterclayton/geard/support/switchns && \
-   go install -tags selinux github.com/smarterclayton/geard/support/gear-auth-keys-command && \
+   go install -tags selinux github.com/smarterclayton/geard/cmd/switchns && \
+   go install -tags selinux github.com/smarterclayton/geard/cmd/gear-auth-keys-command && \
    /bin/cp -f $GOPATH/bin/{gear,switchns,gear-auth-keys-command} /bin/ && \
    rm -rf $GOPATH
 

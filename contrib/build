@@ -21,18 +21,16 @@ done
 tags=""
 
 if $use_selinux; then
-	tags="-tags selinux "
+	tags="-tags selinux"
 fi
-
-#GOOS=linux GOARCH=amd64 go build -o geard.linux64 geard/main.go
 
 if $handle_systemd; then
 	docker build -rm -t ccoleman/geard /vagrant && sudo systemctl restart geard.service	
 else
 	go get ./...
 	go install $tags github.com/smarterclayton/geard/cmd/gear
-	go install $tags github.com/smarterclayton/geard/support/switchns
-	go install $tags github.com/smarterclayton/geard/support/gear-auth-keys-command
+	go install $tags github.com/smarterclayton/geard/cmd/switchns
+	go install $tags github.com/smarterclayton/geard/cmd/gear-auth-keys-command
 
 	sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
 	sudo /usr/bin/cp -f $GOPATH/bin/switchns .
