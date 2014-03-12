@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
-	"github.com/docopt/docopt.go"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/git"
-	"github.com/smarterclayton/geard/support/switchns/namespace"
 	"os"
 	"os/user"
 	"strconv"
 	"strings"
+
+	"github.com/docopt/docopt.go"
+	"github.com/smarterclayton/geard/cmd/switchns/namespace"
+	"github.com/smarterclayton/geard/containers"
+	"github.com/smarterclayton/geard/docker"
+	"github.com/smarterclayton/geard/git"
 )
 
 const usage = `Switch into container namespace and execute a command.

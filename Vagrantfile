@@ -21,7 +21,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # accessing "localhost:8080" will access port 80 on the guest machine.
   # config.vm.network :forwarded_port, guest: 80, host: 8080
 
-  config.vm.network "forwarded_port", guest: 2223, host: 2223
   config.vm.network "forwarded_port", guest: 8080, host: 2224
 
   # Create a private network, which allows host-only access to the machine
@@ -57,6 +56,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   #
   # View the documentation for the provider you're using for more
   # information on available options.
+ 
+  config.vm.provision "shell", privileged: true, inline: "/vagrant/contrib/bootstrap-dev-vm.sh"
 
   # Enable provisioning with Puppet stand alone.  Puppet manifests
   # are contained in a directory path relative to this Vagrantfile.
