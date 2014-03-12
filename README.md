@@ -149,7 +149,7 @@ The `contrib/build` script allows you to build and run the project in two differ
 To build and run locally, run the following commands in an ssh session to your development vm:
 
     contrib/build -s
-    gear daemon
+    sudo ./gear daemon
 
 The gear daemon's logs will go to the console in this case.
 
