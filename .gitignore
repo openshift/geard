@@ -2,8 +2,11 @@
 geard.linux64
 go
 .project
-./gear
+/gear
 geard
 switchns
 gear-auth-keys-command
 gear.mac
+/bin
+/src
+/pkg
