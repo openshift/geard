@@ -352,7 +352,7 @@ func (s *IntegrationTestSuite) TestStatus(c *chk.C) {
 	data, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
-	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/container-IntTest005.service; enabled)"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest005.service; enabled)"), chk.Equals, true)
 	s.assertContainerState(c, id, CONTAINER_STOPPED)
 
 	cmd = exec.Command("/var/lib/containers/bin/gear", "start", hostContainerId)
@@ -364,7 +364,7 @@ func (s *IntegrationTestSuite) TestStatus(c *chk.C) {
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/container-IntTest005.service; enabled)"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest005.service; enabled)"), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "Active: active (running)"), chk.Equals, true)
 
 	cmd = exec.Command("/var/lib/containers/bin/gear", "stop", hostContainerId)
@@ -376,7 +376,7 @@ func (s *IntegrationTestSuite) TestStatus(c *chk.C) {
 	data, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
-	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/container-IntTest005.service; enabled)"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest005.service; enabled)"), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "Active: inactive (dead)"), chk.Equals, true)
 }
 
