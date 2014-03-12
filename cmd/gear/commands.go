@@ -12,7 +12,7 @@ import (
 	"strconv"
 
 	"github.com/smarterclayton/cobra"
-	gcmd "github.com/smarterclayton/geard/cmd"
+	. "github.com/smarterclayton/geard/cmd"
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/dispatcher"
 	"github.com/smarterclayton/geard/git"
@@ -200,12 +200,12 @@ func Execute() {
 		Use:   "auth-keys-command <user name>",
 		Short: "(Local) Generate authoried keys output for sshd.",
 		Long:  "Generate authoried keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
-		Run:   gcmd.SshAuthKeysCommand,
+		Run:   SshAuthKeysCommand,
 	}
 	gearCmd.AddCommand(sshAuthKeysCmd)
 
 	if err := gearCmd.Execute(); err != nil {
-		gcmd.Fail(1, err.Error())
+		Fail(1, err.Error())
 	}
 }
 
@@ -248,30 +248,30 @@ func clean(cmd *cobra.Command, args []string) {
 
 func installImage(cmd *cobra.Command, args []string) {
 	if err := environment.ExtractVariablesFrom(&args, true); err != nil {
-		gcmd.Fail(1, err.Error())
+		Fail(1, err.Error())
 	}
 
 	if len(args) < 2 {
-		gcmd.Fail(1, "Valid arguments: <image_name> <id> ...\n")
+		Fail(1, "Valid arguments: <image_name> <id> ...\n")
 	}
 
 	imageId := args[0]
 	if imageId == "" {
-		gcmd.Fail(1, "Argument 1 must be a Docker image to base the service on\n")
+		Fail(1, "Argument 1 must be a Docker image to base the service on\n")
 	}
-	ids, err := gcmd.NewRemoteIdentifiers(args[1:]...)
+	ids, err := NewRemoteIdentifiers(args[1:]...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
-	gcmd.Executor{
+	Executor{
 		On: ids,
-		Serial: func(on gcmd.Locator) jobs.Job {
+		Serial: func(on Locator) jobs.Job {
 			return &http.HttpInstallContainerRequest{
 				InstallContainerRequest: jobs.InstallContainerRequest{
 					RequestIdentifier: jobs.NewRequestIdentifier(),
 
-					Id:      on.(*gcmd.RemoteIdentifier).Id,
+					Id:      on.(*RemoteIdentifier).Id,
 					Image:   imageId,
 					Started: start,
 					Simple:  simple,
@@ -289,22 +289,22 @@ func installImage(cmd *cobra.Command, args []string) {
 
 func setEnvironment(cmd *cobra.Command, args []string) {
 	if err := environment.ExtractVariablesFrom(&args, false); err != nil {
-		gcmd.Fail(1, err.Error())
+		Fail(1, err.Error())
 	}
 
 	if len(args) < 1 {
-		gcmd.Fail(1, "Valid arguments: <name>... <key>=<value>...\n")
+		Fail(1, "Valid arguments: <name>... <key>=<value>...\n")
 	}
 
-	ids, err := gcmd.NewRemoteIdentifiers(args[0:]...)
+	ids, err := NewRemoteIdentifiers(args[0:]...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
-	gcmd.Executor{
+	Executor{
 		On: ids,
-		Serial: func(on gcmd.Locator) jobs.Job {
-			environment.Description.Id = on.(*gcmd.RemoteIdentifier).Id
+		Serial: func(on Locator) jobs.Job {
+			environment.Description.Id = on.(*RemoteIdentifier).Id
 			if resetEnv {
 				return &http.HttpPutEnvironmentRequest{
 					PutEnvironmentRequest: jobs.PutEnvironmentRequest{environment.Description},
@@ -321,19 +321,19 @@ func setEnvironment(cmd *cobra.Command, args []string) {
 
 func showEnvironment(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		gcmd.Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := gcmd.NewRemoteIdentifiers(args...)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid environment ids: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid environment ids: %s\n", err.Error())
 	}
 
-	data, errors := gcmd.Executor{
+	data, errors := Executor{
 		On: ids,
-		Serial: func(on gcmd.Locator) jobs.Job {
+		Serial: func(on Locator) jobs.Job {
 			return &http.HttpContentRequest{
 				ContentRequest: jobs.ContentRequest{
-					Locator: string(on.(*gcmd.RemoteIdentifier).Id),
+					Locator: string(on.(*RemoteIdentifier).Id),
 					Type:    jobs.ContentTypeEnvironment,
 				},
 			}
@@ -358,25 +358,25 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 
 func deleteContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		gcmd.Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := gcmd.NewRemoteIdentifiers(args...)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
-	gcmd.Executor{
+	Executor{
 		On: ids,
-		Serial: func(on gcmd.Locator) jobs.Job {
+		Serial: func(on Locator) jobs.Job {
 			return &http.HttpDeleteContainerRequest{
-				Label: on.(*gcmd.RemoteIdentifier).String(),
+				Label: on.(*RemoteIdentifier).String(),
 				DeleteContainerRequest: jobs.DeleteContainerRequest{
-					Id: on.(*gcmd.RemoteIdentifier).Id,
+					Id: on.(*RemoteIdentifier).Id,
 				},
 			}
 		},
 		Output: os.Stdout,
-		OnSuccess: func(r *gcmd.CliJobResponse, w io.Writer, job interface{}) {
+		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
 			fmt.Fprintf(w, "Deleted %s", job.(*http.HttpDeleteContainerRequest).Label)
 		},
 		LocalInit: needsData,
@@ -385,22 +385,22 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 
 func linkContainers(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		gcmd.Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := gcmd.NewRemoteIdentifiers(args...)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 	if networkLinks.NetworkLinks == nil {
 		networkLinks.NetworkLinks = &containers.NetworkLinks{}
 	}
 
-	gcmd.Executor{
+	Executor{
 		On: ids,
-		Group: func(on ...gcmd.Locator) jobs.Job {
+		Group: func(on ...Locator) jobs.Job {
 			links := &jobs.ContainerLinks{make([]jobs.ContainerLink, 0, len(on))}
 			for i := range on {
-				links.Links = append(links.Links, jobs.ContainerLink{on[i].(*gcmd.RemoteIdentifier).Id, *networkLinks.NetworkLinks})
+				links.Links = append(links.Links, jobs.ContainerLink{on[i].(*RemoteIdentifier).Id, *networkLinks.NetworkLinks})
 			}
 			return &http.HttpLinkContainersRequest{
 				Label: on[0].String(),
@@ -409,7 +409,7 @@ func linkContainers(cmd *cobra.Command, args []string) {
 		},
 		Output:    os.Stdout,
 		LocalInit: needsData,
-		OnSuccess: func(r *gcmd.CliJobResponse, w io.Writer, job interface{}) {
+		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
 			fmt.Fprintf(w, "Links set on %s\n", job.(*http.HttpLinkContainersRequest).Label)
 		},
 	}.StreamAndExit()
@@ -417,22 +417,22 @@ func linkContainers(cmd *cobra.Command, args []string) {
 
 func startContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		gcmd.Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := gcmd.NewRemoteIdentifiers(args...)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
 	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*gcmd.RemoteIdentifier).Id.UnitNameFor())
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
 	}
-	gcmd.Executor{
+	Executor{
 		On: ids,
-		Serial: func(on gcmd.Locator) jobs.Job {
+		Serial: func(on Locator) jobs.Job {
 			return &http.HttpStartContainerRequest{
 				StartedContainerStateRequest: jobs.StartedContainerStateRequest{
-					Id: on.(*gcmd.RemoteIdentifier).Id,
+					Id: on.(*RemoteIdentifier).Id,
 				},
 			}
 		},
@@ -443,22 +443,22 @@ func startContainer(cmd *cobra.Command, args []string) {
 
 func stopContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		gcmd.Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := gcmd.NewRemoteIdentifiers(args...)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
 	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*gcmd.RemoteIdentifier).Id.UnitNameFor())
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
 	}
-	gcmd.Executor{
+	Executor{
 		On: ids,
-		Serial: func(on gcmd.Locator) jobs.Job {
+		Serial: func(on Locator) jobs.Job {
 			return &http.HttpStopContainerRequest{
 				StoppedContainerStateRequest: jobs.StoppedContainerStateRequest{
-					Id: on.(*gcmd.RemoteIdentifier).Id,
+					Id: on.(*RemoteIdentifier).Id,
 				},
 			}
 		},
@@ -469,22 +469,22 @@ func stopContainer(cmd *cobra.Command, args []string) {
 
 func restartContainer(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		gcmd.Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := gcmd.NewRemoteIdentifiers(args...)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
 	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl restart %s'\n", ids[0].(*gcmd.RemoteIdentifier).Id.UnitNameFor())
+		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl restart %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
 	}
-	gcmd.Executor{
+	Executor{
 		On: ids,
-		Serial: func(on gcmd.Locator) jobs.Job {
+		Serial: func(on Locator) jobs.Job {
 			return &http.HttpRestartContainerRequest{
 				RestartContainerRequest: jobs.RestartContainerRequest{
-					Id: on.(*gcmd.RemoteIdentifier).Id,
+					Id: on.(*RemoteIdentifier).Id,
 				},
 			}
 		},
@@ -495,22 +495,22 @@ func restartContainer(cmd *cobra.Command, args []string) {
 
 func containerStatus(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		gcmd.Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...\n")
 	}
-	ids, err := gcmd.NewRemoteIdentifiers(args...)
+	ids, err := NewRemoteIdentifiers(args...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
 	}
 
 	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also display the status of this container via 'systemctl status %s'\n", ids[0].(*gcmd.RemoteIdentifier).Id.UnitNameFor())
+		fmt.Fprintf(os.Stderr, "You can also display the status of this container via 'systemctl status %s'\n", ids[0].(*RemoteIdentifier).Id.UnitNameFor())
 	}
-	data, errors := gcmd.Executor{
+	data, errors := Executor{
 		On: ids,
-		Serial: func(on gcmd.Locator) jobs.Job {
+		Serial: func(on Locator) jobs.Job {
 			return &http.HttpContainerStatusRequest{
 				ContainerStatusRequest: jobs.ContainerStatusRequest{
-					Id: on.(*gcmd.RemoteIdentifier).Id,
+					Id: on.(*RemoteIdentifier).Id,
 				},
 			}
 		},
@@ -537,21 +537,21 @@ func containerStatus(cmd *cobra.Command, args []string) {
 
 func listUnits(cmd *cobra.Command, args []string) {
 	if len(args) == 0 {
-		args = []string{gcmd.LocalHostName}
+		args = []string{LocalHostName}
 	}
-	ids, err := gcmd.NewRemoteHostIdentifiers(args...)
+	ids, err := NewRemoteHostIdentifiers(args...)
 	if err != nil {
-		gcmd.Fail(1, "You must pass zero or more valid host names (use '%s' or pass no arguments for the current server): %s\n", gcmd.LocalHostName, err.Error())
+		Fail(1, "You must pass zero or more valid host names (use '%s' or pass no arguments for the current server): %s\n", LocalHostName, err.Error())
 	}
 
 	if len(ids) == 1 && !ids[0].IsRemote() {
 		fmt.Fprintf(os.Stderr, "You can also display the set of containers via 'systemctl list-units'\n")
 	}
-	data, errors := gcmd.Executor{
+	data, errors := Executor{
 		On: ids,
-		Group: func(on ...gcmd.Locator) jobs.Job {
+		Group: func(on ...Locator) jobs.Job {
 			return &http.HttpListContainersRequest{
-				Label: string(on[0].(*gcmd.RemoteIdentifier).Host),
+				Label: string(on[0].(*RemoteIdentifier).Host),
 				ListContainersRequest: jobs.ListContainersRequest{},
 			}
 		},
@@ -581,33 +581,33 @@ func listUnits(cmd *cobra.Command, args []string) {
 
 func initGear(cmd *cobra.Command, args []string) {
 	if len(args) != 2 || !(pre || post) || (pre && post) {
-		gcmd.Fail(1, "Valid arguments: <id> <image_name> (--pre|--post)\n")
+		Fail(1, "Valid arguments: <id> <image_name> (--pre|--post)\n")
 	}
 	containerId, err := containers.NewIdentifier(args[0])
 	if err != nil {
-		gcmd.Fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
+		Fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 	}
 
 	switch {
 	case pre:
 		if err := containers.InitPreStart(conf.Docker.Socket, containerId, args[1]); err != nil {
-			gcmd.Fail(2, "Unable to initialize container %s\n", err.Error())
+			Fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	case post:
 		if err := containers.InitPostStart(conf.Docker.Socket, containerId); err != nil {
-			gcmd.Fail(2, "Unable to initialize container %s\n", err.Error())
+			Fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	}
 }
 
 func initRepository(cmd *cobra.Command, args []string) {
 	if len(args) < 1 || len(args) > 2 {
-		gcmd.Fail(1, "Valid arguments: <repo_id> [<repo_url>]\n")
+		Fail(1, "Valid arguments: <repo_id> [<repo_url>]\n")
 	}
 
 	repoId, err := containers.NewIdentifier(args[0])
 	if err != nil {
-		gcmd.Fail(1, "Argument 1 must be a valid repository identifier: %s\n", err.Error())
+		Fail(1, "Argument 1 must be a valid repository identifier: %s\n", err.Error())
 	}
 
 	repoUrl := ""
@@ -617,13 +617,13 @@ func initRepository(cmd *cobra.Command, args []string) {
 
 	needsSystemd()
 	if err := gitjobs.InitializeRepository(git.RepoIdentifier(repoId), repoUrl); err != nil {
-		gcmd.Fail(2, "Unable to initialize repository %s\n", err.Error())
+		Fail(2, "Unable to initialize repository %s\n", err.Error())
 	}
 }
 
 func genAuthKeys(cmd *cobra.Command, args []string) {
 	if len(args) > 1 {
-		gcmd.Fail(1, "Valid arguments: [<id>]\n")
+		Fail(1, "Valid arguments: [<id>]\n")
 	}
 
 	var (
@@ -637,7 +637,7 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 	if len(args) == 1 {
 		containerId, err = containers.NewIdentifier(args[0])
 		if err != nil {
-			gcmd.Fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
+			Fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
 		}
 		if gitKeys {
 			repoId = git.RepoIdentifier(containerId)
@@ -647,34 +647,34 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 		}
 
 		if err != nil {
-			gcmd.Fail(2, "Unable to lookup user: %s", err.Error())
+			Fail(2, "Unable to lookup user: %s", err.Error())
 		}
 		isRepo = gitKeys
 	} else {
 		if u, err = user.LookupId(strconv.Itoa(os.Getuid())); err != nil {
-			gcmd.Fail(2, "Unable to lookup user")
+			Fail(2, "Unable to lookup user")
 		}
 		isRepo = u.Name == "Repository user"
 		if isRepo {
 			repoId, err = git.NewIdentifierFromUser(u)
 			if err != nil {
-				gcmd.Fail(1, "Not a repo user: %s\n", err.Error())
+				Fail(1, "Not a repo user: %s\n", err.Error())
 			}
 		} else {
 			containerId, err = containers.NewIdentifierFromUser(u)
 			if err != nil {
-				gcmd.Fail(1, "Not a gear user: %s\n", err.Error())
+				Fail(1, "Not a gear user: %s\n", err.Error())
 			}
 		}
 	}
 
 	if isRepo {
 		if err := git.GenerateAuthorizedKeys(repoId, u, false, false); err != nil {
-			gcmd.Fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
+			Fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 		}
 	} else {
 		if err := containers.GenerateAuthorizedKeys(containerId, u, false, false); err != nil {
-			gcmd.Fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
+			Fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 		}
 	}
 }
