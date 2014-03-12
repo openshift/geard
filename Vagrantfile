@@ -22,6 +22,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # config.vm.network :forwarded_port, guest: 80, host: 8080
 
   config.vm.network "forwarded_port", guest: 8080, host: 2224
+  config.vm.network "forwarded_port", guest: 6060, host: 2225
 
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
@@ -42,6 +43,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # argument is a set of non-required options.
   # config.vm.synced_folder "../data", "/vagrant_data"
 
+  if ENV['GOPATH'] && ENV['GOPATH'] != ""
+    config.vm.synced_folder ENV['GOPATH'], "/vagrant"
+  else
+    config.vm.synced_folder '.', "/vagrant/src/github.com/smarterclayton/geard"
+  end
+
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
   # Example for VirtualBox:
@@ -57,7 +64,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # View the documentation for the provider you're using for more
   # information on available options.
  
-  config.vm.provision "shell", privileged: true, inline: "/vagrant/contrib/bootstrap-dev-vm.sh"
+  config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/smarterclayton/geard/contrib/bootstrap-dev-vm.sh"
 
   # Enable provisioning with Puppet stand alone.  Puppet manifests
   # are contained in a directory path relative to this Vagrantfile.

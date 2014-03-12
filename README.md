@@ -123,12 +123,18 @@ The geard code depends on:
 * systemd 207 (Fedora 20 or newer)
 * Docker 0.7 or newer
 
-You'll also need the following to try it out in a development vm:
+If you don't have those, you can use the following to run in a development vm:
 
 * Vagrant
 * VirtualBox
 
-To start up a development vm, all you have to do is:
+If you have Go installed locally (have a valid GOPATH env variable set), run:
+
+    go get github.com/smarterclayton/geard
+    cd $GOPATH/src/github.com/smarterclayton/geard
+    vagrant up
+
+If you don't have Go installed locally, run the following steps:
 
     git clone git@github.com:smarterclayton/geard && cd geard
     vagrant up
