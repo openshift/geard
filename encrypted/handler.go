@@ -13,6 +13,7 @@ import (
 	"fmt"
 	jobhttp "github.com/smarterclayton/geard/http"
 	"github.com/smarterclayton/geard/jobs"
+	"github.com/smarterclayton/geard/utils"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -39,6 +40,44 @@ func NewTokenConfiguration(private, public string) (*TokenConfiguration, error) 
 		return nil, err
 	}
 	return &TokenConfiguration{priv, pub}, nil
+}
+
+func (t *TokenConfiguration) Sign(job *jobs.ContentRequest, keyId string, expiration int64) (string, error) {
+	source := &TokenData{
+		Identifier:     jobs.NewRequestIdentifier().String(),
+		Locator:        job.Locator,
+		Type:           job.Type,
+		ExpirationDate: expiration,
+	}
+
+	buf := &bytes.Buffer{}
+	encoder := json.NewEncoder(buf)
+	if err := encoder.Encode(source); err != nil {
+		return "", err
+	}
+
+	cipher, err := rsa.EncryptPKCS1v15(rand.Reader, t.publicKey, buf.Bytes())
+	if err != nil {
+		return "", err
+	}
+
+	hash := crypto.SHA256.New()
+	if _, err := hash.Write(cipher); err != nil {
+		return "", err
+	}
+
+	hashed := hash.Sum(nil)
+	sig, err := rsa.SignPKCS1v15(rand.Reader, t.privateKey, crypto.SHA256, hashed)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf(
+		"%s/%s/%s",
+		utils.EncodeUrlPath(keyId),
+		base64.URLEncoding.EncodeToString(sig),
+		base64.URLEncoding.EncodeToString(cipher),
+	), nil
 }
 
 func (t *TokenConfiguration) Handler(parent http.Handler) http.HandlerFunc {
