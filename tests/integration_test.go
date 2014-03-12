@@ -67,6 +67,14 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 		_, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
 		c.Assert(err, chk.Not(chk.IsNil))
 	case state == "running":
+		for i := 0; i < 10; i++ {
+			container, _ := s.dockerClient.GetContainer(id.ContainerFor(), true)
+			if !container.State.Running {
+				time.Sleep(time.Second)
+			} else {
+				break
+			}
+		}
 		container, err := s.dockerClient.GetContainer(id.ContainerFor(), true)
 		c.Assert(err, chk.IsNil)
 		c.Assert(container.State.Running, chk.Equals, true)
