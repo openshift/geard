@@ -15,9 +15,9 @@ import (
 type Identifier string
 
 var InvalidIdentifier = Identifier("")
-var allowedIdentifier = regexp.MustCompile("\\A[a-zA-Z0-9\\-\\.]{4,32}\\z")
+var allowedIdentifier = regexp.MustCompile("\\A[a-zA-Z0-9\\-\\.]{4,24}\\z")
 
-const IdentifierPrefix = "container-"
+const IdentifierPrefix = "ctr-"
 
 func NewIdentifier(s string) (Identifier, error) {
 	switch {
