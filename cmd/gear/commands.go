@@ -8,13 +8,16 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/user"
+	"path/filepath"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/smarterclayton/cobra"
 	. "github.com/smarterclayton/geard/cmd"
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/dispatcher"
+	"github.com/smarterclayton/geard/encrypted"
 	"github.com/smarterclayton/geard/git"
 	githttp "github.com/smarterclayton/geard/git/http"
 	gitjobs "github.com/smarterclayton/geard/git/jobs"
@@ -31,6 +34,8 @@ var (
 	listenAddr   string
 	resetEnv     bool
 	simple       bool
+	keyPath      string
+	expiresAt    int64
 	environment  EnvironmentDescription
 	portPairs    PortPairs
 	networkLinks NetworkLinks
@@ -59,6 +64,7 @@ func Execute() {
 		Long:  "A commandline client and server that allows Docker containers to be installed to Systemd in an opinionated and distributed fashion.\n\nComplete documentation is available at http://github.com/smarterclayton/geard",
 		Run:   gear,
 	}
+	gearCmd.PersistentFlags().StringVar(&(keyPath), "key-path", "", "Specify the directory containing the server private key and trusted client public keys")
 	gearCmd.PersistentFlags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
 
 	installImageCmd := &cobra.Command{
@@ -199,10 +205,19 @@ func Execute() {
 	sshAuthKeysCmd := &cobra.Command{
 		Use:   "auth-keys-command <user name>",
 		Short: "(Local) Generate authoried keys output for sshd.",
-		Long:  "Generate authoried keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
+		Long:  "Generate authorized keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
 		Run:   SshAuthKeysCommand,
 	}
 	gearCmd.AddCommand(sshAuthKeysCmd)
+
+	createTokenCmd := &cobra.Command{
+		Use:   "create-token <type> <content_id>",
+		Short: "(Local) Generate a content request token",
+		Long:  "Create a URL that will serve as a content request token using a server public key and client private key.",
+		Run:   createToken,
+	}
+	createTokenCmd.Flags().Int64Var(&expiresAt, "expires-at", time.Now().Unix()+3600, "Specify the content request token expiration time in seconds after the Unix epoch")
+	gearCmd.AddCommand(createTokenCmd)
 
 	if err := gearCmd.Execute(); err != nil {
 		Fail(1, err.Error())
@@ -230,13 +245,23 @@ func gear(cmd *cobra.Command, args []string) {
 }
 
 func daemon(cmd *cobra.Command, args []string) {
+	api := conf.Handler()
+	nethttp.Handle("/", api)
+
+	if keyPath != "" {
+		config, err := encrypted.NewTokenConfiguration(filepath.Join(keyPath, "server"), filepath.Join(keyPath, "client.pub"))
+		if err != nil {
+			Fail(1, "Unable to load token configuration: %s", err.Error())
+		}
+		nethttp.Handle("/token/", nethttp.StripPrefix("/token", config.Handler(api)))
+	}
+
 	systemd.Start()
 	containers.InitializeData()
 	containers.StartPortAllocator(4000, 60000)
 	git.InitializeData()
 	conf.Dispatcher.Start()
 
-	nethttp.Handle("/", conf.Handler())
 	log.Printf("Listening for HTTP on %s ...", listenAddr)
 	log.Fatal(nethttp.ListenAndServe(listenAddr, nil))
 }
@@ -576,6 +601,28 @@ func listUnits(cmd *cobra.Command, args []string) {
 		}
 		os.Exit(1)
 	}
+	os.Exit(0)
+}
+
+func createToken(cmd *cobra.Command, args []string) {
+	if len(args) != 2 {
+		Fail(1, "Valid arguments: <type> <content_id>")
+	}
+
+	if keyPath == "" {
+		Fail(1, "You must specify --key-path to create a token")
+	}
+	config, err := encrypted.NewTokenConfiguration(filepath.Join(keyPath, "client"), filepath.Join(keyPath, "server.pub"))
+	if err != nil {
+		Fail(1, "Unable to load token configuration: %s", err.Error())
+	}
+
+	job := &jobs.ContentRequest{Locator: args[1], Type: args[0]}
+	value, err := config.Sign(job, "key", expiresAt)
+	if err != nil {
+		Fail(1, "Unable to sign this request: %s", err.Error())
+	}
+	fmt.Printf("%s", value)
 	os.Exit(0)
 }
 
