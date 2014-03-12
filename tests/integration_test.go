@@ -15,8 +15,11 @@ import (
 	"time"
 )
 
-const CONTAINER_STABIZE_TIMEOUT = time.Second
-const CONTAINER_STATE_CHANGE_TIMEOUT = 15
+const (
+	CONTAINER_STATE_CHANGE_TIMEOUT = time.Minute * 3
+	DOCKER_STATE_CHANGE_TIMEOUT    = time.Minute
+	SYSTEMD_ACTION_DELAY           = time.Second * 2
+)
 
 //Hookup gocheck with go test
 func Test(t *testing.T) {
@@ -30,6 +33,7 @@ type IntegrationTestSuite struct {
 	daemonURI     string
 	containerIds  []containers.Identifier
 	repositoryIds []string
+	sdconn        systemd.Systemd
 }
 
 func (s *IntegrationTestSuite) assertFilePresent(c *chk.C, path string, perm os.FileMode, readableByNobodyUser bool) {
@@ -63,36 +67,111 @@ func (s *IntegrationTestSuite) getContainerPid(id containers.Identifier) int {
 	return container.State.Pid
 }
 
-func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Identifier, state string) {
-	time.Sleep(CONTAINER_STABIZE_TIMEOUT) //wait for state to stabalize
+const (
+	CONTAINER_CREATED ContainerState = iota
+	CONTAINER_STARTED
+	CONTAINER_RESTARTED
+	CONTAINER_STOPPED
+)
+
+type ContainerState int
+
+func (c ContainerState) String() string {
 	switch {
-	case state == "deleted":
-		for i := 0; i < CONTAINER_STATE_CHANGE_TIMEOUT; i++ {
-			_, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
-			if err == nil {
-				time.Sleep(time.Second)
-			} else {
+	case c == CONTAINER_CREATED:
+		return "created"
+	case c == CONTAINER_STARTED:
+		return "started"
+	case c == CONTAINER_RESTARTED:
+		return "restarted"
+	case c == CONTAINER_STOPPED:
+		return "stopped"
+	default:
+		return "unknown"
+	}
+}
+
+func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Identifier, expectedState ContainerState) {
+	var (
+		curState   ContainerState
+		didStop    bool
+		didRestart bool
+		ticker     *time.Ticker
+	)
+
+	ticker = time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	cInfo, err := s.sdconn.GetUnitProperties(id.UnitNameFor())
+	c.Assert(err, chk.IsNil)
+	switch {
+	case cInfo["SubState"] == "running":
+		curState = CONTAINER_STARTED
+	case cInfo["SubState"] == "dead" || cInfo["SubState"] == "failed" || cInfo["SubState"] == "stop-sigterm":
+		didStop = true
+		curState = CONTAINER_STOPPED
+	}
+	c.Logf("Current state: %v, interpreted as %v", cInfo["SubState"], curState)
+
+	if curState != expectedState {
+		for true {
+			select {
+			case <-ticker.C:
+				cInfo, err := s.sdconn.GetUnitProperties(id.UnitNameFor())
+				c.Assert(err, chk.IsNil)
+				switch {
+				case cInfo["SubState"] == "running":
+					curState = CONTAINER_STARTED
+					if didStop {
+						didRestart = true
+					}
+				case cInfo["SubState"] == "dead" || cInfo["SubState"] == "failed" || cInfo["SubState"] == "stop-sigterm":
+					didStop = true
+					curState = CONTAINER_STOPPED
+				}
+				c.Logf("Current state: %v, interpreted as %v", cInfo["SubState"], curState)
+			case <-time.After(CONTAINER_STATE_CHANGE_TIMEOUT):
+				c.Logf("%v %v", didStop, didRestart)
+				c.Log("Timed out during state change")
+				c.Assert(1, chk.Equals, 2)
+			}
+			if (curState == expectedState) || (expectedState == CONTAINER_RESTARTED && didRestart == true) {
 				break
 			}
 		}
-		_, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
-		c.Assert(err, chk.Not(chk.IsNil))
-	case state == "running":
-		for i := 0; i < CONTAINER_STATE_CHANGE_TIMEOUT; i++ {
-			container, _ := s.dockerClient.GetContainer(id.ContainerFor(), true)
-			if !container.State.Running {
-				time.Sleep(time.Second)
-			} else {
-				break
+	}
+
+	switch {
+	case expectedState == CONTAINER_STOPPED:
+		for true {
+			select {
+			case <-ticker.C:
+				_, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
+				if err != nil {
+					return
+				}
+			case <-time.After(DOCKER_STATE_CHANGE_TIMEOUT):
+				c.Log("Timed out waiting for docker container to stop")
+				c.FailNow()
 			}
 		}
-		container, err := s.dockerClient.GetContainer(id.ContainerFor(), true)
-		c.Assert(err, chk.IsNil)
-		c.Assert(container.State.Running, chk.Equals, true)
-	case state == "stopped":
-		container, err := s.dockerClient.GetContainer(id.ContainerFor(), true)
-		c.Assert(err, chk.IsNil)
-		c.Assert(container.State.Running, chk.Equals, false)
+	case expectedState == CONTAINER_STARTED || expectedState == CONTAINER_RESTARTED:
+		for true {
+			select {
+			case <-ticker.C:
+				container, err := s.dockerClient.GetContainer(id.ContainerFor(), true)
+				if err != nil {
+					continue
+				}
+				c.Logf("Container state: %v. Info: %v", container.State.Running, container.State)
+				if container.State.Running {
+					return
+				}
+			case <-time.After(DOCKER_STATE_CHANGE_TIMEOUT):
+				c.Log("Timed out waiting for docker container to start")
+				c.FailNow()
+			}
+		}
 	}
 }
 
@@ -125,6 +204,12 @@ func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 			s.dockerClient.ForceCleanContainer(cinfo.ID)
 		}
 	}
+
+	s.sdconn, err = systemd.NewConnection()
+	c.Assert(err, chk.IsNil)
+	err = s.sdconn.Subscribe()
+	c.Assert(err, chk.IsNil)
+	defer s.sdconn.Unsubscribe()
 }
 
 func (s *IntegrationTestSuite) SetupTest(c *chk.C) {
@@ -133,65 +218,62 @@ func (s *IntegrationTestSuite) SetupTest(c *chk.C) {
 func (s *IntegrationTestSuite) TearDownTest(c *chk.C) {
 }
 
-func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
-	id, err := containers.NewIdentifier("IntTest004")
+func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest001")
 	c.Assert(err, chk.IsNil)
 	s.containerIds = append(s.containerIds, id)
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4002", "--start")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4000")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
-	s.assertContainerState(c, id, "running")
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
-	oldPid := s.getContainerPid(id)
+	s.assertContainerState(c, id, CONTAINER_STARTED)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "restart", hostContainerId)
-	data, err = cmd.CombinedOutput()
-	c.Log(string(data))
+	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
+	paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
+	c.Assert(err, chk.IsNil)
+	for _, p := range paths {
+		s.assertFilePresent(c, p, 0664, true)
+	}
+	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
 
-	sdconn, errc := systemd.NewConnection()
-	c.Assert(errc, chk.IsNil)
-	err = sdconn.Subscribe()
-	c.Assert(errc, chk.IsNil)
-	defer sdconn.Unsubscribe()
-	sdchan, errchan := sdconn.SubscribeUnits(time.Second)
-
-	var didStop bool
-	var didReStart bool
-	for true {
-		select {
-		case unitstatus := <-sdchan:
-			status := unitstatus["container-IntTest004.service"]
-			c.Log(status)
-			if status != nil {
-				if status.ActiveState == "deactivating" {
-					didStop = true
-					c.Logf("%v %v", didStop, didReStart)
-				}
-				if didStop && status.ActiveState == "active" {
-					c.Logf("%v %v", didStop, didReStart)
-					didReStart = true
-				}
-			}
-		case err := <-errchan:
-			c.Assert(err, chk.IsNil)
-		case <-time.After(time.Minute):
-			c.Logf("%v %v", didStop, didReStart)
-			c.Log("Timed out during restart")
-			c.Assert(1, chk.Equals, 2)
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
+		if err == nil {
+			c.Assert(resp.StatusCode, chk.Equals, 200)
 		}
-		if didReStart {
-			break
-		}
+	case <-time.After(time.Second * 15):
+		c.Fail()
 	}
+}
 
-	newPid := s.getContainerPid(id)
-	c.Assert(oldPid, chk.Not(chk.Equals), newPid)
+func (s *IntegrationTestSuite) TestIsolateInstallImage(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest002")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
+
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId)
+	data, err := cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerState(c, id, CONTAINER_STOPPED) //never started
+
+	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
+	paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
+	c.Assert(err, chk.IsNil)
+	for _, p := range paths {
+		s.assertFilePresent(c, p, 0664, true)
+	}
 }
 
 func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
@@ -211,7 +293,7 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	s.assertContainerState(c, id, "running")
+	s.assertContainerState(c, id, CONTAINER_STARTED)
 	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
 
 	ports, err := containers.GetExistingPorts(id)
@@ -224,39 +306,37 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	s.assertContainerState(c, id, "deleted")
+	s.assertContainerState(c, id, CONTAINER_STOPPED)
 }
 
-func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
-	id, err := containers.NewIdentifier("IntTest001")
+func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest004")
 	c.Assert(err, chk.IsNil)
 	s.containerIds = append(s.containerIds, id)
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4000")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4002", "--start")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	s.assertContainerState(c, id, "running")
-
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
-	paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
-	c.Assert(err, chk.IsNil)
-	for _, p := range paths {
-		s.assertFilePresent(c, p, 0664, true)
-	}
+	s.assertContainerState(c, id, CONTAINER_STARTED)
 	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	oldPid := s.getContainerPid(id)
 
-	ports, err := containers.GetExistingPorts(id)
+	cmd = exec.Command("/var/lib/containers/bin/gear", "restart", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
-	c.Assert(err, chk.IsNil)
-	c.Assert(resp.StatusCode, chk.Equals, 200)
+	s.assertContainerState(c, id, CONTAINER_RESTARTED)
+
+	newPid := s.getContainerPid(id)
+	c.Assert(oldPid, chk.Not(chk.Equals), newPid)
 }
 
-func (s *IntegrationTestSuite) TestIsolateInstallImage(c *chk.C) {
-	id, err := containers.NewIdentifier("IntTest002")
+func (s *IntegrationTestSuite) TestStatus(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest005")
 	c.Assert(err, chk.IsNil)
 	s.containerIds = append(s.containerIds, id)
 
@@ -266,14 +346,38 @@ func (s *IntegrationTestSuite) TestIsolateInstallImage(c *chk.C) {
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	s.assertContainerState(c, id, "deleted") //never started
-
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
-	paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	data, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
-	for _, p := range paths {
-		s.assertFilePresent(c, p, 0664, true)
-	}
+	c.Log(string(data))
+	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/container-IntTest005.service; enabled)"), chk.Equals, true)
+	s.assertContainerState(c, id, CONTAINER_STOPPED)
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "start", hostContainerId)
+	_, err = cmd.CombinedOutput()
+	c.Assert(err, chk.IsNil)
+	s.assertContainerState(c, id, CONTAINER_STARTED)
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/container-IntTest005.service; enabled)"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "Active: active (running)"), chk.Equals, true)
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "stop", hostContainerId)
+	_, err = cmd.CombinedOutput()
+	c.Assert(err, chk.IsNil)
+	s.assertContainerState(c, id, CONTAINER_STOPPED)
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Assert(err, chk.IsNil)
+	c.Log(string(data))
+	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/container-IntTest005.service; enabled)"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "Active: inactive (dead)"), chk.Equals, true)
 }
 
 func (s *IntegrationTestSuite) TearDownSuite(c *chk.C) {
