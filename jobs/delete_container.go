@@ -17,6 +17,7 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 	unitPath := j.Id.UnitPathFor()
 	socketUnitPath := j.Id.SocketUnitPathFor()
 	unitDefinitionPath := j.Id.UnitDefinitionPathFor()
+	homeDirPath := j.Id.BaseHomePath()
 
 	_, err := systemd.Connection().GetUnitProperties(unitName)
 	switch {
@@ -59,6 +60,10 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 
 	if _, err := systemd.Connection().DisableUnitFiles([]string{unitPath, socketUnitPath}, false); err != nil {
 		log.Printf("delete_container: Some units have not been disabled: %v", err)
+	}
+
+	if err := os.RemoveAll(filepath.Dir(homeDirPath)); err != nil {
+		log.Printf("delete_container: Unable to remove home directory: %v", err)
 	}
 
 	resp.Success(JobResponseOk)

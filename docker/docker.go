@@ -24,6 +24,17 @@ type DockerClient struct {
 	executionDriver string
 }
 
+func (d *DockerClient) ListContainers() ([]docker.APIContainers, error) {
+	return d.client.ListContainers(docker.ListContainersOptions{All: true})
+}
+
+func (d *DockerClient) ForceCleanContainer(ID string) error {
+	if err := d.client.KillContainer(ID); err != nil {
+		return err
+	}
+	return d.client.RemoveContainer(docker.RemoveContainerOptions{ID, true})
+}
+
 func lookupContainer(containerName string, client *docker.Client, waitForContainer bool) containerLookupResult {
 	timeout := 0
 	if waitForContainer {

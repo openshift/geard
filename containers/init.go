@@ -11,9 +11,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"syscall"
 )
 
 func InitializeData() error {
+	syscall.Umask(0000)
 	if err := verifyDataPaths(); err != nil {
 		log.Fatal(err)
 		return err
