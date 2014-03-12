@@ -41,7 +41,7 @@ seq=$[seq+1]
 
 if [ $islocal -eq 0 ]; then
   header "See the status of the container"
-  systemctl status container-$gear
+  systemctl status ctr-$gear
 fi
 
 seq=$[seq+1]

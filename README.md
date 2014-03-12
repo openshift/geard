@@ -5,7 +5,7 @@ Gear(d) is an opinionated tool for installing Docker images as containers onto a
 
     $ sudo gear install pmorie/sti-html-app my-sample-service
 
-to install the public image <code>pmorie/sti-html-app</code> to systemd on the local box with the service name "container-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (port 8080 is the default):
+to install the public image <code>pmorie/sti-html-app</code> to systemd on the local box with the service name "ctr-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (port 8080 is the default):
 
     $ sudo gear daemon
     2014/02/21 02:59:42 ports: searching block 41, 4000-4099
@@ -224,7 +224,7 @@ The on disk structure of geard is exploratory at the moment.  The major componen
 
       units/
         ab/
-          container-abcdef.service  # systemd unit file that points to the definition
+          ctr-abcdef.service  # systemd unit file that points to the definition
           abcdef/
             definition         # hardlink with the full spec for this service
             <requestid>        # a particular version of the unit file.

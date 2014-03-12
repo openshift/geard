@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"fmt"
+	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/systemd"
 	"github.com/smarterclayton/go-systemd/dbus"
 	"io"
@@ -90,7 +91,7 @@ func (l *ListContainersResponse) WriteTableTo(w io.Writer) error {
 	return nil
 }
 
-var reContainerUnits = regexp.MustCompile("\\Acontainer-([^\\.]+)\\.service\\z")
+var reContainerUnits = regexp.MustCompile("\\A" + regexp.QuoteMeta(containers.IdentifierPrefix) + "([^\\.]+)\\.service\\z")
 
 func (j *ListContainersRequest) Execute(resp JobResponse) {
 	r := &ListContainersResponse{make(ContainerUnitResponses, 0)}

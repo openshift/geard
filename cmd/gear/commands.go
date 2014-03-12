@@ -145,7 +145,7 @@ func Execute() {
 	statusCmd := &cobra.Command{
 		Use:   "status <name>...",
 		Short: "Retrieve the systemd status of one or more containers",
-		Long:  "Shows the equivalent of 'systemctl status container-<name>' for each listed unit",
+		Long:  "Shows the equivalent of 'systemctl status ctr-<name>' for each listed unit",
 		Run:   containerStatus,
 	}
 	gearCmd.AddCommand(statusCmd)
@@ -153,7 +153,7 @@ func Execute() {
 	listUnitsCmd := &cobra.Command{
 		Use:   "list-units <host>...",
 		Short: "Retrieve the list of services across all hosts",
-		Long:  "Shows the equivalent of 'systemctl list-units container-<name>' for each installed container",
+		Long:  "Shows the equivalent of 'systemctl list-units ctr-<name>' for each installed container",
 		Run:   listUnits,
 	}
 	gearCmd.AddCommand(listUnitsCmd)
