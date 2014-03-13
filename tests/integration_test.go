@@ -11,15 +11,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+    "flag"
 	"testing"
 	"time"
 )
 
 const (
-	CONTAINER_STATE_CHANGE_TIMEOUT = time.Minute * 3
+	CONTAINER_STATE_CHANGE_TIMEOUT = time.Minute
 	DOCKER_STATE_CHANGE_TIMEOUT    = time.Minute
 	SYSTEMD_ACTION_DELAY           = time.Second * 2
 )
+
+var skipInt = flag.Bool("skip-integration", false, "Skip integration tests")
 
 //Hookup gocheck with go test
 func Test(t *testing.T) {
@@ -177,6 +180,10 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 
 func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 	var err error
+    
+	if *skipInt {
+		c.Skip("--build not specified")
+	}
 
 	travis := os.Getenv("TRAVIS")
 	if travis != "" {
@@ -378,6 +385,38 @@ func (s *IntegrationTestSuite) TestStatus(c *chk.C) {
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest005.service; enabled)"), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "Active: inactive (dead)"), chk.Equals, true)
+}
+
+func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest006xxxxxxxxxxxxxx")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
+
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4003")
+	data, err := cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerState(c, id, CONTAINER_STARTED)
+
+	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
+	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	ports, err := containers.GetExistingPorts(id)
+	c.Assert(err, chk.IsNil)
+
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
+		if err == nil {
+			c.Assert(resp.StatusCode, chk.Equals, 200)
+		}
+	case <-time.After(time.Second * 15):
+		c.Fail()
+	}
 }
 
 func (s *IntegrationTestSuite) TearDownSuite(c *chk.C) {
