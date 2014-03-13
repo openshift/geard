@@ -269,6 +269,11 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 	name := "netlink-" + strconv.Itoa(pid)
 	nsPath := fmt.Sprintf("/proc/%d/ns/net", pid)
 	path := fmt.Sprintf("/var/run/netns/%s", name)
+
+	if err := os.MkdirAll("/var/run/netns", 0755); err != nil {
+		return err
+	}
+
 	if err := os.Symlink(nsPath, path); err != nil && !os.IsExist(err) {
 		return err
 	}
