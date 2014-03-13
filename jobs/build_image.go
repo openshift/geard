@@ -40,7 +40,7 @@ func (e *ExtendedBuildImageData) Check() error {
 	return nil
 }
 
-const buildImage = "pmorie/sti-builder"
+const buildImage = "pmorie/sti-builder-go"
 
 func (j *BuildImageRequest) Execute(resp JobResponse) {
 	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
@@ -90,7 +90,7 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 		"-v", "/run/docker.sock:/run/docker.sock",
 		"-t", buildImage,
 		"sti", "build", j.Source, j.BaseImage, j.Tag,
-		"--url", "unix:///run/docker.sock",
+		"-U", "unix:///run/docker.sock",
 	}
 	log.Printf("build_image: Will execute %v", startCmd)
 
@@ -104,8 +104,7 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 	}
 
 	if j.Verbose {
-		startCmd = append(startCmd, "-l")
-		startCmd = append(startCmd, "DEBUG")
+		startCmd = append(startCmd, "--debug")
 	}
 
 	status, err := systemd.Connection().StartTransientUnit(
