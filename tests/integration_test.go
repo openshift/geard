@@ -392,3 +392,38 @@ func (s *IntegrationTestSuite) TearDownSuite(c *chk.C) {
 		}
 	}
 }
+
+func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest006")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
+
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4001")
+	data, err := cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "link", "-n", "8081:74.125.239.114:80", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "start", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	s.assertContainerState(c, id, CONTAINER_STARTED)
+	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	cmd = exec.Command("/var/lib/containers/bin/switchns", id.ContainerFor(), "--", "/sbin/iptables", "-t", "nat", "-L")
+	data, err = cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(strings.Contains(string(data), "tcp dpt:tproxy to:74.125.239.114"), chk.Equals, true)
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "stop", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerState(c, id, CONTAINER_STOPPED)
+}

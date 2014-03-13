@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
@@ -127,8 +128,17 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 		return err
 	}
 
-	if container, err = d.GetContainer(id.ContainerFor(), true); err != nil {
-		return err
+	const CONTAINER_RUNNING_WAIT_TIME = 10
+	for i := 0; i < CONTAINER_RUNNING_WAIT_TIME; i++ {
+		if container, err = d.GetContainer(id.ContainerFor(), true); err != nil {
+			return err
+		}
+		if container.State.Running {
+			break
+		} else {
+			log.Printf("Waiting for container to run.")
+			time.Sleep(time.Second)
+		}
 	}
 
 	if err = GenerateAuthorizedKeys(id, u, true, false); err != nil {
