@@ -1,6 +1,9 @@
+// +build integration
+
 package tests
 
 import (
+	"flag"
 	"fmt"
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/docker"
@@ -11,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-    "flag"
 	"testing"
 	"time"
 )
@@ -180,7 +182,7 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 
 func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 	var err error
-    
+
 	if *skipInt {
 		c.Skip("--build not specified")
 	}
