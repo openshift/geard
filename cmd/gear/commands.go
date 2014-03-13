@@ -35,6 +35,7 @@ var (
 	resetEnv     bool
 	simple       bool
 	fork         bool
+	sockAct      bool
 	keyPath      string
 	expiresAt    int64
 	environment  EnvironmentDescription
@@ -79,6 +80,7 @@ func Execute() {
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
 	installImageCmd.Flags().BoolVar(&simple, "simple", false, "Use a simple container (experimental)")
 	installImageCmd.Flags().BoolVar(&fork, "fork", false, "Use a forked container (experimental, requires docker branch)")
+	installImageCmd.Flags().BoolVar(&sockAct, "socket-activated", false, "Use a socket-activated container (experimental, requires docker branch)")
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
@@ -298,11 +300,12 @@ func installImage(cmd *cobra.Command, args []string) {
 				InstallContainerRequest: jobs.InstallContainerRequest{
 					RequestIdentifier: jobs.NewRequestIdentifier(),
 
-					Id:      on.(*RemoteIdentifier).Id,
-					Image:   imageId,
-					Started: start,
-					Simple:  simple,
-					Fork:    fork,
+					Id:               on.(*RemoteIdentifier).Id,
+					Image:            imageId,
+					Started:          start,
+					Simple:           simple,
+					Fork:             fork,
+					SocketActivation: sockAct,
 
 					Ports:        *portPairs.Get().(*containers.PortPairs),
 					Environment:  &environment.Description,
