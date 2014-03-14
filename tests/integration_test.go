@@ -4,10 +4,6 @@ package tests
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/systemd"
-	chk "launchpad.net/gocheck"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,12 +11,18 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/smarterclayton/geard/containers"
+	"github.com/smarterclayton/geard/docker"
+	"github.com/smarterclayton/geard/systemd"
+	chk "launchpad.net/gocheck"
 )
 
 const (
 	CONTAINER_STATE_CHANGE_TIMEOUT = time.Minute
 	DOCKER_STATE_CHANGE_TIMEOUT    = time.Minute
 	SYSTEMD_ACTION_DELAY           = time.Second * 2
+	TestImage                      = "pmorie/sti-html-app"
 )
 
 //Hookup gocheck with go test
@@ -207,6 +209,9 @@ func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 		}
 	}
 
+	_, err = s.dockerClient.GetImage(TestImage)
+	c.Assert(err, chk.IsNil)
+
 	s.sdconn, err = systemd.NewConnection()
 	c.Assert(err, chk.IsNil)
 	err = s.sdconn.Subscribe()
@@ -227,7 +232,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4000")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4000")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -265,7 +270,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallImage(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId)
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId)
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -286,7 +291,7 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4001")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4001")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -321,7 +326,7 @@ func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4002", "--start")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4002", "--start")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -347,7 +352,7 @@ func (s *IntegrationTestSuite) TestStatus(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId)
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId)
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -392,7 +397,7 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4003")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4003")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -425,7 +430,7 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4004")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4004")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)

@@ -53,13 +53,7 @@ func (s *BuildIntegrationTestSuite) requestId() int {
 // Suite/Test fixtures are provided by gocheck
 func (s *BuildIntegrationTestSuite) SetUpSuite(c *C) {
 	if !*buildTests {
-		c.Skip("--build not specified")
-	}
-
-	travis := os.Getenv("TRAVIS")
-
-	if travis != "" {
-		s.cmd = s.startDaemon(c)
+		c.Skip("-build not specified")
 	}
 
 	s.dockerClient, _ = docker.NewClient("unix:///var/run/docker.sock")
@@ -68,27 +62,6 @@ func (s *BuildIntegrationTestSuite) SetUpSuite(c *C) {
 
 	if s.daemonPort == "" {
 		s.daemonPort = "8080"
-	}
-}
-
-func (s *BuildIntegrationTestSuite) TearDownSuite(c *C) {
-	s.stopDaemon()
-}
-
-func (s *BuildIntegrationTestSuite) startDaemon(c *C) *exec.Cmd {
-	cmd := exec.Command("sudo", "./gear", "daemon")
-	err := cmd.Start()
-
-	c.Assert(err, IsNil, Commentf("Couldn't start daemon: %+v", err))
-
-	time.Sleep(30 * time.Second)
-
-	return cmd
-}
-
-func (s *BuildIntegrationTestSuite) stopDaemon() {
-	if s.cmd != nil {
-		s.cmd.Process.Kill()
 	}
 }
 

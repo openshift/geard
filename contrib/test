@@ -1,5 +1,5 @@
 #!/bin/bash -x
 
-rm tests.test
+rm -f tests.test
 go test -tags integration -c github.com/smarterclayton/geard/tests
 sudo ./tests.test -gocheck.v $@
