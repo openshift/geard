@@ -3,7 +3,6 @@
 package tests
 
 import (
-	"flag"
 	"fmt"
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/docker"
@@ -23,8 +22,6 @@ const (
 	DOCKER_STATE_CHANGE_TIMEOUT    = time.Minute
 	SYSTEMD_ACTION_DELAY           = time.Second * 2
 )
-
-var skipInt = flag.Bool("skip-integration", false, "Skip integration tests")
 
 //Hookup gocheck with go test
 func Test(t *testing.T) {
@@ -112,7 +109,7 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 	switch {
 	case cInfo["SubState"] == "running":
 		curState = CONTAINER_STARTED
-	case cInfo["SubState"] == "dead" || cInfo["SubState"] == "failed" || cInfo["SubState"] == "stop-sigterm":
+	case cInfo["SubState"] == "dead" || cInfo["SubState"] == "failed" || cInfo["SubState"] == "stop-sigterm" || cInfo["SubState"] == "stop":
 		didStop = true
 		curState = CONTAINER_STOPPED
 	}
@@ -130,7 +127,7 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 					if didStop {
 						didRestart = true
 					}
-				case cInfo["SubState"] == "dead" || cInfo["SubState"] == "failed" || cInfo["SubState"] == "stop-sigterm":
+				case cInfo["SubState"] == "dead" || cInfo["SubState"] == "failed" || cInfo["SubState"] == "stop-sigterm" || cInfo["SubState"] == "stop":
 					didStop = true
 					curState = CONTAINER_STOPPED
 				}
@@ -182,10 +179,6 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 
 func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 	var err error
-
-	if *skipInt {
-		c.Skip("--build not specified")
-	}
 
 	travis := os.Getenv("TRAVIS")
 	if travis != "" {
@@ -250,6 +243,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
+	c.Assert(len(ports), chk.Equals, 1)
 
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
@@ -307,6 +301,8 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
+	c.Assert(len(ports), chk.Equals, 1)
+
 	resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
 	c.Assert(err, chk.IsNil)
 	c.Assert(resp.StatusCode, chk.Equals, 200)
@@ -407,6 +403,7 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
+	c.Assert(len(ports), chk.Equals, 1)
 
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
@@ -421,27 +418,14 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 	}
 }
 
-func (s *IntegrationTestSuite) TearDownSuite(c *chk.C) {
-	for _, id := range s.containerIds {
-		hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
-
-		cmd := exec.Command("/var/lib/containers/bin/gear", "delete", hostContainerId)
-		data, err := cmd.CombinedOutput()
-		c.Log(string(data))
-		if err != nil {
-			c.Logf("Container %v did not cleanup properly", id)
-		}
-	}
-}
-
 func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
-	id, err := containers.NewIdentifier("IntTest006")
+	id, err := containers.NewIdentifier("IntTest007")
 	c.Assert(err, chk.IsNil)
 	s.containerIds = append(s.containerIds, id)
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4001")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--ports=8080:4004")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -467,4 +451,62 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 	s.assertContainerState(c, id, CONTAINER_STOPPED)
+}
+
+// func (s *IntegrationTestSuite) TestSocketActivatedInstallAndStartImage(c *chk.C) {
+//     id, err := containers.NewIdentifier("IntTest007")
+//     c.Assert(err, chk.IsNil)
+//     s.containerIds = append(s.containerIds, id)
+//
+//     hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+//
+//     cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4005", "--socket-activated")
+//     data, err := cmd.CombinedOutput()
+//     c.Log(string(data))
+//     c.Assert(err, chk.IsNil)
+//
+//     s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
+//     paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
+//     c.Assert(err, chk.IsNil)
+//     for _, p := range paths {
+//         s.assertFilePresent(c, p, 0664, true)
+//     }
+//
+//     ports, err := containers.GetExistingPorts(id)
+//     c.Assert(err, chk.IsNil)
+// c.Assert(len(ports), chk.Equals, 1)
+//
+//     t := time.NewTicker(time.Second)
+//     defer t.Stop()
+//     for true {
+//         select {
+//         case <-t.C:
+//             resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
+//             if err == nil {
+//                 c.Logf("attempting http .. response code %v", resp.StatusCode)
+//                 if resp.StatusCode == 200 {
+//                     break
+//                 }
+//             }else{
+//                 c.Logf("attempting http .. error %v", err)
+//             }
+//         case <-time.After(time.Second * 15):
+//             c.Fail()
+//         }
+//     }
+//     s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+//     s.assertContainerState(c, id, CONTAINER_STARTED)
+// }
+
+func (s *IntegrationTestSuite) TearDownSuite(c *chk.C) {
+	for _, id := range s.containerIds {
+		hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+		cmd := exec.Command("/var/lib/containers/bin/gear", "delete", hostContainerId)
+		data, err := cmd.CombinedOutput()
+		c.Log(string(data))
+		if err != nil {
+			c.Logf("Container %v did not cleanup properly", id)
+		}
+	}
 }
