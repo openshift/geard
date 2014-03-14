@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"code.google.com/p/go.crypto/ssh"
 	"errors"
 	"fmt"
 	"io"
@@ -50,6 +52,7 @@ var (
 	gitRepoName  string
 	gitRepoURL   string
 	buildReq     sti.BuildRequest
+	keyFile      string
 )
 
 var conf = http.HttpConfiguration{
@@ -271,6 +274,15 @@ func Execute() {
 	}
 	createTokenCmd.Flags().Int64Var(&expiresAt, "expires-at", time.Now().Unix()+3600, "Specify the content request token expiration time in seconds after the Unix epoch")
 	gearCmd.AddCommand(createTokenCmd)
+
+	sshKeysCmd := &cobra.Command{
+		Use:   "keys",
+		Short: "Add a public key to enable SSH access to a repository or container location",
+		Long:  "Add a public key to enable SSH access to a repository or container location.",
+		Run:   sshKeysAdd,
+	}
+	sshKeysCmd.Flags().StringVar(&keyFile, "key-file", "", "read input from FILE specified matching sshd AuthorizedKeysFile format")
+	gearCmd.AddCommand(sshKeysCmd)
 
 	if err := gearCmd.Execute(); err != nil {
 		Fail(1, err.Error())
@@ -803,4 +815,81 @@ func parseEnvs(envStr string) (map[string]string, error) {
 	}
 
 	return envs, nil
+}
+
+func sshKeysAdd(cmd *cobra.Command, args []string) {
+
+	var (
+		data  []byte
+		keys  []jobs.KeyData
+		err   error
+		write bool
+	)
+
+	// default to false for write
+	write = false
+
+	// validate that arguments for locators are passsed
+	if len(args) < 1 {
+		Fail(1, "Valid arguments: [LOCATOR] ...\n")
+	}
+	// args... are locators for repositories or containers
+	ids, err := NewRemoteIdentifiers(args...)
+	if err != nil {
+		Fail(1, "You must pass 1 or more valid LOCATOR names: %s\n", err.Error())
+	}
+
+	// keyFile - contains the sshd AuthorizedKeysFile location
+	// Stdin - contains the AuthorizedKeysFile if keyFile is not specified
+	if len(keyFile) != 0 {
+		absPath, _ := filepath.Abs(keyFile)
+		data, err = ioutil.ReadFile(absPath)
+		if err != nil {
+			Fail(1, "You must pass a valid FILE that exists.\n%v", err.Error())
+		}
+	} else {
+		data, _ = ioutil.ReadAll(os.Stdin)
+	}
+
+	bytesReader := bytes.NewReader(data)
+	scanner := bufio.NewScanner(bytesReader)
+	for scanner.Scan() {
+		// Parse the AuthorizedKeys line
+		pk, _, _, _, ok := ssh.ParseAuthorizedKey(scanner.Bytes())
+		if !ok {
+			Fail(1, "Unable to parse authorized key from input")
+		}
+		value := ssh.MarshalAuthorizedKey(pk)
+		keys = append(keys, jobs.KeyData{pk.PublicKeyAlgo(), string(value)})
+	}
+
+	Executor{
+		On: ids,
+		Group: func(on ...Locator) jobs.Job {
+			var (
+				r []jobs.RepositoryPermission
+				c []jobs.ContainerPermission
+			)
+			for _, loc := range on {
+				cId, _ := containers.NewIdentifier(loc.String())
+				if loc.ResourceType() == ResourceTypeContainer {
+					c = append(c, jobs.ContainerPermission{cId})
+				} else if loc.ResourceType() == ResourceTypeRepository {
+					r = append(r, jobs.RepositoryPermission{cId, write})
+				}
+			}
+
+			fmt.Println("Invoking Create keys Request")
+			return &http.HttpCreateKeysRequest{
+				CreateKeysRequest: jobs.CreateKeysRequest{
+					&jobs.ExtendedCreateKeysData{
+						Keys:         keys,
+						Repositories: r,
+						Containers:   c,
+					},
+				},
+			}
+		},
+		Output: os.Stdout,
+	}.StreamAndExit()
 }
