@@ -34,6 +34,7 @@ var (
 	listenAddr   string
 	resetEnv     bool
 	simple       bool
+	fork         bool
 	keyPath      string
 	expiresAt    int64
 	environment  EnvironmentDescription
@@ -77,6 +78,7 @@ func Execute() {
 	installImageCmd.Flags().VarP(&networkLinks, "net-links", "n", "List of comma separated port pairs to wire '<local_port>:<host>:<remote_port>,...'. Host and remote port may be empty.")
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
 	installImageCmd.Flags().BoolVar(&simple, "simple", false, "Use a simple container (experimental)")
+	installImageCmd.Flags().BoolVar(&fork, "fork", false, "Use a forked container (experimental, requires docker branch)")
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
@@ -204,7 +206,7 @@ func Execute() {
 
 	sshAuthKeysCmd := &cobra.Command{
 		Use:   "auth-keys-command <user name>",
-		Short: "(Local) Generate authoried keys output for sshd.",
+		Short: "(Local) Generate authorized_keys output for sshd.",
 		Long:  "Generate authorized keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
 		Run:   SshAuthKeysCommand,
 	}
@@ -300,6 +302,7 @@ func installImage(cmd *cobra.Command, args []string) {
 					Image:   imageId,
 					Started: start,
 					Simple:  simple,
+					Fork:    fork,
 
 					Ports:        *portPairs.Get().(*containers.PortPairs),
 					Environment:  &environment.Description,

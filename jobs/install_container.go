@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"text/template"
 )
 
 // Installing a Container
@@ -53,6 +52,9 @@ type InstallContainerRequest struct {
 	// Should this container be run in an isolated fashion
 	// (separate user, permission changes)
 	Isolate bool
+	// Fork the container and run isolated (requires docker fork
+	// in docker)
+	Fork bool
 	// Should this container be run in a socket activated fashion
 	// Implies Isolated (separate user, permission changes,
 	// no port forwarding, socket activated).
@@ -226,17 +228,21 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 		SocketActivationType: socketActivationType,
 	}
 
-	var unitTemplate *template.Template
+	var templateName string
 	switch {
 	case req.Simple:
-		unitTemplate = containers.SimpleContainerUnitTemplate
+		templateName = "SIMPLE"
+	case req.Fork:
+		templateName = "FORK"
 	case req.SocketActivation:
-		unitTemplate = containers.ContainerSocketActivatedUnitTemplate
+		templateName = "SOCKETACTIVATED"
+	case req.Isolate:
+		fallthrough
 	default:
-		unitTemplate = containers.ContainerUnitTemplate
+		templateName = "ISOLATED"
 	}
 
-	if erre := unitTemplate.Execute(unit, args); erre != nil {
+	if erre := containers.ContainerUnitTemplate.ExecuteTemplate(unit, templateName, args); erre != nil {
 		log.Printf("install_container: Unable to output template: %+v", erre)
 		resp.Failure(ErrContainerCreateFailed)
 		defer os.Remove(unitVersionPath)

@@ -23,62 +23,21 @@ type ContainerUnit struct {
 	SocketActivationType string
 }
 
-var SimpleContainerUnitTemplate = template.Must(template.New("simple_unit.service").Parse(`
-[Unit]
-Description=Container {{.Id}}
-
-[Service]
-Type=simple
-{{ if .Slice }}Slice={{.Slice}}{{ end }}
-{{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
-ExecStart=/bin/sh -c '/usr/bin/docker inspect -format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null && \
-                      exec /usr/bin/docker start -a "{{.Id}}" || \
-                      exec /usr/bin/docker run -name "{{.Id}}" -volumes-from "{{.Id}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
-ExecReload=/usr/bin/docker stop "{{.Id}}"
-ExecReload=/usr/bin/docker rm "{{.Id}}"
-
-TimeoutStartSec=5m
-
-{{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
-
-# Container information
-X-ContainerId={{.Id}}
-X-ContainerImage={{.Image}}
-X-ContainerUserId={{.User}}
-X-ContainerRequestId={{.ReqId}}
-{{range .PortPairs}}X-PortMapping={{.Internal}}:{{.External}}
-{{end}}
-`))
-
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
+{{define "COMMON_UNIT"}}
 [Unit]
 Description=Container {{.Id}}
+{{end}}
 
+{{define "COMMON_SERVICE"}}
 [Service]
 Type=simple
+TimeoutStartSec=5m
 {{ if .Slice }}Slice={{.Slice}}{{ end }}
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
-{{ if .Isolate }}
-ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
-ExecStart=/usr/bin/docker run \
-            -name "{{.Id}}" -rm \
-            -volumes-from "{{.Id}}" \
-            -a stdout -a stderr {{.PortSpec}} \
-            -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
-            "{{.Image}}" /.container.init
-ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
-{{else}}
-ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
-ExecStart=/usr/bin/docker run \
-            -name "{{.Id}}" -rm \
-            -volumes-from "{{.Id}}" \
-            -a stdout -a stderr {{.PortSpec}} \
-            "{{.Image}}"
-ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
-{{ end }}
+{{end}}
 
-TimeoutStartSec=5m
-
+{{define "COMMON_CONTAINER"}}
 {{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
 
 # Container information
@@ -87,45 +46,73 @@ X-ContainerImage={{.Image}}
 X-ContainerUserId={{.User}}
 X-ContainerRequestId={{.ReqId}}
 X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
-X-SocketActivation=disabled
 {{range .PortPairs}}X-PortMapping={{.Internal}}:{{.External}}
 {{end}}
-`))
+{{end}}
 
-var ContainerSocketActivatedUnitTemplate = template.Must(template.New("unit.service").Parse(`
-[Unit]
-Description=Container {{.Id}}
-BindsTo={{.SocketUnitName}}
+{{/* A unit that uses Docker with the 'fork' command and '--create-only' flag to boot an image */}}
+{{define "FORK"}}
+{{template "COMMON_UNIT"}}
+{{template "COMMON_SERVICE"}}
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null || exec /usr/bin/docker run --create-only --name "{{.Id}}" {{.PortSpec}} --volumes-from "{{.Id}}" "{{.Image}}"'
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
+ExecStart=/usr/bin/docker fork "{{.Id}}"
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
+{{template "COMMON_CONTAINER"}}
+{{end}}
 
-[Service]
-Type=simple
-{{ if .Slice }}Slice={{.Slice}}{{ end }}
-{{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
+{{/* A unit that isolates the container process to a user by chowning and runs as a user */}}
+{{define "ISOLATED"}}
+{{template "COMMON_UNIT"}}
+{{template "COMMON_SERVICE"}}
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
-            -name "{{.Id}}" \
-            -volumes-from "{{.Id}}" \
+            --name "{{.Id}}" --rm \
+            --volumes-from "{{.Id}}" \
+            -a stdout -a stderr {{.PortSpec}} \
+            -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
+            "{{.Image}}" /.container.init
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
+{{template "COMMON_CONTAINER"}}
+{{end}}
+
+{{/* A unit that lets docker own the container processes and only integrates via API */}}
+{{define "SIMPLE"}}
+{{template "COMMON_UNIT"}}
+{{template "COMMON_SERVICE"}}
+ExecStart=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null && \
+                      exec /usr/bin/docker start -a "{{.Id}}" || \
+                      exec /usr/bin/docker run --name "{{.Id}}" --volumes-from "{{.Id}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
+ExecReload=/usr/bin/docker stop "{{.Id}}"
+ExecReload=/usr/bin/docker rm "{{.Id}}"
+ExecStop=/usr/bin/docker stop "{{.Id}}"
+{{template "COMMON_CONTAINER"}}
+{{end}}
+
+{{/* A unit that exposes socket activation and process isolation */}}
+{{define "SOCKETACTIVATED"}}
+{{template "COMMON_UNIT"}}
+BindsTo={{.SocketUnitName}}
+
+{{template "COMMON_SERVICE"}}
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
+ExecStart=/usr/bin/docker run \
+            --name "{{.Id}}" \
+            --volumes-from "{{.Id}}" \
             -a stdout -a stderr \
             --env LISTEN_FDS \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro \
             -v /usr/sbin/systemd-socket-proxyd:/usr/sbin/systemd-socket-proxyd:ro \
-            -u root -f -rm \
+            -u root -f --rm \
             "{{.Image}}" /.container.init
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 
-TimeoutStartSec=5m
-
-{{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
-
-# Container information
-X-ContainerId={{.Id}}
-X-ContainerImage={{.Image}}
-X-ContainerUserId={{.User}}
-X-ContainerRequestId={{.ReqId}}
-X-ContainerType=isolated
+{{template "COMMON_CONTAINER"}}
 X-SocketActivated={{.SocketActivationType}}
-{{range .PortPairs}}X-PortMapping={{.Internal}}:{{.External}}
 {{end}}
+
+{{/* Run DEFAULT */}}
+{{template "ISOLATED"}}
 `))
 
 var ContainerSocketTemplate = template.Must(template.New("unit.socket").Parse(`
