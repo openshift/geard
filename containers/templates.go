@@ -52,19 +52,19 @@ X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 
 {{/* A unit that uses Docker with the 'fork' command and '--create-only' flag to boot an image */}}
 {{define "FORK"}}
-{{template "COMMON_UNIT"}}
-{{template "COMMON_SERVICE"}}
+{{template "COMMON_UNIT" .}}
+{{template "COMMON_SERVICE" .}}
 ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null || exec /usr/bin/docker run --create-only --name "{{.Id}}" {{.PortSpec}} --volumes-from "{{.Id}}" "{{.Image}}"'
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker fork "{{.Id}}"
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
-{{template "COMMON_CONTAINER"}}
+{{template "COMMON_CONTAINER" .}}
 {{end}}
 
 {{/* A unit that isolates the container process to a user by chowning and runs as a user */}}
 {{define "ISOLATED"}}
-{{template "COMMON_UNIT"}}
-{{template "COMMON_SERVICE"}}
+{{template "COMMON_UNIT" .}}
+{{template "COMMON_SERVICE" .}}
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
             --name "{{.Id}}" --rm \
@@ -73,28 +73,28 @@ ExecStart=/usr/bin/docker run \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
             "{{.Image}}" /.container.init
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
-{{template "COMMON_CONTAINER"}}
+{{template "COMMON_CONTAINER" .}}
 {{end}}
 
 {{/* A unit that lets docker own the container processes and only integrates via API */}}
 {{define "SIMPLE"}}
-{{template "COMMON_UNIT"}}
-{{template "COMMON_SERVICE"}}
+{{template "COMMON_UNIT" .}}
+{{template "COMMON_SERVICE" .}}
 ExecStart=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null && \
                       exec /usr/bin/docker start -a "{{.Id}}" || \
                       exec /usr/bin/docker run --name "{{.Id}}" --volumes-from "{{.Id}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
 ExecReload=/usr/bin/docker stop "{{.Id}}"
 ExecReload=/usr/bin/docker rm "{{.Id}}"
 ExecStop=/usr/bin/docker stop "{{.Id}}"
-{{template "COMMON_CONTAINER"}}
+{{template "COMMON_CONTAINER" .}}
 {{end}}
 
 {{/* A unit that exposes socket activation and process isolation */}}
 {{define "SOCKETACTIVATED"}}
-{{template "COMMON_UNIT"}}
+{{template "COMMON_UNIT" .}}
 BindsTo={{.SocketUnitName}}
 
-{{template "COMMON_SERVICE"}}
+{{template "COMMON_SERVICE" .}}
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
             --name "{{.Id}}" \
@@ -107,12 +107,12 @@ ExecStart=/usr/bin/docker run \
             "{{.Image}}" /.container.init
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 
-{{template "COMMON_CONTAINER"}}
+{{template "COMMON_CONTAINER" .}}
 X-SocketActivated={{.SocketActivationType}}
 {{end}}
 
 {{/* Run DEFAULT */}}
-{{template "ISOLATED"}}
+{{template "ISOLATED" .}}
 `))
 
 var ContainerSocketTemplate = template.Must(template.New("unit.socket").Parse(`
