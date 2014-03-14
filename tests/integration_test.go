@@ -3,12 +3,7 @@
 package tests
 
 import (
-	"flag"
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/systemd"
-	chk "launchpad.net/gocheck"
 	"net/http"
 	"os"
 	"os/exec"
