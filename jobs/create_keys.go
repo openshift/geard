@@ -99,10 +99,13 @@ func KeyFingerprint(key ssh.PublicKey) utils.Fingerprint {
 }
 
 func (j *CreateKeysRequest) Execute(resp JobResponse) {
+	log.Printf("Entering CreateKeysRequest.Execute()")
+	log.Printf("CreateKeysRequest len(keys): %d, len(containers): %d, len(repositories): %d", len(j.Keys), len(j.Containers), len(j.Repositories))
 	failedKeys := []KeyFailure{}
 	for i := range j.Keys {
 		key := j.Keys[i]
 		pk, _, _, _, ok := ssh.ParseAuthorizedKey([]byte(key.Value))
+
 		if !ok {
 			failedKeys = append(failedKeys, KeyFailure{i, &key, errors.New("Unable to parse key")})
 			continue
