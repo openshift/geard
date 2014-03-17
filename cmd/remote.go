@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/url"
 	"strings"
-	"fmt"
 )
 
 const LocalHostName = "local"
@@ -52,7 +51,7 @@ type RemoteIdentifier struct {
 	Type TypeIdentifier
 }
 
-type TypeIdentifier string 
+type TypeIdentifier string
 
 func (r RemoteIdentifier) ResourceType() string {
 	return string(r.Type)
@@ -129,13 +128,11 @@ func NewRemoteIdentifier(value string) (*RemoteIdentifier, error) {
 
 	// default type is ctr (i.e. container)
 	locatorType := ResourceTypeContainer
-	locatorParts := strings.SplitN(value, "://", 2);
+	locatorParts := strings.SplitN(value, "://", 2)
 	if len(locatorParts) == 2 {
 		locatorType = locatorParts[0]
 		value = locatorParts[1]
 	}
-
-	fmt.Println("NewRemoteIdentifier:" + locatorType + ", value:" + value)
 
 	sections := strings.SplitN(value, "/", 2)
 	if len(sections) == 1 {

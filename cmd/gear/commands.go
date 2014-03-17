@@ -53,6 +53,7 @@ var (
 	gitRepoURL   string
 	buildReq     sti.BuildRequest
 	keyFile      string
+	writeAccess  bool
 )
 
 var conf = http.HttpConfiguration{
@@ -281,6 +282,7 @@ func Execute() {
 		Long:  "Add a public key to enable SSH access to a repository or container location.",
 		Run:   sshKeysAdd,
 	}
+	sshKeysCmd.Flags().BoolVar(&writeAccess, "write", false, "True if write access is provided for this key to the repository")
 	sshKeysCmd.Flags().StringVar(&keyFile, "key-file", "", "read input from FILE specified matching sshd AuthorizedKeysFile format")
 	gearCmd.AddCommand(sshKeysCmd)
 
@@ -820,14 +822,10 @@ func parseEnvs(envStr string) (map[string]string, error) {
 func sshKeysAdd(cmd *cobra.Command, args []string) {
 
 	var (
-		data  []byte
-		keys  []jobs.KeyData
-		err   error
-		write bool
+		data []byte
+		keys []jobs.KeyData
+		err  error
 	)
-
-	// default to false for write
-	write = false
 
 	// validate that arguments for locators are passsed
 	if len(args) < 1 {
@@ -875,11 +873,10 @@ func sshKeysAdd(cmd *cobra.Command, args []string) {
 				if loc.ResourceType() == ResourceTypeContainer {
 					c = append(c, jobs.ContainerPermission{cId})
 				} else if loc.ResourceType() == ResourceTypeRepository {
-					r = append(r, jobs.RepositoryPermission{cId, write})
+					r = append(r, jobs.RepositoryPermission{cId, writeAccess})
 				}
 			}
 
-			fmt.Println("Invoking Create keys Request")
 			return &http.HttpCreateKeysRequest{
 				CreateKeysRequest: jobs.CreateKeysRequest{
 					&jobs.ExtendedCreateKeysData{
