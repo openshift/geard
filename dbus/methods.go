@@ -65,7 +65,7 @@ func (c *Conn) runJob(job string, args ...interface{}) (string, error) {
 // possible.
 func (c *Conn) LoadUnit(name string) (string, error) {
 	var path dbus.ObjectPath
-	err := c.sysobj.Call("GetUnit", 0, name).Store(&path)
+	err := c.sysobj.Call("LoadUnit", 0, name).Store(&path)
 	if err != nil {
 		return "", err
 	}
