@@ -5,10 +5,6 @@ import (
 	"errors"
 	"fmt"
 	dc "github.com/fsouza/go-dockerclient"
-	"github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/selinux"
-	"github.com/smarterclayton/geard/utils"
 	"io"
 	"log"
 	"net"
@@ -20,6 +16,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/smarterclayton/geard/config"
+	"github.com/smarterclayton/geard/docker"
+	"github.com/smarterclayton/geard/selinux"
+	"github.com/smarterclayton/geard/utils"
 )
 
 func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
@@ -353,4 +354,32 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 		return err
 	}
 	return nil
+}
+
+func GetAllContainerIPs(d *docker.DockerClient) (map[Identifier]string, error) {
+	serviceFiles, err := filepath.Glob(filepath.Join(config.ContainerBasePath(), "units", "**", IdentifierPrefix+"*.service"))
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]Identifier, 0)
+	for _, s := range serviceFiles {
+		id := filepath.Base(s)
+		if strings.HasPrefix(id, IdentifierPrefix) && strings.HasSuffix(id, ".service") {
+			id = id[len(IdentifierPrefix):(len(id) - len(".service"))]
+			if id, err := NewIdentifier(id); err == nil {
+				ids = append(ids, id)
+			}
+		}
+	}
+
+	ips := make(map[Identifier]string)
+	for _, id := range ids {
+		if cInfo, err := d.GetContainer(id.ContainerFor(), false); err == nil {
+			ips[id] = cInfo.NetworkSettings.IPAddress
+		} else {
+			ips[id] = ""
+		}
+	}
+	return ips, nil
 }
