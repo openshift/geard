@@ -48,6 +48,14 @@ func (p *NFPacket) SetVerdict(v Verdict) {
 	p.verdictChannel <- v
 }
 
+//Set the verdict for the packet
+func (p *NFPacket) SetRequeueVerdict(newQueueId uint16) {
+	v := uint(NF_QUEUE)
+	q := (uint(newQueueId) << 16)
+	v = v | q
+	p.verdictChannel <- Verdict(v)
+}
+
 type NFQueue struct {
 	h       *[0]byte
 	qh      *[0]byte
@@ -56,22 +64,23 @@ type NFQueue struct {
 }
 
 //Verdict for a packet
-type Verdict C.int
+type Verdict C.uint
 
 const (
 	AF_INET = 2
 
-	//Discarded the packet
-	NF_DROP Verdict = 0
-
-	//The packet passes, continue iterations
+	NF_DROP   Verdict = 0
 	NF_ACCEPT Verdict = 1
+	NF_STOLEN Verdict = 2
+	NF_QUEUE  Verdict = 3
+	NF_REPEAT Verdict = 4
+	NF_STOP   Verdict = 5
 
 	NF_DEFAULT_PACKET_SIZE uint32 = 0xffff
 )
 
 //Create and bind to queue specified by queueId
-func NewNFQueue(queueId int, maxPacketsInQueue uint32, packetSize uint32) (*NFQueue, error) {
+func NewNFQueue(queueId uint16, maxPacketsInQueue uint32, packetSize uint32) (*NFQueue, error) {
 	var nfq = NFQueue{}
 	var err error
 	var ret C.int
@@ -89,7 +98,7 @@ func NewNFQueue(queueId int, maxPacketsInQueue uint32, packetSize uint32) (*NFQu
 	}
 
 	nfq.packets = make(chan NFPacket)
-	if nfq.qh, err = C.CreateQueue(nfq.h, C.int(queueId), unsafe.Pointer(&nfq.packets)); err != nil || nfq.qh == nil {
+	if nfq.qh, err = C.CreateQueue(nfq.h, C.u_int16_t(queueId), unsafe.Pointer(&nfq.packets)); err != nil || nfq.qh == nil {
 		C.nfq_close(nfq.h)
 		return nil, fmt.Errorf("Error binding to queue: %v\n", err)
 	}
@@ -139,7 +148,8 @@ func go_callback(queueId C.int, data *C.uchar, len C.int, cb *chan NFPacket) Ver
 	p := NFPacket{verdictChannel: make(chan Verdict), Packet: packet}
 	select {
 	case (*cb) <- p:
-		return <-p.verdictChannel
+		v := <-p.verdictChannel
+		return v
 	default:
 		return NF_DROP
 	}

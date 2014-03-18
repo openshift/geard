@@ -27,7 +27,7 @@
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
-extern int go_callback(int id, unsigned char* data, int len, void** cb_func);
+extern uint go_callback(int id, unsigned char* data, int len, void** cb_func);
 
 static int nf_callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *cb_func){
     uint32_t id = -1;
@@ -45,7 +45,7 @@ static int nf_callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct n
     return nfq_set_verdict(qh, id, verdict, 0, NULL);
 }
 
-static inline struct nfq_q_handle* CreateQueue(struct nfq_handle *h, int queue, void* cb_func)
+static inline struct nfq_q_handle* CreateQueue(struct nfq_handle *h, u_int16_t queue, void* cb_func)
 {
     return nfq_create_queue(h, queue, &nf_callback, cb_func);
 }
