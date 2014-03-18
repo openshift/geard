@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,7 +12,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pmorie/go-sti"
@@ -42,7 +40,6 @@ var (
 	sockAct      bool
 	keyPath      string
 	expiresAt    int64
-	envString    string
 	environment  EnvironmentDescription
 	portPairs    PortPairs
 	networkLinks NetworkLinks
@@ -103,46 +100,18 @@ func Execute() {
 	gearCmd.AddCommand(deleteCmd)
 
 	buildCmd := &cobra.Command{
-		Use:   "build <source> <build_image> <app_image_tag>",
+		Use:   "build <source> <build_image> <app_image_tag> ...<key>=<value>",
 		Short: "Build an image",
 		Long:  "Build an image",
-		Run: func(cmd *cobra.Command, args []string) {
-			buildReq.Source = args[0]
-			buildReq.BaseImage = args[1]
-			buildReq.Tag = args[2]
-			buildReq.Writer = os.Stdout
-
-			envs, _ := parseEnvs(envString)
-			buildReq.Environment = envs
-
-			if buildReq.WorkingDir == "tempdir" {
-				var err error
-				buildReq.WorkingDir, err = ioutil.TempDir("", "sti")
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
-				defer os.Remove(buildReq.WorkingDir)
-			}
-
-			res, err := sti.Build(buildReq)
-			if err != nil {
-				fmt.Printf("An error occured: %s\n", err.Error())
-				return
-			}
-
-			for _, message := range res.Messages {
-				fmt.Println(message)
-			}
-		},
+		Run:   buildImage,
 	}
 	buildCmd.Flags().BoolVar(&(buildReq.Clean), "clean", false, "Perform a clean build")
 	buildCmd.Flags().StringVar(&(buildReq.WorkingDir), "dir", "tempdir", "Directory where generated Dockerfiles and other support scripts are created")
 	buildCmd.Flags().StringVarP(&(buildReq.RuntimeImage), "runtime", "R", "", "Set the runtime image to use")
-	buildCmd.Flags().StringVarP(&envString, "env", "e", "", "Specify an environment var NAME=VALUE,NAME2=VALUE2,...")
 	buildCmd.Flags().StringVarP(&(buildReq.Method), "method", "m", "build", "Specify a method to build with. build -> 'docker build', run -> 'docker run'")
-	buildCmd.Flags().StringVarP(&(buildReq.DockerSocket), "url", "U", "unix:///var/run/docker.sock", "Set the url of the docker socket to use")
 	buildCmd.Flags().BoolVar(&(buildReq.Debug), "debug", false, "Enable debugging output")
+	buildCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
+	buildCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	gearCmd.AddCommand(buildCmd)
 
 	setEnvCmd := &cobra.Command{
@@ -377,6 +346,43 @@ func installImage(cmd *cobra.Command, args []string) {
 		Output:    os.Stdout,
 		LocalInit: needsSystemdAndData,
 	}.StreamAndExit()
+}
+
+func buildImage(cmd *cobra.Command, args []string) {
+	if err := environment.ExtractVariablesFrom(&args, false); err != nil {
+		Fail(1, err.Error())
+	}
+
+	if len(args) < 3 {
+		Fail(1, "Valid arguments: <source> <build image> <tag> ...\n")
+	}
+
+	buildReq.Source = args[0]
+	buildReq.BaseImage = args[1]
+	buildReq.Tag = args[2]
+	buildReq.Writer = os.Stdout
+	buildReq.DockerSocket = conf.Docker.Socket
+	buildReq.Environment = environment.Description.Map()
+
+	if buildReq.WorkingDir == "tempdir" {
+		var err error
+		buildReq.WorkingDir, err = ioutil.TempDir("", "sti")
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		defer os.Remove(buildReq.WorkingDir)
+	}
+
+	res, err := sti.Build(buildReq)
+	if err != nil {
+		fmt.Printf("An error occured: %s\n", err.Error())
+		return
+	}
+
+	for _, message := range res.Messages {
+		fmt.Println(message)
+	}
 }
 
 func setEnvironment(cmd *cobra.Command, args []string) {
@@ -791,30 +797,6 @@ func genAuthKeys(cmd *cobra.Command, args []string) {
 			Fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
 		}
 	}
-}
-
-func parseEnvs(envStr string) (map[string]string, error) {
-	if envStr == "" {
-		return nil, nil
-	}
-
-	var envs map[string]string
-	pairs := strings.Split(envStr, ",")
-
-	for _, pair := range pairs {
-		atoms := strings.Split(pair, "=")
-
-		if len(atoms) != 2 {
-			return nil, errors.New("Malformed env string: " + pair)
-		}
-
-		name := atoms[0]
-		value := atoms[1]
-
-		envs[name] = value
-	}
-
-	return envs, nil
 }
 
 func sshKeysAdd(cmd *cobra.Command, args []string) {
