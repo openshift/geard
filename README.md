@@ -88,6 +88,7 @@ Here are the initial set of supported container actions - these should map clean
 
 *   Set a public key as enabling SSH or Git SSH access to a container or repository (respectively)
 
+        $ gear keys --key-file=[FILE] my-sample-service
         $ curl -X POST "http://localhost:8080/keys" -H "Content-Type: application/json" -d '{"Keys": [{"Type":"ssh-rsa","Value":"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}], "Containers": [{"Id": "my-sample-service"}]}'
 
 *   Enable SSH access to join a container for a set of authorized keys

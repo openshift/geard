@@ -103,6 +103,7 @@ func (j *CreateKeysRequest) Execute(resp JobResponse) {
 	for i := range j.Keys {
 		key := j.Keys[i]
 		pk, _, _, _, ok := ssh.ParseAuthorizedKey([]byte(key.Value))
+
 		if !ok {
 			failedKeys = append(failedKeys, KeyFailure{i, &key, errors.New("Unable to parse key")})
 			continue

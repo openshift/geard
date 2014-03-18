@@ -148,7 +148,10 @@ func (h *HttpListContainerPortsRequest) Handler(conf *HttpConfiguration) JobHand
 	}
 }
 
-type HttpCreateKeysRequest jobs.CreateKeysRequest
+type HttpCreateKeysRequest struct {
+	jobs.CreateKeysRequest
+	DefaultRequest
+}
 
 func (h *HttpCreateKeysRequest) HttpMethod() string { return "PUT" }
 func (h *HttpCreateKeysRequest) HttpPath() string   { return "/keys" }

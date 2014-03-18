@@ -50,6 +50,8 @@ var (
 	gitRepoName  string
 	gitRepoURL   string
 	buildReq     sti.BuildRequest
+	keyFile      string
+	writeAccess  bool
 )
 
 var conf = http.HttpConfiguration{
@@ -271,6 +273,16 @@ func Execute() {
 	}
 	createTokenCmd.Flags().Int64Var(&expiresAt, "expires-at", time.Now().Unix()+3600, "Specify the content request token expiration time in seconds after the Unix epoch")
 	gearCmd.AddCommand(createTokenCmd)
+
+	sshKeysCmd := &cobra.Command{
+		Use:   "keys",
+		Short: "Add a public key to enable SSH access to a repository or container location",
+		Long:  "Add a public key to enable SSH access to a repository or container location.",
+		Run:   sshKeysAdd,
+	}
+	sshKeysCmd.Flags().BoolVar(&writeAccess, "write", false, "True if write access is provided for this key to the repository")
+	sshKeysCmd.Flags().StringVar(&keyFile, "key-file", "", "read input from FILE specified matching sshd AuthorizedKeysFile format")
+	gearCmd.AddCommand(sshKeysCmd)
 
 	if err := gearCmd.Execute(); err != nil {
 		Fail(1, err.Error())
@@ -803,4 +815,56 @@ func parseEnvs(envStr string) (map[string]string, error) {
 	}
 
 	return envs, nil
+}
+
+func sshKeysAdd(cmd *cobra.Command, args []string) {
+
+	var (
+		keys []jobs.KeyData
+		err  error
+	)
+
+	// validate that arguments for locators are passsed
+	if len(args) < 1 {
+		Fail(1, "Valid arguments: [LOCATOR] ...\n")
+	}
+	// args... are locators for repositories or containers
+	ids, err := NewRemoteIdentifiers(args...)
+	if err != nil {
+		Fail(1, "You must pass 1 or more valid LOCATOR names: %s\n", err.Error())
+	}
+
+	keys, err = ReadAuthorizedKeysFile(keyFile)
+	if err != nil {
+		Fail(1, "Unable to read authorized keys file: %s\n", err.Error())
+	}
+
+	Executor{
+		On: ids,
+		Group: func(on ...Locator) jobs.Job {
+			var (
+				r []jobs.RepositoryPermission
+				c []jobs.ContainerPermission
+			)
+			for _, loc := range on {
+				cId, _ := containers.NewIdentifier(loc.String())
+				if loc.ResourceType() == ResourceTypeContainer {
+					c = append(c, jobs.ContainerPermission{cId})
+				} else if loc.ResourceType() == ResourceTypeRepository {
+					r = append(r, jobs.RepositoryPermission{cId, writeAccess})
+				}
+			}
+
+			return &http.HttpCreateKeysRequest{
+				CreateKeysRequest: jobs.CreateKeysRequest{
+					&jobs.ExtendedCreateKeysData{
+						Keys:         keys,
+						Repositories: r,
+						Containers:   c,
+					},
+				},
+			}
+		},
+		Output: os.Stdout,
+	}.StreamAndExit()
 }

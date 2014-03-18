@@ -10,11 +10,14 @@ import (
 )
 
 const LocalHostName = "local"
+const ResourceTypeRepository = "repo"
+const ResourceTypeContainer = "ctr"
 
 type Locator interface {
 	IsRemote() bool
 	Identity() string
 	String() string
+	ResourceType() string
 }
 
 type Locators []Locator
@@ -45,6 +48,13 @@ func (locators Locators) Group() (local Locators, remote []Locators) {
 type RemoteIdentifier struct {
 	Id   containers.Identifier
 	Host HostIdentifier
+	Type TypeIdentifier
+}
+
+type TypeIdentifier string
+
+func (r RemoteIdentifier) ResourceType() string {
+	return string(r.Type)
 }
 
 func (r RemoteIdentifier) IsRemote() bool {
@@ -100,12 +110,12 @@ func NewRemoteHostIdentifiers(values ...string) ([]Locator, error) {
 	for i := range values {
 		value := values[i]
 		if value == LocalHostName {
-			out = append(out, &RemoteIdentifier{containers.InvalidIdentifier, ""})
+			out = append(out, &RemoteIdentifier{containers.InvalidIdentifier, "", TypeIdentifier(ResourceTypeContainer)})
 		} else {
 			if strings.Contains(value, "/") {
 				return []Locator{}, errors.New("Server identifiers may not have a slash")
 			}
-			out = append(out, &RemoteIdentifier{containers.InvalidIdentifier, HostIdentifier(value)})
+			out = append(out, &RemoteIdentifier{containers.InvalidIdentifier, HostIdentifier(value), TypeIdentifier(ResourceTypeContainer)})
 		}
 	}
 	return out, nil
@@ -115,13 +125,22 @@ func NewRemoteIdentifier(value string) (*RemoteIdentifier, error) {
 	if value == "" {
 		return nil, errors.New("The remote identifier must be specified as <host>/<id> or <id>")
 	}
+
+	// default type is ctr (i.e. container)
+	locatorType := ResourceTypeContainer
+	locatorParts := strings.SplitN(value, "://", 2)
+	if len(locatorParts) == 2 {
+		locatorType = locatorParts[0]
+		value = locatorParts[1]
+	}
+
 	sections := strings.SplitN(value, "/", 2)
 	if len(sections) == 1 {
 		id, err := containers.NewIdentifier(sections[0])
 		if err != nil {
 			return nil, err
 		}
-		return &RemoteIdentifier{id, ""}, nil
+		return &RemoteIdentifier{id, "", TypeIdentifier(locatorType)}, nil
 	}
 
 	id, err := containers.NewIdentifier(sections[1])
@@ -131,5 +150,5 @@ func NewRemoteIdentifier(value string) (*RemoteIdentifier, error) {
 	if strings.TrimSpace(sections[0]) == "" {
 		return nil, errors.New("You must specify <host>/<id> or <id>")
 	}
-	return &RemoteIdentifier{id, HostIdentifier(sections[0])}, nil
+	return &RemoteIdentifier{id, HostIdentifier(sections[0]), TypeIdentifier(locatorType)}, nil
 }
