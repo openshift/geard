@@ -2,25 +2,41 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"github.com/smarterclayton/geard/containers"
 	"log"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
 const LocalHostName = "local"
-const ResourceTypeRepository = "repo"
 const ResourceTypeContainer = "ctr"
 
 type Locator interface {
+	ResourceType() string
 	IsRemote() bool
 	Identity() string
-	String() string
-	ResourceType() string
+	HostIdentity() string
+}
+type Locators []Locator
+type ResourceLocator interface {
+	Identifier() containers.Identifier
 }
 
-type Locators []Locator
+func LocatorsAreEqual(a, b Locator) bool {
+	return a.Identity() == b.Identity()
+}
+
+func (locators Locators) Has(locator Locator) bool {
+	for i := range locators {
+		if locators[i].Identity() == locator.Identity() {
+			return true
+		}
+	}
+	return false
+}
 
 func (locators Locators) Group() (local Locators, remote []Locators) {
 	local = make(Locators, 0, len(locators))
@@ -28,11 +44,11 @@ func (locators Locators) Group() (local Locators, remote []Locators) {
 	for i := range locators {
 		locator := locators[i]
 		if locator.IsRemote() {
-			remotes, ok := groups[locator.Identity()]
+			remotes, ok := groups[locator.HostIdentity()]
 			if !ok {
 				remotes = make(Locators, 0, 2)
 			}
-			groups[locator.Identity()] = append(remotes, locator)
+			groups[locator.HostIdentity()] = append(remotes, locator)
 		} else {
 			local = append(local, locator)
 		}
@@ -45,58 +61,26 @@ func (locators Locators) Group() (local Locators, remote []Locators) {
 	return
 }
 
-type RemoteIdentifier struct {
+type HostLocator struct {
+	Host string
+	Port containers.Port
+}
+
+type ContainerLocator struct {
+	HostLocator
+	Id containers.Identifier
+}
+
+type GenericLocator struct {
+	HostLocator
 	Id   containers.Identifier
-	Host HostIdentifier
-	Type TypeIdentifier
+	Type string
 }
 
-type TypeIdentifier string
-
-func (r RemoteIdentifier) ResourceType() string {
-	return string(r.Type)
-}
-
-func (r RemoteIdentifier) IsRemote() bool {
-	return r.Host != ""
-}
-func (r RemoteIdentifier) Identity() string {
-	return string(r.Host)
-}
-func (r RemoteIdentifier) String() string {
-	if r.Host != "" {
-		return string(r.Host) + "/" + string(r.Id)
-	}
-	return string(r.Id)
-}
-func (r RemoteIdentifier) BaseURL() *url.URL {
-	uri, err := r.Host.NewURI()
-	if err != nil {
-		log.Fatal(err)
-	}
-	return uri
-}
-
-type HostIdentifier string
-
-func (h HostIdentifier) NewURI() (*url.URL, error) {
-	host, port, err := net.SplitHostPort(string(h))
-	if err != nil {
-		return nil, err
-	}
-	if port == "" {
-		port = "2223"
-	}
-	return &url.URL{
-		Scheme: "http",
-		Host:   host + ":" + port,
-	}, nil
-}
-
-func NewRemoteIdentifiers(values ...string) ([]Locator, error) {
-	out := make([]Locator, 0, len(values))
+func NewHostLocators(values ...string) (Locators, error) {
+	out := make(Locators, 0, len(values))
 	for i := range values {
-		r, err := NewRemoteIdentifier(values[i])
+		r, err := NewHostLocator(values[i])
 		if err != nil {
 			return out, err
 		}
@@ -105,50 +89,179 @@ func NewRemoteIdentifiers(values ...string) ([]Locator, error) {
 	return out, nil
 }
 
-func NewRemoteHostIdentifiers(values ...string) ([]Locator, error) {
-	out := make([]Locator, 0, len(values))
-	for i := range values {
-		value := values[i]
-		if value == LocalHostName {
-			out = append(out, &RemoteIdentifier{containers.InvalidIdentifier, "", TypeIdentifier(ResourceTypeContainer)})
-		} else {
-			if strings.Contains(value, "/") {
-				return []Locator{}, errors.New("Server identifiers may not have a slash")
-			}
-			out = append(out, &RemoteIdentifier{containers.InvalidIdentifier, HostIdentifier(value), TypeIdentifier(ResourceTypeContainer)})
+func NewHostLocator(value string) (*HostLocator, error) {
+	if strings.Contains(value, "/") {
+		return nil, errors.New("Host identifiers may not have a slash")
+	}
+	if value == "" || value == LocalHostName {
+		return &HostLocator{}, nil
+	}
+
+	host, portString, err := net.SplitHostPort(value)
+	if err != nil {
+		return nil, err
+	}
+	id := &HostLocator{Host: host}
+	if portString != "" {
+		port, err := strconv.Atoi(portString)
+		if err != nil {
+			return nil, err
+		}
+		id.Port = containers.Port(port)
+		if err := id.Port.Check(); err != nil {
+			return nil, err
 		}
 	}
-	return out, nil
+	return id, nil
 }
 
-func NewRemoteIdentifier(value string) (*RemoteIdentifier, error) {
+func splitTypeHostId(value string) (res, host string, id containers.Identifier, err error) {
 	if value == "" {
-		return nil, errors.New("The remote identifier must be specified as <host>/<id> or <id>")
+		err = errors.New("The identifier must be specified as <host>/<id> or <id>")
+		return
 	}
 
-	// default type is ctr (i.e. container)
-	locatorType := ResourceTypeContainer
 	locatorParts := strings.SplitN(value, "://", 2)
 	if len(locatorParts) == 2 {
-		locatorType = locatorParts[0]
+		res = locatorParts[0]
 		value = locatorParts[1]
 	}
 
 	sections := strings.SplitN(value, "/", 2)
 	if len(sections) == 1 {
-		id, err := containers.NewIdentifier(sections[0])
-		if err != nil {
-			return nil, err
-		}
-		return &RemoteIdentifier{id, "", TypeIdentifier(locatorType)}, nil
+		id, err = containers.NewIdentifier(sections[0])
+		return
 	}
+	id, err = containers.NewIdentifier(sections[1])
+	if err != nil {
+		return
+	}
+	if strings.TrimSpace(sections[0]) == "" {
+		err = errors.New("You must specify <host>/<id> or <id>")
+		return
+	}
+	host = sections[0]
+	return
+}
 
-	id, err := containers.NewIdentifier(sections[1])
+func NewContainerLocators(values ...string) (Locators, error) {
+	out := make(Locators, 0, len(values))
+	for i := range values {
+		r, err := NewContainerLocator(values[i])
+		if err != nil {
+			return out, err
+		}
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+func NewContainerLocator(value string) (*ContainerLocator, error) {
+	res, hostString, id, errs := splitTypeHostId(value)
+	if errs != nil {
+		return nil, errs
+	}
+	if res != "" && res != ResourceTypeContainer {
+		return nil, errors.New(fmt.Sprintf("%s is not a container", value))
+	}
+	host, err := NewHostLocator(hostString)
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(sections[0]) == "" {
-		return nil, errors.New("You must specify <host>/<id> or <id>")
+	return &ContainerLocator{*host, id}, nil
+}
+
+func NewGenericLocators(defaultType string, values ...string) (Locators, error) {
+	out := make(Locators, 0, len(values))
+	for i := range values {
+		r, err := NewGenericLocator(defaultType, values[i])
+		if err != nil {
+			return out, err
+		}
+		out = append(out, r)
 	}
-	return &RemoteIdentifier{id, HostIdentifier(sections[0]), TypeIdentifier(locatorType)}, nil
+	return out, nil
+}
+
+func NewGenericLocator(defaultType, value string) (Locator, error) {
+	res, hostString, id, errs := splitTypeHostId(value)
+	if errs != nil {
+		return nil, errs
+	}
+	if res == "" {
+		res = defaultType
+	}
+	host, err := NewHostLocator(hostString)
+	if err != nil {
+		return nil, err
+	}
+	if res == ResourceTypeContainer {
+		return &ContainerLocator{*host, id}, nil
+	}
+	return &GenericLocator{*host, id, res}, nil
+}
+
+func (r *HostLocator) IsDefaultPort() bool {
+	return r.Port == 0
+}
+func (r *HostLocator) IsRemote() bool {
+	return r.Host != ""
+}
+func (r *HostLocator) Identity() string {
+	return r.HostIdentity()
+}
+func (r *HostLocator) HostIdentity() string {
+	if r.Host != "" {
+		if !r.IsDefaultPort() {
+			return net.JoinHostPort(r.Host, strconv.Itoa(int(r.Port)))
+		}
+		return r.Host
+	}
+	return LocalHostName
+}
+func (r *HostLocator) ResolvedHostname() string {
+	if r.Host != "" {
+		return r.Host
+	}
+	return "localhost"
+}
+func (h *HostLocator) NewURI() (*url.URL, error) {
+	port := "2223"
+	if h.Port != containers.Port(0) {
+		port = strconv.Itoa(int(h.Port))
+	}
+	return &url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(h.ResolvedHostname(), port),
+	}, nil
+}
+func (r *HostLocator) BaseURL() *url.URL {
+	uri, err := r.NewURI()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return uri
+}
+func (r *HostLocator) ResourceType() string {
+	return ""
+}
+
+func (r *ContainerLocator) ResourceType() string {
+	return ResourceTypeContainer
+}
+func (r *ContainerLocator) Identity() string {
+	return r.HostLocator.HostIdentity() + "/" + string(r.Id)
+}
+func (r *ContainerLocator) Identifier() containers.Identifier {
+	return r.Id
+}
+
+func (r *GenericLocator) ResourceType() string {
+	return r.Type
+}
+func (r *GenericLocator) Identity() string {
+	return r.Type + "://" + r.HostLocator.HostIdentity() + "/" + string(r.Id)
+}
+func (r *GenericLocator) Identifier() containers.Identifier {
+	return r.Id
 }

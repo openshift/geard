@@ -63,7 +63,7 @@ func (p Port) IdentifierFor() (Identifier, error) {
 
 type PortPair struct {
 	Internal Port
-	External Port
+	External Port `json:"External,omitempty"`
 }
 
 type portReservation struct {
@@ -75,6 +75,14 @@ type portReservation struct {
 
 type PortPairs []PortPair
 
+func (p PortPairs) Find(port Port) (*PortPair, bool) {
+	for i := range p {
+		if p[i].Internal == port {
+			return &p[i], true
+		}
+	}
+	return nil, false
+}
 func (p PortPairs) ToHeader() string {
 	var pairs bytes.Buffer
 	for i := range p {
@@ -87,7 +95,6 @@ func (p PortPairs) ToHeader() string {
 	}
 	return pairs.String()
 }
-
 func (p PortPairs) String() string {
 	var pairs bytes.Buffer
 	for i := range p {

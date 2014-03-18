@@ -12,8 +12,8 @@ import (
 
 type NetworkLink struct {
 	FromPort Port
-	ToPort   Port
-	ToHost   string
+	ToPort   Port   `json:"ToPort,omitempty"`
+	ToHost   string `json:"ToHost,omitempty"`
 }
 
 type NetworkLinks []NetworkLink

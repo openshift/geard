@@ -65,7 +65,7 @@ type InstallContainerRequest struct {
 
 	Ports        containers.PortPairs
 	Environment  *containers.EnvironmentDescription
-	NetworkLinks *containers.NetworkLinks
+	NetworkLinks containers.NetworkLinks
 
 	// Should the container be started by default
 	Started bool
