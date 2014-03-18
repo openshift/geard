@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
-	"code.google.com/p/go.crypto/ssh"
 	"errors"
 	"fmt"
 	"io"
@@ -822,7 +820,6 @@ func parseEnvs(envStr string) (map[string]string, error) {
 func sshKeysAdd(cmd *cobra.Command, args []string) {
 
 	var (
-		data []byte
 		keys []jobs.KeyData
 		err  error
 	)
@@ -837,28 +834,9 @@ func sshKeysAdd(cmd *cobra.Command, args []string) {
 		Fail(1, "You must pass 1 or more valid LOCATOR names: %s\n", err.Error())
 	}
 
-	// keyFile - contains the sshd AuthorizedKeysFile location
-	// Stdin - contains the AuthorizedKeysFile if keyFile is not specified
-	if len(keyFile) != 0 {
-		absPath, _ := filepath.Abs(keyFile)
-		data, err = ioutil.ReadFile(absPath)
-		if err != nil {
-			Fail(1, "You must pass a valid FILE that exists.\n%v", err.Error())
-		}
-	} else {
-		data, _ = ioutil.ReadAll(os.Stdin)
-	}
-
-	bytesReader := bytes.NewReader(data)
-	scanner := bufio.NewScanner(bytesReader)
-	for scanner.Scan() {
-		// Parse the AuthorizedKeys line
-		pk, _, _, _, ok := ssh.ParseAuthorizedKey(scanner.Bytes())
-		if !ok {
-			Fail(1, "Unable to parse authorized key from input")
-		}
-		value := ssh.MarshalAuthorizedKey(pk)
-		keys = append(keys, jobs.KeyData{pk.PublicKeyAlgo(), string(value)})
+	keys, err = ReadAuthorizedKeysFile(keyFile)
+	if err != nil {
+		Fail(1, "Unable to read authorized keys file: %s\n", err.Error())
 	}
 
 	Executor{
