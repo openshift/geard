@@ -199,3 +199,14 @@ func (j *EnvironmentDescription) ReadFrom(r io.Reader) error {
 	j.Variables = env
 	return nil
 }
+
+func (j *EnvironmentDescription) Map() map[string]string {
+	env := make(map[string]string)
+	vars := j.Variables
+
+	for i := range vars {
+		env[vars[i].Name] = vars[i].Value
+	}
+
+	return env
+}
