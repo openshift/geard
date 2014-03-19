@@ -66,6 +66,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
  
   config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/smarterclayton/geard/contrib/bootstrap-dev-vm.sh"
 
+  if !ENV.has_key?('SKIP_DAEMON_BOOTSTRAP')
+    config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/smarterclayton/geard/contrib/bootstrap-daemon.sh"
+  end
+
   # Enable provisioning with Puppet stand alone.  Puppet manifests
   # are contained in a directory path relative to this Vagrantfile.
   # You will need to create the manifests directory and a manifest in
