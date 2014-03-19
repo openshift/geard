@@ -1,19 +1,22 @@
 #!/bin/bash -x
 
 function usage() {
-	echo "build [-s] [-d]"
+	echo "build [-s] [-d] [-i]"
 	echo "-s builds with selinux enabled"
 	echo "-d builds/deploys systemd service with docker"
+	echo "-i builds with idler daemon"
 	exit 1
 }
 
 use_selinux=false
 handle_systemd=false
+build_idler=false
 
-while getopts "sd" o; do
+while getopts "sdi" o; do
 	case "${o}" in
 		s) use_selinux=true;;
-        d) handle_systemd=true;;
+		d) handle_systemd=true;;
+		i) build_idler=true;;
 		*) usage;;
 	esac
 done
@@ -21,16 +24,20 @@ done
 tags=""
 
 if $use_selinux; then
-	tags="-tags selinux"
+	tags="selinux"
+fi
+
+if $build_idler; then
+	tags="$tags idler"
 fi
 
 if $handle_systemd; then
 	docker build -rm -t ccoleman/geard /vagrant && sudo systemctl restart geard.service	
 else
-	go get ./...
-	go install $tags github.com/smarterclayton/geard/cmd/gear
-	go install $tags github.com/smarterclayton/geard/cmd/switchns
-	go install $tags github.com/smarterclayton/geard/cmd/gear-auth-keys-command
+	go get -tags "$tags" ./...
+	go install -tags "$tags" github.com/smarterclayton/geard/cmd/gear
+	go install -tags "$tags" github.com/smarterclayton/geard/cmd/switchns
+	go install -tags "$tags" github.com/smarterclayton/geard/cmd/gear-auth-keys-command
 
 	sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
 	sudo /usr/bin/cp -f $GOPATH/bin/switchns .

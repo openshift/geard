@@ -46,7 +46,6 @@ func lookupContainer(containerName string, client *docker.Client, waitForContain
 			if !strings.HasPrefix(err.Error(), "No such container") {
 				return containerLookupResult{nil, err}
 			}
-			fmt.Printf("waiting for container... %v\n", i)
 			if timeout > 0 {
 				time.Sleep(time.Second)
 			}

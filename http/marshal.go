@@ -27,7 +27,7 @@ func (h *DefaultRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader,
 	return nil, nil
 }
 
-func (h* HttpCreateKeysRequest) MarshalHttpRequestBody(w io.Writer) error {
+func (h *HttpCreateKeysRequest) MarshalHttpRequestBody(w io.Writer) error {
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(h)
 }

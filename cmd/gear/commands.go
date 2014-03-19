@@ -24,6 +24,7 @@ import (
 	githttp "github.com/smarterclayton/geard/git/http"
 	gitjobs "github.com/smarterclayton/geard/git/jobs"
 	"github.com/smarterclayton/geard/http"
+	idlercmd "github.com/smarterclayton/geard/idler/cmd"
 	"github.com/smarterclayton/geard/jobs"
 	"github.com/smarterclayton/geard/systemd"
 )
@@ -49,6 +50,7 @@ var (
 	buildReq     sti.BuildRequest
 	keyFile      string
 	writeAccess  bool
+	hostIp       string
 )
 
 var conf = http.HttpConfiguration{
@@ -73,6 +75,7 @@ func Execute() {
 	}
 	gearCmd.PersistentFlags().StringVar(&(keyPath), "key-path", "", "Specify the directory containing the server private key and trusted client public keys")
 	gearCmd.PersistentFlags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
+	gearCmd.PersistentFlags().StringVarP(&hostIp, "host-ip", "H", GuessHostIp(), "IP address to listen for traffic")
 
 	installImageCmd := &cobra.Command{
 		Use:   "install <image> <name>... <key>=<value>",
@@ -252,6 +255,8 @@ func Execute() {
 	sshKeysCmd.Flags().BoolVar(&writeAccess, "write", false, "True if write access is provided for this key to the repository")
 	sshKeysCmd.Flags().StringVar(&keyFile, "key-file", "", "read input from FILE specified matching sshd AuthorizedKeysFile format")
 	gearCmd.AddCommand(sshKeysCmd)
+
+	idlercmd.LoadCommand(gearCmd, &conf.Docker.Socket, &hostIp)
 
 	if err := gearCmd.Execute(); err != nil {
 		Fail(1, err.Error())

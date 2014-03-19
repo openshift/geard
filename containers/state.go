@@ -1,8 +1,11 @@
 package containers
 
 import (
+	"bufio"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 )
 
 func WriteContainerState(id Identifier, active bool) error {
@@ -34,4 +37,25 @@ func unitStateContents(path string, active bool) string {
 	}
 
 	return ".include " + path + "\n\n[Install]\nWantedBy=" + target + ".target\n"
+}
+
+func ReadContainerState(id Identifier) (bool, error) {
+	r, err := os.Open(id.UnitPathFor())
+	if err != nil {
+		return false, err
+	}
+	defer r.Close()
+
+	scan := bufio.NewScanner(r)
+	for scan.Scan() {
+		line := scan.Text()
+		if strings.HasPrefix(line, "WantedBy=") {
+			wantedBy := strings.TrimPrefix(line, "WantedBy=")
+			return strings.Contains(wantedBy, "container-active.target"), nil
+		}
+	}
+	if scan.Err() != nil {
+		return false, scan.Err()
+	}
+	return false, fmt.Errorf("Container state not found")
 }
