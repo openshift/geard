@@ -18,6 +18,9 @@ package dbus
 
 import (
 	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/guelfey/go.dbus"
@@ -70,6 +73,7 @@ func (c *Conn) initDispatch() {
 	go func() {
 		for {
 			signal := <-ch
+
 			switch signal.Name {
 			case "org.freedesktop.systemd1.Manager.JobRemoved":
 				c.jobComplete(signal)
@@ -151,8 +155,11 @@ func (c *Conn) SubscribeUnitsCustom(interval time.Duration, buffer int, isChange
 }
 
 type SubStateUpdate struct {
-	UnitName string
-	SubState string
+	UnitName    string
+	SubState    string
+	ActiveState string
+	LoadState   string
+	WantedBy    []string
 }
 
 // SetSubStateSubscriber writes to updateCh when any unit's substate changes.
@@ -182,7 +189,9 @@ func (c *Conn) sendSubStateUpdate(path dbus.ObjectPath) {
 		return
 	}
 
-	info, err := c.GetUnitProperties(string(path))
+	unit := filepath.Base(string(path))
+
+	info, err := c.GetUnitProperties(unit)
 	if err != nil {
 		select {
 		case c.subscriber.errCh <- err:
@@ -192,18 +201,21 @@ func (c *Conn) sendSubStateUpdate(path dbus.ObjectPath) {
 
 	name := info["Id"].(string)
 	substate := info["SubState"].(string)
+	activestate := info["ActiveState"].(string)
+	loadstate := info["LoadState"].(string)
+	wantedBy := info["WantedBy"].([]string)
 
-	update := &SubStateUpdate{name, substate}
+	update := &SubStateUpdate{name, substate, activestate, loadstate, wantedBy}
 	select {
 	case c.subscriber.updateCh <- update:
 	default:
 		select {
-		case c.subscriber.errCh <- errors.New("update channel full!"):
+		case c.subscriber.errCh <- errors.New(fmt.Sprintf("update channel full!. Missed update %v", update)):
 		default:
 		}
 	}
 
-	c.updateIgnore(path, info)
+	c.updateIgnore(name, path, info)
 }
 
 // The ignore functions work around a wart in the systemd dbus interface.
@@ -225,11 +237,11 @@ func (c *Conn) shouldIgnore(path dbus.ObjectPath) bool {
 	return ok && t >= time.Now().UnixNano()
 }
 
-func (c *Conn) updateIgnore(path dbus.ObjectPath, info map[string]interface{}) {
+func (c *Conn) updateIgnore(unitName string, path dbus.ObjectPath, info map[string]interface{}) {
 	c.cleanIgnore()
 
 	// unit is unloaded - it will trigger bad systemd dbus behavior
-	if info["LoadState"].(string) == "not-found" {
+	if info["LoadState"].(string) == "not-found" || strings.HasSuffix(unitName, ".device") {
 		c.subscriber.ignore[path] = time.Now().UnixNano() + ignoreInterval
 	}
 }
