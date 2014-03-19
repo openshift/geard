@@ -3,14 +3,16 @@ package jobs
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"os"
+	"reflect"
+	"time"
+
 	"github.com/smarterclayton/geard/containers"
 	"github.com/smarterclayton/geard/systemd"
 	"github.com/smarterclayton/geard/utils"
 	"github.com/smarterclayton/go-systemd/dbus"
-	"io"
-	"log"
-	"reflect"
-	"time"
 )
 
 type BuildImageRequest struct {
@@ -40,7 +42,10 @@ func (e *ExtendedBuildImageData) Check() error {
 	return nil
 }
 
-const buildImage = "pmorie/sti-builder-go"
+const (
+	buildImage     = "pmorie/sti-builder-go"
+	gearBinaryPath = "/usr/bin/gear"
+)
 
 func (j *BuildImageRequest) Execute(resp JobResponse) {
 	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
@@ -84,15 +89,23 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 	fmt.Fprintf(w, "Running sti build unit: %s\n", unitName)
 	log.Printf("build_image: Running build %s", unitName)
 
-	startCmd := []string{
-		"/usr/bin/docker", "run",
-		"-rm",
-		"-v", "/run/docker.sock:/run/docker.sock",
-		"-t", buildImage,
-		"sti", "build", j.Source, j.BaseImage, j.Tag,
-		"-U", "unix:///run/docker.sock",
+	var startCmd []string
+
+	if _, err := os.Stat(gearBinaryPath); err != nil {
+		log.Println("gear script is not installed on system; using sti builder image")
+		startCmd = []string{
+			"/usr/bin/docker", "run",
+			"-rm",
+			"-v", "/run/docker.sock:/run/docker.sock",
+			"-t", buildImage,
+			"sti", "build", j.Source, j.BaseImage, j.Tag,
+			"-U", "unix:///run/docker.sock",
+		}
+	} else {
+		startCmd = []string{
+			gearBinaryPath, "build", j.Source, j.BaseImage, j.Tag,
+		}
 	}
-	log.Printf("build_image: Will execute %v", startCmd)
 
 	if j.RuntimeImage != "" {
 		startCmd = append(startCmd, "--runtime-image")
@@ -107,6 +120,7 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 		startCmd = append(startCmd, "--debug")
 	}
 
+	log.Printf("build_image: Will execute %v", startCmd)
 	status, err := systemd.Connection().StartTransientUnit(
 		unitName,
 		"fail",
