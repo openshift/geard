@@ -35,7 +35,7 @@ type AccountService struct {
 
 func NewAccountService() (*AccountService, error) {
 	a := &AccountService{}
-	
+
 	var err error
 	a.dconn, err = dbus.SystemBusPrivate()
 	if err != nil {
@@ -53,7 +53,7 @@ func NewAccountService() (*AccountService, error) {
 		a.dconn.Close()
 		return nil, err
 	}
-	
+
 	a.service = a.dconn.Object("org.freedesktop.Accounts", "/org/freedesktop/Accounts")
 	a.propMethodMap = map[string]string{
 		"RealName":      "SetRealName",
@@ -146,7 +146,7 @@ func (a *AccountService) CreateUser(name string, fullName string, homeDir string
 	var err error
 	var user *dbus.Object
 	var curHomeDir interface{}
-	
+
 	if call := a.service.Call("org.freedesktop.Accounts.CreateUser", 0, name, fullName, int32(0)); call.Err != nil {
 		return nil, call.Err
 	}
