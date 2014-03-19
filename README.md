@@ -94,7 +94,7 @@ Here are the initial set of supported container actions - these should map clean
 *   Enable SSH access to join a container for a set of authorized keys
 *   Build a new image from a source URL and base image
 
-        $ curl -X POST "http://localhost:8080/build-image" -H "Content-Type: application/json" -d '{"BaseImage":"pmorie/fedora-mock","Source":"http://github.com/openshift/sinatra-example.git","Tag":"mybuild-1"}'
+        $ curl -X POST "http://localhost:8080/build-image" -H "Content-Type: application/json" -d '{"BaseImage":"pmorie/fedora-mock","Source":"git://github.com/pmorie/simple-html","Tag":"mybuild-1"}'
 
 *   Fetch a Git archive zip for a repository
 
