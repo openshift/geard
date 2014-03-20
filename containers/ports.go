@@ -23,11 +23,42 @@ func (p Port) Check() error {
 	}
 	return nil
 }
+
 func (p Port) CheckDefault() error {
 	if p < 0 || p > 65535 {
 		return errors.New("Port value must be an integer less than 65536")
 	}
 	return nil
+}
+
+func (p Port) String() string {
+	return strconv.Itoa(int(p))
+}
+
+func (p Port) IdentifierFor() (Identifier, error) {
+	var id Identifier
+	_, portPath := p.PortPathsFor()
+
+	r, err := os.Open(portPath)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	scan := bufio.NewScanner(r)
+	for scan.Scan() {
+		line := scan.Text()
+		if strings.HasPrefix(line, "X-ContainerId=") {
+			if id, err = NewIdentifier(strings.TrimPrefix(line, "X-ContainerId=")); err != nil {
+				return "", err
+			}
+			return id, nil
+		}
+	}
+	if scan.Err() != nil {
+		return "", scan.Err()
+	}
+	return "", fmt.Errorf("Container ID not found")
 }
 
 type PortPair struct {

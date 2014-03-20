@@ -1,6 +1,8 @@
 package config
 
-const basePath = "/var/lib/containers"
+const (
+	basePath = "/var/lib/containers"
+)
 
 func ContainerBasePath() string {
 	return basePath

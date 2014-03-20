@@ -23,10 +23,9 @@ func propIncludesString(value interface{}, key string) bool {
 	return false
 }
 
-func inStateOrTooSoon(unit string, active, transition bool, rateLimit uint64) (inState bool, tooSoon bool, markedActive bool) {
+func inStateOrTooSoon(id containers.Identifier, unit string, active, transition bool, rateLimit uint64) (inState bool, tooSoon bool, markedActive bool) {
 	if props, erru := systemd.Connection().GetUnitProperties(unit); erru == nil {
-
-		markedActive = propIncludesString(props["WantedBy"], "container-active.target")
+		markedActive, _ = containers.ReadContainerState(id)
 
 		switch props["ActiveState"] {
 		case "active":
@@ -99,7 +98,7 @@ func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
-	inState, tooSoon, markedActive := inStateOrTooSoon(unitName, true, false, rateLimitChanges)
+	inState, tooSoon, markedActive := inStateOrTooSoon(j.Id, unitName, true, false, rateLimitChanges)
 	if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s starting\n", j.Id)
@@ -143,7 +142,9 @@ type StoppedContainerStateRequest struct {
 }
 
 func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
-	inState, tooSoon, markedActive := inStateOrTooSoon(j.Id.UnitNameFor(), false, false, rateLimitChanges)
+	unitName := j.Id.UnitNameFor()
+
+	inState, tooSoon, markedActive := inStateOrTooSoon(j.Id, unitName, false, false, rateLimitChanges)
 	if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
@@ -164,9 +165,7 @@ func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 
 	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 
-	unitName := j.Id.UnitNameFor()
 	done := make(chan time.Time)
-
 	ioerr := make(chan error)
 	go func() {
 		ioerr <- systemd.WriteLogsTo(w, unitName, 0, done)
@@ -219,7 +218,7 @@ func (j *RestartContainerRequest) Execute(resp JobResponse) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
-	inState, tooSoon, markedActive := inStateOrTooSoon(unitName, false, true, rateLimitChanges)
+	inState, tooSoon, markedActive := inStateOrTooSoon(j.Id, unitName, false, true, rateLimitChanges)
 	if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s restarting\n", j.Id)

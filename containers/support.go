@@ -5,10 +5,6 @@ import (
 	"errors"
 	"fmt"
 	dc "github.com/fsouza/go-dockerclient"
-	"github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/selinux"
-	"github.com/smarterclayton/geard/utils"
 	"io"
 	"log"
 	"net"
@@ -20,6 +16,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/smarterclayton/geard/config"
+	"github.com/smarterclayton/geard/docker"
+	"github.com/smarterclayton/geard/selinux"
+	"github.com/smarterclayton/geard/utils"
 )
 
 func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
@@ -353,4 +354,14 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 		return err
 	}
 	return nil
+}
+
+func GetContainerIPs(d *docker.DockerClient, ids []Identifier) (map[string]Identifier, error) {
+	ips := make(map[string]Identifier)
+	for _, id := range ids {
+		if cInfo, err := d.GetContainer(id.ContainerFor(), false); err == nil {
+			ips[cInfo.NetworkSettings.IPAddress] = id
+		}
+	}
+	return ips, nil
 }

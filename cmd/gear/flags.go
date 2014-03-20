@@ -1,6 +1,9 @@
 package main
 
 import (
+	"github.com/smarterclayton/geard/containers"
+	"github.com/smarterclayton/geard/jobs"
+
 	"bufio"
 	"bytes"
 	"code.google.com/p/go.crypto/ssh"
@@ -8,12 +11,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/jobs"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func GenerateId() string {
@@ -139,4 +142,32 @@ func ReadAuthorizedKeysFile(keyFile string) ([]jobs.KeyData, error) {
 	}
 
 	return keys, err
+}
+
+func GuessHostIp() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+
+	for _, iface := range ifaces {
+		if strings.HasPrefix(iface.Name, "veth") || strings.HasPrefix(iface.Name, "lo") ||
+			strings.HasPrefix(iface.Name, "docker") {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return ""
+		}
+
+		if len(addrs) == 0 {
+			continue
+		}
+
+		ip, _, _ := net.ParseCIDR(addrs[0].String())
+		return ip.String()
+	}
+
+	return ""
 }

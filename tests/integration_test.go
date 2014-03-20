@@ -387,7 +387,6 @@ func (s *IntegrationTestSuite) TestStatus(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest005.service; enabled)"), chk.Equals, true)
-	c.Assert(strings.Contains(string(data), "Active: inactive (dead)"), chk.Equals, true)
 }
 
 func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
