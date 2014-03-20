@@ -174,7 +174,7 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 			return errors.New("support: child PID is not correct")
 		}
 		log.Printf("Updating network namespaces for %d", pid)
-		if err := updateNamespaceNetworkLinks(pid, "127.0.0.2", file); err != nil {
+		if err := updateNamespaceNetworkLinks(pid, file); err != nil {
 			return err
 		}
 	}
@@ -324,7 +324,7 @@ func (resolver *addressResolver) ResolveIP(host string) (net.IP, error) {
 	return addr.IP, nil
 }
 
-func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) error {
+func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
 	name := "netlink-" + strconv.Itoa(pid)
 	nsPath := fmt.Sprintf("/proc/%d/ns/net", pid)
 	path := fmt.Sprintf("/var/run/netns/%s", name)
@@ -377,7 +377,7 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 	fmt.Fprintf(stdin, "*nat\n")
 	for {
 		link := NetworkLink{}
-		if _, err := fmt.Fscanf(ports, "%v\t%v\t%s\n", &link.FromPort, &link.ToPort, &link.ToHost); err != nil {
+		if _, err := fmt.Fscanf(ports, "%s\t%v\t%v\t%s\n", &link.FromHost, &link.FromPort, &link.ToPort, &link.ToHost); err != nil {
 			if err == io.EOF {
 				break
 			}
@@ -389,13 +389,19 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 			continue
 		}
 		if link.Complete() {
+			srcIP, err := net.ResolveIPAddr("ip", link.FromHost)
+			if err != nil {
+				log.Printf("network_links: Link source host does not resolve %v", err)
+				continue
+			}
+
 			destIP, err := resolver.ResolveIP(link.ToHost)
 			if err != nil {
 				log.Printf("network_links: Link destination host does not resolve %v", err)
 				continue
 			}
 
-			data := OutboundNetworkIptables{sourceAddr.String(), localAddr, link.FromPort, destIP.String(), link.ToPort}
+			data := OutboundNetworkIptables{sourceAddr.String(), srcIP.IP.String(), link.FromPort, destIP.String(), link.ToPort}
 			if err := OutboundNetworkIptablesTemplate.Execute(stdin, &data); err != nil {
 				log.Printf("network_links: Unable to write network link rules: %v", err)
 				return err
