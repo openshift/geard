@@ -55,7 +55,7 @@ func TestListeners(t *testing.T) {
 	t2 := l2.(*net.TCPListener)
 
 	f1, _ := t1.File()
-	f2, _  := t2.File()
+	f2, _ := t2.File()
 
 	cmd.ExtraFiles = []*os.File{
 		f1,
