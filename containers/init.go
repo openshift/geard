@@ -50,7 +50,7 @@ func verifyDataPaths() error {
 		filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"),
 		filepath.Join(config.ContainerBasePath(), "keys", "public"),
 	} {
-		if err := checkPath(path, os.FileMode(0775), true); err != nil {
+		if err := checkPath(path, os.FileMode(0755), true); err != nil {
 			return err
 		}
 		if err := selinux.RestoreCon(path, false); err != nil {
@@ -64,7 +64,7 @@ func verifyDataPaths() error {
 		filepath.Join(config.ContainerBasePath(), "ports", "descriptions"),
 		filepath.Join(config.ContainerBasePath(), "ports", "interfaces"),
 	} {
-		if err := checkPath(path, os.FileMode(0770), true); err != nil {
+		if err := checkPath(path, os.FileMode(0750), true); err != nil {
 			return err
 		}
 		if err := selinux.RestoreCon(path, false); err != nil {
