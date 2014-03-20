@@ -482,7 +482,7 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
 			fmt.Fprintf(w, "Deleted %s", job.(*http.HttpDeleteContainerRequest).Label)
 		},
-		LocalInit: needsData,
+		LocalInit: needsSystemdAndData,
 	}.StreamAndExit()
 }
 
