@@ -63,7 +63,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   #
   # View the documentation for the provider you're using for more
   # information on available options.
- 
+  if ENV['JUMBO'] && ENV['JUMBO'] != ""
+    config.vm.provider "virtualbox" do |v|
+      v.memory = 4096
+      v.cpus = 2
+    end
+  end
+
   config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/smarterclayton/geard/contrib/bootstrap-dev-vm.sh"
 
   if !ENV.has_key?('SKIP_DAEMON_BOOTSTRAP')
