@@ -143,7 +143,7 @@ func (j *EnvironmentDescription) Write(appends bool) error {
 	var err error
 
 	if appends {
-		file, err = os.OpenFile(envPath, os.O_APPEND|os.O_WRONLY, 0660)
+		file, err = os.OpenFile(envPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
 	} else {
 		file, err = os.OpenFile(envPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0660)
 		if os.IsExist(err) {
