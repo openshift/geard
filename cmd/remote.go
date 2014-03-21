@@ -11,11 +11,16 @@ import (
 	"strings"
 )
 
-const LocalHostName = "local"
-const ResourceTypeContainer = "ctr"
+const (
+	LocalHostName                       = "local"
+	ResourceTypeContainer  ResourceType = "ctr"
+	ResourceTypeRepository ResourceType = "repo"
+)
+
+type ResourceType string
 
 type Locator interface {
-	ResourceType() string
+	ResourceType() ResourceType
 	IsRemote() bool
 	Identity() string
 	HostIdentity() string
@@ -74,7 +79,7 @@ type ContainerLocator struct {
 type GenericLocator struct {
 	HostLocator
 	Id   containers.Identifier
-	Type string
+	Type ResourceType
 }
 
 func NewHostLocators(values ...string) (Locators, error) {
@@ -115,7 +120,7 @@ func NewHostLocator(value string) (*HostLocator, error) {
 	return id, nil
 }
 
-func splitTypeHostId(value string) (res, host string, id containers.Identifier, err error) {
+func splitTypeHostId(value string) (res ResourceType, host string, id containers.Identifier, err error) {
 	if value == "" {
 		err = errors.New("The identifier must be specified as <host>/<id> or <id>")
 		return
@@ -123,7 +128,7 @@ func splitTypeHostId(value string) (res, host string, id containers.Identifier, 
 
 	locatorParts := strings.SplitN(value, "://", 2)
 	if len(locatorParts) == 2 {
-		res = locatorParts[0]
+		res = ResourceType(locatorParts[0])
 		value = locatorParts[1]
 	}
 
@@ -161,7 +166,7 @@ func NewContainerLocator(value string) (*ContainerLocator, error) {
 	if errs != nil {
 		return nil, errs
 	}
-	if res != "" && res != ResourceTypeContainer {
+	if res != "" && ResourceType(res) != ResourceTypeContainer {
 		return nil, errors.New(fmt.Sprintf("%s is not a container", value))
 	}
 	host, err := NewHostLocator(hostString)
@@ -171,7 +176,7 @@ func NewContainerLocator(value string) (*ContainerLocator, error) {
 	return &ContainerLocator{*host, id}, nil
 }
 
-func NewGenericLocators(defaultType string, values ...string) (Locators, error) {
+func NewGenericLocators(defaultType ResourceType, values ...string) (Locators, error) {
 	out := make(Locators, 0, len(values))
 	for i := range values {
 		r, err := NewGenericLocator(defaultType, values[i])
@@ -183,7 +188,7 @@ func NewGenericLocators(defaultType string, values ...string) (Locators, error) 
 	return out, nil
 }
 
-func NewGenericLocator(defaultType, value string) (Locator, error) {
+func NewGenericLocator(defaultType ResourceType, value string) (Locator, error) {
 	res, hostString, id, errs := splitTypeHostId(value)
 	if errs != nil {
 		return nil, errs
@@ -195,10 +200,10 @@ func NewGenericLocator(defaultType, value string) (Locator, error) {
 	if err != nil {
 		return nil, err
 	}
-	if res == ResourceTypeContainer {
+	if ResourceType(res) == ResourceTypeContainer {
 		return &ContainerLocator{*host, id}, nil
 	}
-	return &GenericLocator{*host, id, res}, nil
+	return &GenericLocator{*host, id, ResourceType(res)}, nil
 }
 
 func (r *HostLocator) IsDefaultPort() bool {
@@ -242,11 +247,11 @@ func (r *HostLocator) BaseURL() *url.URL {
 	}
 	return uri
 }
-func (r *HostLocator) ResourceType() string {
+func (r *HostLocator) ResourceType() ResourceType {
 	return ""
 }
 
-func (r *ContainerLocator) ResourceType() string {
+func (r *ContainerLocator) ResourceType() ResourceType {
 	return ResourceTypeContainer
 }
 func (r *ContainerLocator) Identity() string {
@@ -256,11 +261,11 @@ func (r *ContainerLocator) Identifier() containers.Identifier {
 	return r.Id
 }
 
-func (r *GenericLocator) ResourceType() string {
+func (r *GenericLocator) ResourceType() ResourceType {
 	return r.Type
 }
 func (r *GenericLocator) Identity() string {
-	return r.Type + "://" + r.HostLocator.HostIdentity() + "/" + string(r.Id)
+	return string(r.Type) + "://" + r.HostLocator.HostIdentity() + "/" + string(r.Id)
 }
 func (r *GenericLocator) Identifier() containers.Identifier {
 	return r.Id

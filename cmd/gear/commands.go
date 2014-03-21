@@ -23,6 +23,7 @@ import (
 	"github.com/smarterclayton/geard/dispatcher"
 	"github.com/smarterclayton/geard/encrypted"
 	"github.com/smarterclayton/geard/git"
+	gitcmd "github.com/smarterclayton/geard/git/cmd"
 	githttp "github.com/smarterclayton/geard/git/http"
 	gitjobs "github.com/smarterclayton/geard/git/jobs"
 	"github.com/smarterclayton/geard/http"
@@ -280,6 +281,7 @@ func Execute() {
 	gearCmd.AddCommand(createTokenCmd)
 
 	idlercmd.LoadCommand(gearCmd, &conf.Docker.Socket, &hostIp)
+	gitcmd.LoadCommand(gearCmd)
 
 	if err := gearCmd.Execute(); err != nil {
 		Fail(1, err.Error())
@@ -858,8 +860,6 @@ func listUnits(cmd *cobra.Command, args []string) {
 	}
 	os.Exit(0)
 }
-
-const ResourceTypeRepository = "repo"
 
 func sshKeysAdd(cmd *cobra.Command, args []string) {
 	// validate that arguments for locators are passsed

@@ -12,18 +12,23 @@ import (
 
 func Routes() []http.HttpJobHandler {
 	return []http.HttpJobHandler{
-		&httpCreateRepositoryRequest{},
-		&httpGitArchiveContentRequest{Ref: "*"},
+		&HttpCreateRepositoryRequest{},
+		&httpGitArchiveContentRequest{
+			GitArchiveContentRequest: gitjobs.GitArchiveContentRequest{Ref: "*"},
+		},
 	}
 }
 
-type httpCreateRepositoryRequest gitjobs.CreateRepositoryRequest
+type HttpCreateRepositoryRequest struct {
+	gitjobs.CreateRepositoryRequest
+	http.DefaultRequest
+}
 
-func (h *httpCreateRepositoryRequest) HttpMethod() string { return "PUT" }
-func (h *httpCreateRepositoryRequest) HttpPath() string {
+func (h *HttpCreateRepositoryRequest) HttpMethod() string { return "PUT" }
+func (h *HttpCreateRepositoryRequest) HttpPath() string {
 	return http.Inline("/repository/:id", string(h.Id))
 }
-func (h *httpCreateRepositoryRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
+func (h *HttpCreateRepositoryRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		repositoryId, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
@@ -37,7 +42,10 @@ func (h *httpCreateRepositoryRequest) Handler(conf *http.HttpConfiguration) http
 	}
 }
 
-type httpGitArchiveContentRequest gitjobs.GitArchiveContentRequest
+type httpGitArchiveContentRequest struct {
+	gitjobs.GitArchiveContentRequest
+	http.DefaultRequest
+}
 
 func (h *httpGitArchiveContentRequest) HttpMethod() string { return "GET" }
 func (h *httpGitArchiveContentRequest) HttpPath() string {
