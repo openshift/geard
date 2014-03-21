@@ -70,6 +70,7 @@ ExecStart=/usr/bin/docker run \
             --name "{{.Id}}" --rm \
             --volumes-from "{{.Id}}" \
             -a stdout -a stderr {{.PortSpec}} \
+            -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
             "{{.Image}}" /.container.init
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
@@ -102,6 +103,7 @@ ExecStart=/usr/bin/docker run \
             -a stdout -a stderr \
             --env LISTEN_FDS \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro \
+            -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro \
             -v /usr/sbin/systemd-socket-proxyd:/usr/sbin/systemd-socket-proxyd:ro \
             -u root -f --rm \
             "{{.Image}}" /.container.init
@@ -148,8 +150,8 @@ old_id=$(id -u {{.ContainerUser}})
 old_gid=$(id -g {{.ContainerUser}})
 /usr/sbin/usermod {{.ContainerUser}} --uid {{.Uid}}
 /usr/sbin/groupmod {{.ContainerUser}} --gid {{.Gid}}
-for i in $(find / -uid ${old_id}); do /usr/bin/chgrp -R {{.Uid}} $i; done
-for i in $(find / -gid ${old_gid}); do /usr/bin/chgrp -R {{.Gid}} $i; done
+for i in $(find / -uid ${old_id}); do PATH=/bin:/sbin:/usr/bin:/usr/sbin chown -R {{.Uid}} $i; done
+for i in $(find / -gid ${old_gid}); do PATH=/bin:/sbin:/usr/bin:/usr/sbin chgrp -R {{.Gid}} $i; done
 {{ end }}
 {{ if .HasVolumes }}
 chown -R {{.Uid}}:{{.Gid}} {{.Volumes}}
@@ -157,7 +159,11 @@ chown -R {{.Uid}}:{{.Gid}} {{.Volumes}}
 {{ if .UseSocketProxy }}
 bash -c 'LISTEN_PID=$$ exec /usr/sbin/systemd-socket-proxyd {{ range .PortPairs }}127.0.0.1:{{ .Internal }}{{ end }}' &
 {{ end }}
-exec su {{.ContainerUser}} -c -- {{.Command}}
+exec su {{.ContainerUser}} -s /bin/bash -c /.container.cmd
+`))
+
+var ContainerCmdTemplate = template.Must(template.New("container-cmd.sh").Parse(`#!/bin/bash
+exec {{.Command}}
 `))
 
 type OutboundNetworkIptables struct {

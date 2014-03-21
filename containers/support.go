@@ -57,15 +57,7 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 		return err
 	}
 
-	path := path.Join(id.HomePath(), "container-init.sh")
 	u, _ := user.Lookup(id.LoginFor())
-	file, _, err := utils.OpenFileExclusive(path, 0700)
-	if err != nil {
-		fmt.Printf("container init pre-start: Unable to open script file: %v\n", err)
-		return err
-	}
-	defer file.Close()
-
 	volumes := make([]string, 0, 10)
 	for volPath := range imgInfo.Config.Volumes {
 		volumes = append(volumes, volPath)
@@ -82,7 +74,7 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 		return err
 	}
 
-	if erre := ContainerInitTemplate.Execute(file, ContainerInitScript{
+	containerData := ContainerInitScript{
 		imgInfo.Config.User == "",
 		user,
 		u.Uid,
@@ -92,8 +84,32 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 		strings.Join(volumes, " "),
 		ports,
 		socketActivationType == "proxied",
-	}); erre != nil {
+	}
+
+	file, _, err := utils.OpenFileExclusive(path.Join(id.HomePath(), "container-init.sh"), 0700)
+	if err != nil {
+		fmt.Printf("container init pre-start: Unable to open script file: %v\n", err)
+		return err
+	}
+	defer file.Close()
+
+	if erre := ContainerInitTemplate.Execute(file, containerData); erre != nil {
 		fmt.Printf("container init pre-start: Unable to output template: ", erre)
+		return erre
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+
+	file, _, err = utils.OpenFileExclusive(path.Join(id.HomePath(), "container-cmd.sh"), 0705)
+	if err != nil {
+		fmt.Printf("container init pre-start: Unable to open cmd script file: %v\n", err)
+		return err
+	}
+	defer file.Close()
+
+	if erre := ContainerCmdTemplate.Execute(file, containerData); erre != nil {
+		fmt.Printf("container init pre-start: Unable to output cmd template: ", erre)
 		return erre
 	}
 	if err := file.Close(); err != nil {
