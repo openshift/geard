@@ -138,7 +138,7 @@ func ReadAuthorizedKeysFile(keyFile string) ([]jobs.KeyData, error) {
 			err = errors.New("Unable to parse authorized key from input source, invalid format")
 		}
 		value := ssh.MarshalAuthorizedKey(pk)
-		keys = append(keys, jobs.KeyData{pk.PublicKeyAlgo(), string(value)})
+		keys = append(keys, jobs.KeyData{"authorized_keys", string(value)})
 	}
 
 	return keys, err

@@ -37,9 +37,9 @@ type ContainerPermission struct {
 
 func (k *KeyData) Check() error {
 	switch k.Type {
-	case "ssh-rsa", "ssh-dsa", "ssh-ecdsa":
+	case "authorized_keys":
 	default:
-		return errors.New("Type must be one of 'ssh-rsa', 'ssh-dsa', or 'ssh-ecdsa'")
+		return errors.New("Type must be 'authorized_keys'")
 	}
 	if k.Value == "" {
 		return errors.New("Value must be specified.")
