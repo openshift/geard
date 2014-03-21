@@ -1,6 +1,7 @@
 package containers
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -27,6 +28,14 @@ func NewIdentifier(s string) (Identifier, error) {
 		return InvalidIdentifier, errors.New("Identifier must match " + allowedIdentifier.String())
 	}
 	return Identifier(s), nil
+}
+
+func NewRandomIdentifier(prefix string) (Identifier, error) {
+	i := make([]byte, (32-4-len(prefix))*4/3)
+	if _, err := rand.Read(i); err != nil {
+		return InvalidIdentifier, err
+	}
+	return Identifier(strings.TrimRight(base64.URLEncoding.EncodeToString(i), "=")), nil
 }
 
 func NewIdentifierFromUser(u *user.User) (Identifier, error) {

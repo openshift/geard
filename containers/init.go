@@ -61,8 +61,6 @@ func verifyDataPaths() error {
 		filepath.Join(config.ContainerBasePath(), "targets"),
 		filepath.Join(config.ContainerBasePath(), "slices"),
 		filepath.Join(config.ContainerBasePath(), "env", "contents"),
-		filepath.Join(config.ContainerBasePath(), "access", "git", "read"),
-		filepath.Join(config.ContainerBasePath(), "access", "git", "write"),
 		filepath.Join(config.ContainerBasePath(), "ports", "descriptions"),
 		filepath.Join(config.ContainerBasePath(), "ports", "interfaces"),
 	} {

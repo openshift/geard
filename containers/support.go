@@ -23,6 +23,8 @@ import (
 	"github.com/smarterclayton/geard/utils"
 )
 
+var resolver addressResolver = addressResolver{}
+
 func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 	var (
 		err     error
@@ -145,6 +147,10 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 		return err
 	}
 
+	if err := GenerateAuthorizedKeys(id, u, true, false); err != nil {
+		return err
+	}
+
 	const CONTAINER_RUNNING_WAIT_TIME = 10
 	for i := 0; i < CONTAINER_RUNNING_WAIT_TIME; i++ {
 		if container, err = d.GetContainer(id.ContainerFor(), true); err != nil {
@@ -156,10 +162,6 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 			log.Printf("Waiting for container to run.")
 			time.Sleep(time.Second)
 		}
-	}
-
-	if err = GenerateAuthorizedKeys(id, u, true, false); err != nil {
-		return err
 	}
 
 	if file, err := os.Open(id.NetworkLinksPathFor()); err == nil {
@@ -282,6 +284,46 @@ func getHostIPFromNamespace(name string) (*net.IPAddr, error) {
 	return sourceAddr, nil
 }
 
+type addressResolver struct {
+	local   net.IP
+	checked bool
+}
+
+func (resolver *addressResolver) ResolveIP(host string) (net.IP, error) {
+	if host == "localhost" || host == "127.0.0.1" {
+		if resolver.local != nil {
+			return resolver.local, nil
+		}
+		if !resolver.checked {
+			resolver.checked = true
+			devices, err := net.Interfaces()
+			if err != nil {
+				return nil, err
+			}
+			for _, dev := range devices {
+				if (dev.Flags&net.FlagUp != 0) && (dev.Flags&net.FlagLoopback == 0) {
+					addrs, err := dev.Addrs()
+					if err != nil {
+						continue
+					}
+					for i := range addrs {
+						if ip, ok := addrs[i].(*net.IPNet); ok {
+							log.Printf("Using %v for %s", ip, host)
+							resolver.local = ip.IP
+							return resolver.local, nil
+						}
+					}
+				}
+			}
+		}
+	}
+	addr, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return nil, err
+	}
+	return addr.IP, nil
+}
+
 func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) error {
 	name := "netlink-" + strconv.Itoa(pid)
 	nsPath := fmt.Sprintf("/proc/%d/ns/net", pid)
@@ -294,9 +336,7 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 	if err := os.Symlink(nsPath, path); err != nil && !os.IsExist(err) {
 		return err
 	}
-	defer func() {
-		os.Remove(path)
-	}()
+	defer os.Remove(path)
 
 	sourceAddr, errs := getHostIPFromNamespace(name)
 	if errs != nil {
@@ -349,13 +389,13 @@ func updateNamespaceNetworkLinks(pid int, localAddr string, ports io.Reader) err
 			continue
 		}
 		if link.Complete() {
-			destAddr, err := net.ResolveIPAddr("ip", link.ToHost)
+			destIP, err := resolver.ResolveIP(link.ToHost)
 			if err != nil {
 				log.Printf("network_links: Link destination host does not resolve %v", err)
 				continue
 			}
 
-			data := OutboundNetworkIptables{sourceAddr.String(), localAddr, link.FromPort, destAddr.IP.String(), link.ToPort}
+			data := OutboundNetworkIptables{sourceAddr.String(), localAddr, link.FromPort, destIP.String(), link.ToPort}
 			if err := OutboundNetworkIptablesTemplate.Execute(stdin, &data); err != nil {
 				log.Printf("network_links: Unable to write network link rules: %v", err)
 				return err

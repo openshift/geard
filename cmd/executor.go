@@ -160,7 +160,7 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 	for i := range remote {
 		ids := remote[i]
 		allJobs := remoteJobs[i]
-		host := ids[0].Identity()
+		host := ids[0].HostIdentity()
 		locator := ids[0].(http.RemoteLocator)
 
 		tasks.Add(1)
