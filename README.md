@@ -89,9 +89,9 @@ Here are the initial set of supported container actions - these should map clean
 
         $ curl -X PUT "http://localhost:8080/repository/my-sample-repo"
 
-*   Link containers with local loopback ports (127.0.0.2:8081 -> 9.8.23.14:8080)
+*   Link containers with local loopback ports (for e.g. 127.0.0.2:8081 -> 9.8.23.14:8080)
 
-        $ gear link -n=8081:9.8.23.14:8080 localhost:8080/my-sample-service
+        $ gear link -n=127.0.0.2:8081:9.8.23.14:8080 localhost:8080/my-sample-service
 
 *   Set a public key as enabling SSH or Git SSH access to a container or repository (respectively)
 

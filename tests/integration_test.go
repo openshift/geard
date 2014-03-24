@@ -435,7 +435,7 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "link", "-n", "8081:74.125.239.114:80", hostContainerId)
+	cmd = exec.Command("/var/lib/containers/bin/gear", "link", "-n", "127.0.0.1:8081:74.125.239.114:80", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)

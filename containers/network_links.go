@@ -11,6 +11,7 @@ import (
 )
 
 type NetworkLink struct {
+	FromHost string
 	FromPort Port
 	ToPort   Port   `json:"ToPort,omitempty"`
 	ToHost   string `json:"ToHost,omitempty"`
@@ -60,7 +61,7 @@ func (n NetworkLinks) Write(path string, appends bool) error {
 	defer file.Close()
 
 	for i := range n {
-		if _, errw := fmt.Fprintf(file, "%d\t%d\t%s\n", n[i].FromPort, n[i].ToPort, n[i].ToHost); errw != nil {
+		if _, errw := fmt.Fprintf(file, "%s\t%d\t%d\t%s\n", n[i].FromHost, n[i].FromPort, n[i].ToPort, n[i].ToHost); errw != nil {
 			log.Print("network_links: Unable to write network links: ", err)
 			return err
 		}
@@ -78,6 +79,7 @@ func (n NetworkLinks) String() string {
 		if i != 0 {
 			pairs.WriteString(", ")
 		}
+		pairs.WriteString(n[i].FromHost)
 		pairs.WriteString(":")
 		pairs.WriteString(strconv.Itoa(int(n[i].FromPort)))
 		pairs.WriteString(" -> ")
@@ -102,22 +104,29 @@ func NewNetworkLinksFromString(s string) (NetworkLinks, error) {
 }
 
 func NewNetworkLinkFromString(s string) (*NetworkLink, error) {
-	value := strings.SplitN(s, ":", 3)
-	if len(value) != 3 {
-		return nil, errors.New(fmt.Sprintf("The network link '%s' must be of the form <from>:<to_host>:<to_port>", s))
+	value := strings.Split(s, ":")
+	if len(value) < 3 {
+		return nil, errors.New(fmt.Sprintf("The network link '%s' must be of the form <from_host>:<from_port>:<to_host>:<to_port> where <from_host> is optional", s))
 	}
+
+	// Handle the case where from_host isn't specified
+	if len(value) == 3 {
+		value = append([]string{"127.0.0.2"}, value...)
+	}
+
 	link := NetworkLink{}
-	from, err := strconv.Atoi(value[0])
+	link.FromHost = value[0]
+	from_port, err := strconv.Atoi(value[1])
 	if err != nil {
 		return nil, err
 	}
-	link.FromPort = Port(from)
+	link.FromPort = Port(from_port)
 	if err := link.FromPort.Check(); err != nil {
 		return nil, errors.New("From port value must be between 0 and 65535")
 	}
-	link.ToHost = value[1]
-	if value[2] != "" {
-		to, err := strconv.Atoi(value[2])
+	link.ToHost = value[2]
+	if value[3] != "" {
+		to, err := strconv.Atoi(value[3])
 		if err != nil {
 			return nil, err
 		}
@@ -135,6 +144,8 @@ func (n NetworkLinks) ToCompact() string {
 		if i != 0 {
 			pairs.WriteString(",")
 		}
+		pairs.WriteString(n[i].FromHost)
+		pairs.WriteString(":")
 		pairs.WriteString(strconv.Itoa(int(n[i].FromPort)))
 		pairs.WriteString(":")
 		pairs.WriteString(n[i].ToHost)
