@@ -13,6 +13,30 @@ import (
 
 type DefaultRequest struct{}
 
+type HttpRunContainerRequest struct {
+	jobs.RunContainerRequest
+	DefaultRequest
+}
+
+func (h *HttpRunContainerRequest) HttpMethod() string { return "POST" }
+func (h *HttpRunContainerRequest) HttpPath() string   { return "/jobs" }
+func (h *HttpRunContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
+	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+		data := jobs.RunContainerRequest{}
+		if r.Body != nil {
+			dec := json.NewDecoder(limitedBodyReader(r))
+			if err := dec.Decode(&data); err != nil && err != io.EOF {
+				return nil, err
+			}
+		}
+		data.Name = context.Id.String()
+		if err := data.Check(); err != nil {
+			return nil, err
+		}
+		return &data, nil
+	}
+}
+
 type HttpInstallContainerRequest struct {
 	jobs.InstallContainerRequest
 	DefaultRequest
