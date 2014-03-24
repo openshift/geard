@@ -27,9 +27,9 @@ func (h *DefaultRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader,
 	return nil, nil
 }
 
-func (h *HttpCreateKeysRequest) MarshalHttpRequestBody(w io.Writer) error {
+func (h *HttpRunContainerRequest) MarshalHttpRequestBody(w io.Writer) error {
 	encoder := json.NewEncoder(w)
-	return encoder.Encode(h)
+	return encoder.Encode(h.RunContainerRequest)
 }
 
 func (h *HttpInstallContainerRequest) MarshalHttpRequestBody(w io.Writer) error {
@@ -100,4 +100,9 @@ func (h *HttpListContainersRequest) UnmarshalHttpResponse(headers http.Header, r
 		c.Server = h.Label
 	}
 	return list, nil
+}
+
+func (h *HttpCreateKeysRequest) MarshalHttpRequestBody(w io.Writer) error {
+	encoder := json.NewEncoder(w)
+	return encoder.Encode(h)
 }
