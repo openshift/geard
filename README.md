@@ -17,11 +17,13 @@ You can also use the gear command against a remote daemon:
     $ gear install pmorie/sti-html-app localhost:8080/my-sample-service.1 localhost:8080/my-sample-service.2
     $ gear start localhost:8080/my-sample-service.1 localhost:8080/my-sample-service.2
 
-The gear daemon and local commands must run as root to interface with the Docker daemon and systemd over DBus.
+The gear daemon and local commands must run as root to interface with the Docker daemon over its Unix socket and systemd over DBus.
+
+geard exposes *primitives* for dealing with containers across hosts and is intended to work closely with a Docker installation - as the plugin system in Docker evolves, many of these primitives may move into plugins of Docker itself.
 
 ### What's a gear?
 
-A gear is a specific type of Linux container - for those familiar with Docker, it's a started container with some bound ports, some shared environment, some linking, some resource isolation and allocation, and some opionated defaults about configuration that ease use.  Here's some of those defaults:
+A gear is an isolated Linux container and is an evolution of the SELinux jails used in OpenShift.  For those familiar with Docker, it's a started container with some bound ports, some shared environment, some linking, some resource isolation and allocation, and some opionated defaults about configuration that ease use.  Here's some of those defaults:
 
 1. **Gears are isolated from each other and the host, except where they're explicitly connected**
 
@@ -29,7 +31,7 @@ A gear is a specific type of Linux container - for those familiar with Docker, i
 
 2. **Gears are portable across hosts**
 
-   A gear, like a Docker image, should be usable on many different hosts.  This means that the underlying Docker abstractions (links, port mappings, environment files) should be used to ensure the gear does not become dependent on the host system.  The system should make it easy to share environment files between gears and move them to other systems.
+   A gear, like a Docker image, should be usable on many different hosts.  This means that the underlying Docker abstractions (links, port mappings, environment files) should be used to ensure the gear does not become dependent on the host system.  The system should make it easy to share environment and context between gears and move them among host systems.
 
 3. **Systemd is in charge of starting and stopping gears and journald is in charge of log aggregation**
 
@@ -43,7 +45,7 @@ A gear is a specific type of Linux container - for those familiar with Docker, i
 
 5. **The default network configuration of a container is simple**
 
-   By default a container will have 0..N ports exposed and the system will automatically allocate those ports.  An admin may choose to override or change those mappings at runtime, or apply rules to the system that are applied each time a new gear is added.
+   By default a container will have 0..N ports exposed and the system will automatically allocate those ports.  An admin may choose to override or change those mappings at runtime, or apply rules to the system that are applied each time a new gear is added.  Much of the linking between containers is done over the network or the upcoming Beam constructs in Docker.
 
 
 ### Actions on a container
@@ -63,6 +65,11 @@ Here are the initial set of supported container actions - these should map clean
         $ curl -X PUT "http://localhost:8080/container/my-sample-service/started"
         $ gear restart localhost:8080/my-sample-service
         $ curl -X POST "http://localhost:8080/container/my-sample-service/restart"
+
+*   Deploy a set of containers on one or more systems, with links between them:
+
+        $ gear deploy tests/fixtures/simple_deploy.json localhost:8080
+        $ gear start --with=$(ls simple_deploy.json* | head -n 1)
 
 *   View the systemd status of a container
 
@@ -107,13 +114,15 @@ Here are the initial set of supported container actions - these should map clean
         $ curl "http://localhost:8080/environment/my-sample-service"
         $ gear set-env localhost:8080/my-sample-service --reset
 
-*   More....
+*   More to come....
 
-The daemon is focused on allowing an administrator to easily ensure a given docker container will *always* run on the system by taking advantage of systemd.  It depends on the upcoming "foreground" mode of Docker which will allow the launching process to remain the parent of the container processes - this means that on termination the parent (systemd) can auto restart the process, set additional namespace options, and in general customize more deeply the behavior of the process.
+The daemon is focused on allowing an administrator to easily ensure a given Docker container will *always* run on the system by creating a systemd unit for the docker run command.  It executes the Docker container processes as children of systemd - this means that on termination systemd can auto restart the container, set additional namespace options, capture stdout and stderr to journald, and assign auditing information to those child processes.
+
+Note: foreground execution is currently not in Docker master - see https://github.com/alexlarsson/docker/tree/forking-run-systemd, https://github.com/alexlarsson/docker/tree/forking-run, and https://github.com/smarterclayton/docker/tree/fork_and_create_only for some of the prototype work in this space.
 
 Each geard unit can be assigned a unique Unix user (defaults to true, can use --simple to bypass) and is the user context that the container is run under for quota and security purposes.  An SELinux MCS category label will automatically be assigned to the container, ensuring that each container is more deeply isolated.  Containers are added to a default systemd slice that may have cgroup rules applied to limit them.
 
-A container may also be optionally enabled for public key SSH access for a set of known keys under the user identifier associated with the container.  On SSH, they'll join the running namespace for that container.
+A container may also be optionally enabled for public key SSH access for a set of known keys under the user identifier associated with the container.  On SSH to the host, they'll join the running namespace for that container.
 
 
 Try it out
@@ -337,7 +346,7 @@ Building Images
 ---------------
 
 Gear(d) uses [Docker Source to Images (STI)](http://github.com/openshift/docker-source-to-images)
-to build deployable images from a base image and  application source.  STI supports a number of 
+to build deployable images from a base image and application source.  STI supports a number of
 use cases for building deployable images, including:
 
 1. Use a git repository as a source
