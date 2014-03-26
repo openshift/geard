@@ -44,9 +44,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # config.vm.synced_folder "../data", "/vagrant_data"
 
   if ENV['GOPATH'] && ENV['GOPATH'] != ""
+    puts "Sharing GOPATH with VM"
     config.vm.synced_folder ENV['GOPATH'], "/vagrant"
   else
-    config.vm.synced_folder '.', "/vagrant/src/github.com/smarterclayton/geard"
+    puts "Sharing current directory with VM"
+    config.vm.synced_folder '.', "/vagrant/", disabled: true
+    config.vm.synced_folder '.', "/vagrant/src/github.com/smarterclayton/geard", create: true
   end
 
   # Provider-specific configuration so you can fine-tune various
