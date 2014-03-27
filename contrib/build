@@ -35,9 +35,9 @@ if $handle_systemd; then
 	docker build -rm -t ccoleman/geard /vagrant && sudo systemctl restart geard.service	
 else
 	go get -t -tags "$tags" ./...
-	go install -tags "$tags" github.com/smarterclayton/geard/cmd/gear
-	go install -tags "$tags" github.com/smarterclayton/geard/cmd/switchns
-	go install -tags "$tags" github.com/smarterclayton/geard/cmd/gear-auth-keys-command
+	go install -tags "$tags" github.com/openshift/geard/cmd/gear
+	go install -tags "$tags" github.com/openshift/geard/cmd/switchns
+	go install -tags "$tags" github.com/openshift/geard/cmd/gear-auth-keys-command
 
 	sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
 	sudo /usr/bin/cp -f $GOPATH/bin/switchns .

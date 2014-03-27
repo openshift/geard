@@ -8,8 +8,8 @@ systemctl enable docker.service
 systemctl start docker
 systemctl status docker
 
-mkdir -p /vagrant/{src/github.com/smarterclayton/geard,pkg,bin}
-GEARD_PATH=/vagrant/src/github.com/smarterclayton/geard
+mkdir -p /vagrant/{src/github.com/openshift/geard,pkg,bin}
+GEARD_PATH=/vagrant/src/github.com/openshift/geard
 chown -R vagrant:vagrant /vagrant
 
 # Install / enable systemd unit

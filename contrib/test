@@ -1,5 +1,5 @@
 #!/bin/bash -x
 
 rm -f tests.test
-go test -tags integration -c github.com/smarterclayton/geard/tests
+go test -tags integration -c github.com/openshift/geard/tests
 sudo ./tests.test -gocheck.v $@
