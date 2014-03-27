@@ -3,10 +3,10 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/jobs"
-	"github.com/smarterclayton/geard/utils"
-	"github.com/smarterclayton/go-json-rest"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/utils"
+	"github.com/openshift/go-json-rest"
 	"io"
 	"regexp"
 )

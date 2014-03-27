@@ -2,7 +2,7 @@ package dispatcher
 
 import (
 	"errors"
-	"github.com/smarterclayton/geard/jobs"
+	"github.com/openshift/geard/jobs"
 	"log"
 )
 

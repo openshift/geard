@@ -1,7 +1,7 @@
 package jobs
 
 import (
-	"github.com/smarterclayton/geard/containers"
+	"github.com/openshift/geard/containers"
 )
 
 type PutEnvironmentRequest struct {

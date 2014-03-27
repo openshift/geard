@@ -3,7 +3,7 @@
 package idler
 
 import (
-	"github.com/smarterclayton/geard/containers"
+	"github.com/openshift/geard/containers"
 )
 
 func StartIdler(pDockerSocket *string, pHostIp *string) {

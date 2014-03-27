@@ -2,7 +2,7 @@ package dispatcher
 
 import (
 	"container/list"
-	"github.com/smarterclayton/geard/jobs"
+	"github.com/openshift/geard/jobs"
 	"sync"
 )
 

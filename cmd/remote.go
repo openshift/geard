@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
+	"github.com/openshift/geard/containers"
 	"log"
 	"net"
 	"net/url"

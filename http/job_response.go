@@ -2,8 +2,8 @@ package http
 
 import (
 	"encoding/json"
-	"github.com/smarterclayton/geard/jobs"
-	"github.com/smarterclayton/geard/utils"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/utils"
 	"io"
 	"io/ioutil"
 	"net/http"

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/jobs"
+	"github.com/openshift/geard/jobs"
 	"io"
 	"log"
 	"net/http"

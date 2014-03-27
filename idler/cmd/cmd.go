@@ -3,11 +3,11 @@
 package cmd
 
 import (
-	"github.com/smarterclayton/cobra"
-	cmd "github.com/smarterclayton/geard/cmd"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/idler"
-	"github.com/smarterclayton/geard/systemd"
+	"github.com/openshift/cobra"
+	cmd "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/docker"
+	"github.com/openshift/geard/idler"
+	"github.com/openshift/geard/systemd"
 )
 
 var (

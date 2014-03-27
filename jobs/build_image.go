@@ -9,10 +9,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/systemd"
-	"github.com/smarterclayton/geard/utils"
-	"github.com/smarterclayton/go-systemd/dbus"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/systemd"
+	"github.com/openshift/geard/utils"
+	"github.com/openshift/go-systemd/dbus"
 )
 
 type BuildImageRequest struct {

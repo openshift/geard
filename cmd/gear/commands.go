@@ -16,20 +16,20 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/pmorie/go-sti"
-	"github.com/smarterclayton/cobra"
-	. "github.com/smarterclayton/geard/cmd"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/dispatcher"
-	"github.com/smarterclayton/geard/encrypted"
-	"github.com/smarterclayton/geard/git"
-	gitcmd "github.com/smarterclayton/geard/git/cmd"
-	githttp "github.com/smarterclayton/geard/git/http"
-	gitjobs "github.com/smarterclayton/geard/git/jobs"
-	"github.com/smarterclayton/geard/http"
-	idlercmd "github.com/smarterclayton/geard/idler/cmd"
-	"github.com/smarterclayton/geard/jobs"
-	"github.com/smarterclayton/geard/systemd"
+	"github.com/openshift/cobra"
+	. "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/dispatcher"
+	"github.com/openshift/geard/encrypted"
+	"github.com/openshift/geard/git"
+	gitcmd "github.com/openshift/geard/git/cmd"
+	githttp "github.com/openshift/geard/git/http"
+	gitjobs "github.com/openshift/geard/git/jobs"
+	"github.com/openshift/geard/http"
+	idlercmd "github.com/openshift/geard/idler/cmd"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/systemd"
+	"github.com/openshift/go-sti"
 )
 
 var (
@@ -82,7 +82,7 @@ func Execute() {
 	gearCmd := &cobra.Command{
 		Use:   "gear",
 		Short: "Gear(d) is a tool for installing Docker containers to systemd",
-		Long:  "A commandline client and server that allows Docker containers to be installed to Systemd in an opinionated and distributed fashion.\n\nComplete documentation is available at http://github.com/smarterclayton/geard",
+		Long:  "A commandline client and server that allows Docker containers to be installed to systemd in an opinionated and distributed fashion.\n\nComplete documentation is available at http://github.com/openshift/geard",
 		Run:   gear,
 	}
 	gearCmd.PersistentFlags().StringVar(&(keyPath), "key-path", "", "Specify the directory containing the server private key and trusted client public keys")
@@ -111,7 +111,7 @@ func Execute() {
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
 	installImageCmd.Flags().BoolVar(&simple, "simple", false, "Use a simple container (experimental)")
 	installImageCmd.Flags().BoolVar(&sockAct, "socket-activated", false, "Use a socket-activated container (experimental, requires Docker branch)")
-	installImageCmd.Flags().BoolVar(&fork, "fork", false, "Use a forked container (experimental, requires docker branch smarterclayton/fork_and_create_only)")
+	installImageCmd.Flags().BoolVar(&fork, "fork", false, "Use a forked container (experimental, requires docker branch openshift/fork_and_create_only)")
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")

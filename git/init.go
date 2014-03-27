@@ -1,7 +1,7 @@
 package git
 
 import (
-	"github.com/smarterclayton/geard/systemd"
+	"github.com/openshift/geard/systemd"
 	"log"
 )
 

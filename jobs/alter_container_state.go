@@ -3,8 +3,8 @@ package jobs
 import (
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/systemd"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/systemd"
 	"log"
 	"os"
 	"time"

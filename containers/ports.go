@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/config"
+	"github.com/openshift/geard/config"
 	"io"
 	"log"
 	"os"

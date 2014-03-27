@@ -2,7 +2,7 @@ package jobs
 
 import (
 	"errors"
-	"github.com/smarterclayton/geard/containers"
+	"github.com/openshift/geard/containers"
 )
 
 type ContainerLink struct {

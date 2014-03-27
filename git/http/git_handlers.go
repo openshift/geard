@@ -2,12 +2,12 @@ package http
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/git"
-	gitjobs "github.com/smarterclayton/geard/git/jobs"
-	"github.com/smarterclayton/geard/http"
-	"github.com/smarterclayton/geard/jobs"
-	"github.com/smarterclayton/go-json-rest"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/git"
+	gitjobs "github.com/openshift/geard/git/jobs"
+	"github.com/openshift/geard/http"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/go-json-rest"
 )
 
 func Routes() []http.HttpJobHandler {

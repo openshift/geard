@@ -2,7 +2,7 @@ package jobs
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
+	"github.com/openshift/geard/containers"
 	"io"
 	"log"
 	"os"

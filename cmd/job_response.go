@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/smarterclayton/geard/jobs"
-	"github.com/smarterclayton/geard/utils"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/utils"
 	"io"
 	"sort"
 )

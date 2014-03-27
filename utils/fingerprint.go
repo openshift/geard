@@ -2,7 +2,7 @@ package utils
 
 import (
 	"encoding/base64"
-	"github.com/smarterclayton/geard/config"
+	"github.com/openshift/geard/config"
 	"path/filepath"
 	"strings"
 )

@@ -4,7 +4,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 
-	"github.com/smarterclayton/geard/cmd"
+	"github.com/openshift/geard/cmd"
 )
 
 func main() {

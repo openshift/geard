@@ -3,9 +3,9 @@ package containers
 import (
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/selinux"
-	"github.com/smarterclayton/geard/systemd"
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/selinux"
+	"github.com/openshift/geard/systemd"
 	"io"
 	"log"
 	"os"

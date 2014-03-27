@@ -3,9 +3,9 @@ package git
 import (
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/utils"
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/utils"
 	"os/user"
 	"path/filepath"
 	"strings"

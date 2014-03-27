@@ -2,7 +2,7 @@ package systemd
 
 import (
 	"errors"
-	dbus "github.com/smarterclayton/go-systemd/dbus"
+	dbus "github.com/openshift/go-systemd/dbus"
 	"log"
 	"time"
 )

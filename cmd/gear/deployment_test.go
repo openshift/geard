@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/smarterclayton/geard/cmd"
-	"github.com/smarterclayton/geard/containers"
+	"github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/containers"
 	"regexp"
 	"strings"
 	"testing"

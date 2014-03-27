@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/systemd"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/docker"
+	"github.com/openshift/geard/systemd"
 	chk "launchpad.net/gocheck"
 )
 

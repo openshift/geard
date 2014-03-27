@@ -2,9 +2,9 @@ package jobs
 
 import (
 	"fmt"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/systemd"
-	"github.com/smarterclayton/go-systemd/dbus"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/systemd"
+	"github.com/openshift/go-systemd/dbus"
 	"io"
 	"log"
 	"regexp"

@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/docopt/docopt.go"
-	"github.com/smarterclayton/geard/cmd/switchns/namespace"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/git"
+	"github.com/openshift/geard/cmd/switchns/namespace"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/docker"
+	"github.com/openshift/geard/git"
 )
 
 const usage = `Switch into container namespace and execute a command.

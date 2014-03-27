@@ -2,7 +2,7 @@ package containers
 
 import (
 	"fmt"
-	"github.com/smarterclayton/go-systemd/dbus"
+	"github.com/openshift/go-systemd/dbus"
 	"os"
 	"strings"
 )

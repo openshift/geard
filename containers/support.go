@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/selinux"
-	"github.com/smarterclayton/geard/utils"
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/docker"
+	"github.com/openshift/geard/selinux"
+	"github.com/openshift/geard/utils"
 )
 
 var resolver addressResolver = addressResolver{}

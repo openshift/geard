@@ -4,9 +4,9 @@ import (
 	"code.google.com/p/go.crypto/ssh"
 	"crypto/sha256"
 	"errors"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/git"
-	"github.com/smarterclayton/geard/utils"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/git"
+	"github.com/openshift/geard/utils"
 	"log"
 	"os"
 )

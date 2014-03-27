@@ -3,9 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/smarterclayton/geard/http"
-	"github.com/smarterclayton/geard/jobs"
-	"github.com/smarterclayton/geard/pkg/logstreamer"
+	"github.com/openshift/geard/http"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/pkg/logstreamer"
 	"io"
 	"io/ioutil"
 	"log"

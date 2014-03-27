@@ -3,8 +3,8 @@ package git
 import (
 	"bufio"
 	"fmt"
-	"github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/selinux"
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/selinux"
 	"io"
 	"os"
 	"os/user"

@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"github.com/smarterclayton/cobra"
-	cmd "github.com/smarterclayton/geard/cmd"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/git"
-	"github.com/smarterclayton/geard/git/http"
-	gearjobs "github.com/smarterclayton/geard/jobs"
+	"github.com/openshift/cobra"
+	cmd "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/git"
+	"github.com/openshift/geard/git/http"
+	gearjobs "github.com/openshift/geard/jobs"
 
 	"os"
 )

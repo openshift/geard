@@ -4,11 +4,11 @@ package idler
 
 import (
 	"github.com/kraman/go-netfilter-queue"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/idler/config"
-	"github.com/smarterclayton/geard/idler/iptables"
-	"github.com/smarterclayton/geard/systemd"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/docker"
+	"github.com/openshift/geard/idler/config"
+	"github.com/openshift/geard/idler/iptables"
+	"github.com/openshift/geard/systemd"
 
 	"bytes"
 	"code.google.com/p/gopacket/layers"

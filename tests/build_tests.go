@@ -8,7 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/smarterclayton/geard/jobs"
+	"github.com/openshift/geard/jobs"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"net/http"

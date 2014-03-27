@@ -3,10 +3,10 @@
 package iptables
 
 import (
-	gearconfig "github.com/smarterclayton/geard/config"
-	"github.com/smarterclayton/geard/containers"
-	"github.com/smarterclayton/geard/docker"
-	"github.com/smarterclayton/geard/idler/config"
+	gearconfig "github.com/openshift/geard/config"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/docker"
+	"github.com/openshift/geard/idler/config"
 
 	"bufio"
 	"bytes"
