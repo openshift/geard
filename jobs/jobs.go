@@ -13,6 +13,10 @@ type Job interface {
 	Execute(JobResponse)
 }
 
+type LabeledJob interface {
+	GetLabel() string
+}
+
 type Join interface {
 	Join(Job, <-chan bool) (bool, <-chan bool, error)
 }

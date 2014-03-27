@@ -1,12 +1,14 @@
 package containers
 
 import (
-	"errors"
-	"fmt"
 	"github.com/openshift/geard/config"
+	mesos "github.com/openshift/geard/mesos/support"
 	"github.com/openshift/geard/selinux"
 	"github.com/openshift/geard/systemd"
-	"io"
+	"github.com/openshift/geard/utils"
+
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -169,57 +171,6 @@ func disableAllUnits() {
 	}
 }
 
-func copyBinary(src string, dest string, setUid bool) error {
-	var err error
-	var sourceInfo os.FileInfo
-	if sourceInfo, err = os.Stat(src); err != nil {
-		return err
-	}
-	if !sourceInfo.Mode().IsRegular() {
-		return fmt.Errorf("Cannot copy source %s", src)
-	}
-
-	if _, err = os.Stat(dest); err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-	} else {
-		if err = os.Remove(dest); err != nil {
-			return err
-		}
-	}
-
-	var mode os.FileMode
-	if setUid {
-		mode = 0555 | os.ModeSetuid
-	} else {
-		mode = 0555
-	}
-
-	var destFile *os.File
-	if destFile, err = os.Create(dest); err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	var sourceFile *os.File
-	if sourceFile, err = os.Open(src); err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	if _, err = io.Copy(destFile, sourceFile); err != nil {
-		return err
-	}
-	destFile.Sync()
-
-	if err = destFile.Chmod(mode); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func HasBinaries() bool {
 	for _, b := range []string{
 		path.Join(config.ContainerBasePath(), "bin", "switchns"),
@@ -229,22 +180,35 @@ func HasBinaries() bool {
 			return false
 		}
 	}
+
+	if !mesos.HasBinaries() {
+		return false
+	}
 	return true
 }
 
 func initializeBinaries() error {
+	if HasBinaries() {
+		return nil
+	}
+
 	srcDir := path.Dir(os.Args[0])
 	destDir := path.Join(config.ContainerBasePath(), "bin")
-	if err := copyBinary(path.Join(srcDir, "switchns"), path.Join(destDir, "switchns"), true); err != nil {
+	if err := utils.CopyBinary(path.Join(srcDir, "switchns"), path.Join(destDir, "switchns"), true); err != nil {
 		return err
 	}
 
-	if err := copyBinary(path.Join(srcDir, "gear"), path.Join(destDir, "gear"), false); err != nil {
+	if err := utils.CopyBinary(path.Join(srcDir, "gear"), path.Join(destDir, "gear"), false); err != nil {
 		return err
 	}
 
-	if err := copyBinary(path.Join(srcDir, "gear-auth-keys-command"), path.Join(destDir, "gear-auth-keys-command"), false); err != nil {
+	if err := utils.CopyBinary(path.Join(srcDir, "gear-auth-keys-command"), path.Join(destDir, "gear-auth-keys-command"), false); err != nil {
 		return err
 	}
+
+	if err := mesos.InitializeBinaries(); err != nil {
+		return err
+	}
+
 	return nil
 }

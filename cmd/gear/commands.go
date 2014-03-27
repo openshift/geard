@@ -28,6 +28,7 @@ import (
 	"github.com/openshift/geard/http"
 	idlercmd "github.com/openshift/geard/idler/cmd"
 	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/remoting"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/go-sti"
 )
@@ -493,22 +494,22 @@ func installImage(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpInstallContainerRequest{
-				InstallContainerRequest: jobs.InstallContainerRequest{
-					RequestIdentifier: jobs.NewRequestIdentifier(),
+			job := jobs.InstallContainerRequest{
+				RequestIdentifier: jobs.NewRequestIdentifier(),
 
-					Id:               on.(ResourceLocator).Identifier(),
-					Image:            imageId,
-					Started:          start,
-					Simple:           simple,
-					Fork:             fork,
-					SocketActivation: sockAct,
+				Id:               on.(ResourceLocator).Identifier(),
+				Image:            imageId,
+				Started:          start,
+				Simple:           simple,
+				Fork:             fork,
+				SocketActivation: sockAct,
 
-					Ports:        *portPairs.Get().(*containers.PortPairs),
-					Environment:  &environment.Description,
-					NetworkLinks: *networkLinks.NetworkLinks,
-				},
+				Ports:        *portPairs.Get().(*containers.PortPairs),
+				Environment:  &environment.Description,
+				NetworkLinks: *networkLinks.NetworkLinks,
 			}
+
+			return remoting.InstallContainerRequestFor(job)
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemdAndData,
@@ -633,16 +634,15 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpDeleteContainerRequest{
-				Label: on.Identity(),
-				DeleteContainerRequest: jobs.DeleteContainerRequest{
-					Id: on.(ResourceLocator).Identifier(),
-				},
+			job := jobs.DeleteContainerRequest{
+				Id: on.(ResourceLocator).Identifier(),
 			}
+
+			return remoting.DeleteContainerRequestFor(job, on.Identity())
 		},
 		Output: os.Stdout,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			fmt.Fprintf(w, "Deleted %s", job.(*http.HttpDeleteContainerRequest).Label)
+			fmt.Fprintf(w, "Deleted %s", job.(jobs.LabeledJob).GetLabel())
 		},
 		LocalInit: needsSystemdAndData,
 	}.StreamAndExit()

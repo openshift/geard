@@ -3,10 +3,12 @@ package utils
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"syscall"
 )
 
@@ -141,4 +143,61 @@ func CreateFileExclusive(path string, mode os.FileMode) (*os.File, error) {
 		return nil, errf
 	}
 	return file, nil
+}
+
+func CopyBinary(src string, dest string, setUid bool) error {
+	var err error
+	var sourceInfo os.FileInfo
+
+	if filepath.Clean(src) == filepath.Clean(dest) {
+		return nil
+	}
+
+	if sourceInfo, err = os.Stat(src); err != nil {
+		return err
+	}
+
+	if !sourceInfo.Mode().IsRegular() {
+		return fmt.Errorf("Cannot copy source %s", src)
+	}
+
+	if _, err = os.Stat(dest); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else {
+		if err = os.Remove(dest); err != nil {
+			return err
+		}
+	}
+
+	var mode os.FileMode
+	if setUid {
+		mode = 0555 | os.ModeSetuid
+	} else {
+		mode = 0555
+	}
+
+	var destFile *os.File
+	if destFile, err = os.Create(dest); err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	var sourceFile *os.File
+	if sourceFile, err = os.Open(src); err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	if _, err = io.Copy(destFile, sourceFile); err != nil {
+		return err
+	}
+	destFile.Sync()
+
+	if err = destFile.Chmod(mode); err != nil {
+		return err
+	}
+
+	return nil
 }

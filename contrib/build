@@ -1,22 +1,25 @@
 #!/bin/bash -x
 
 function usage() {
-	echo "build [-s] [-d] [-i]"
+	echo "build [-s] [-d] [-i] [-m]"
 	echo "-s builds with selinux enabled"
 	echo "-d builds/deploys systemd service with docker"
 	echo "-i builds with idler daemon"
+	echo "-m builds with mesos"  
 	exit 1
 }
 
 use_selinux=false
 handle_systemd=false
 build_idler=false
+build_mesos=false
 
-while getopts "sdi" o; do
+while getopts "sdim" o; do
 	case "${o}" in
 		s) use_selinux=true;;
 		d) handle_systemd=true;;
 		i) build_idler=true;;
+		m) build_mesos=true;;
 		*) usage;;
 	esac
 done
@@ -31,6 +34,11 @@ if $build_idler; then
 	tags="$tags idler"
 fi
 
+if $build_mesos; then
+  ln -sf $GOPATH/src/github.com/kraman/mesos-go/c-bridge c-bridge
+	tags="$tags mesos"
+fi
+
 if $handle_systemd; then
 	docker build -rm -t ccoleman/geard /vagrant && sudo systemctl restart geard.service	
 else
@@ -38,8 +46,14 @@ else
 	go install -tags "$tags" github.com/openshift/geard/cmd/gear
 	go install -tags "$tags" github.com/openshift/geard/cmd/switchns
 	go install -tags "$tags" github.com/openshift/geard/cmd/gear-auth-keys-command
+  if $build_mesos; then
+    go install -tags "$tags" github.com/openshift/geard/cmd/gear-mesos-executor    
+  fi
 
 	sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
 	sudo /usr/bin/cp -f $GOPATH/bin/switchns .
 	sudo /usr/bin/cp -f $GOPATH/bin/gear .
+  if $build_mesos; then
+    sudo /usr/bin/cp -f $GOPATH/bin/gear-mesos-executor .
+  fi  
 fi

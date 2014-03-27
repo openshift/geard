@@ -73,6 +73,10 @@ type HttpDeleteContainerRequest struct {
 	Label string
 }
 
+func (h *HttpDeleteContainerRequest) GetLabel() string {
+	return h.Label
+}
+
 func (h *HttpDeleteContainerRequest) HttpMethod() string { return "DELETE" }
 func (h *HttpDeleteContainerRequest) HttpPath() string   { return Inline("/container/:id", string(h.Id)) }
 func (h *HttpDeleteContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
@@ -89,6 +93,10 @@ type HttpListContainersRequest struct {
 	jobs.ListContainersRequest
 	DefaultRequest
 	Label string
+}
+
+func (h *HttpListContainersRequest) GetLabel() string {
+	return h.Label
 }
 
 func (h *HttpListContainersRequest) HttpMethod() string { return "GET" }
@@ -385,6 +393,10 @@ type HttpLinkContainersRequest struct {
 	Label string
 	jobs.LinkContainersRequest
 	DefaultRequest
+}
+
+func (h *HttpLinkContainersRequest) GetLabel() string {
+	return h.Label
 }
 
 func (h *HttpLinkContainersRequest) HttpMethod() string { return "POST" }

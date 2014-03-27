@@ -3,9 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/http"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/pkg/logstreamer"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,6 +10,10 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/pkg/logstreamer"
+	"github.com/openshift/geard/remoting"
 )
 
 type check interface {
@@ -161,7 +162,7 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 		ids := remote[i]
 		allJobs := remoteJobs[i]
 		host := ids[0].HostIdentity()
-		locator := ids[0].(http.RemoteLocator)
+		locator := ids[0].(remoting.RemoteLocator)
 
 		tasks.Add(1)
 		go func() {
@@ -170,7 +171,7 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 			defer w.Close()
 			defer tasks.Done()
 
-			dispatcher := http.NewHttpDispatcher(locator, logger)
+			dispatcher := remoting.NewDispatcher(locator, logger)
 			for _, job := range allJobs {
 				response := &CliJobResponse{Output: w, Gather: gather}
 				if err := dispatcher.Dispatch(job, response); err != nil {
@@ -227,7 +228,7 @@ func (e *Executor) jobs(on []Locator) jobSet {
 }
 
 type jobSet []jobs.Job
-type remoteJobSet []http.RemoteExecutable
+type remoteJobSet []remoting.RemoteExecutable
 
 func (jobs jobSet) check() error {
 	for i := range jobs {
@@ -245,7 +246,7 @@ func (jobs jobSet) remotes() (remotes remoteJobSet, err error) {
 	remotes = make(remoteJobSet, 0, len(remotes))
 	for i := range jobs {
 		job := jobs[i]
-		remotable, ok := job.(http.RemoteExecutable)
+		remotable, ok := remoting.IsRemoteJob(job)
 		if !ok {
 			err = errors.New(fmt.Sprintf("Unable to run this action (%+v) against a remote server", reflect.TypeOf(job)))
 			return
