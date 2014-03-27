@@ -225,7 +225,7 @@ func Execute() {
 		Long:  "Launch the gear HTTP API server as a daemon. Will not send itself to the background.",
 		Run:   daemon,
 	}
-	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":8080", "Set the address for the http endpoint to listen on")
+	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":43273", "Set the address for the http endpoint to listen on")
 	gearCmd.AddCommand(daemonCmd)
 
 	cleanCmd := &cobra.Command{

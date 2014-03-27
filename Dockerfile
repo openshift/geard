@@ -24,5 +24,5 @@ ADD contrib/githost/init           /home/git/init
 RUN useradd git --uid 1001 -U && mkdir -p /home/git && chown -R git /home/git
 
 CMD ["/bin/gear", "daemon"]
-EXPOSE 8080
+EXPOSE 43273
 VOLUME /var/lib/containers

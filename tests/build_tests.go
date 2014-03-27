@@ -61,7 +61,7 @@ func (s *BuildIntegrationTestSuite) SetUpSuite(c *C) {
 	s.daemonPort = os.Getenv("DAEMON_PORT")
 
 	if s.daemonPort == "" {
-		s.daemonPort = "8080"
+		s.daemonPort = "43273"
 	}
 }
 

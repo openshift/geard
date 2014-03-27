@@ -5,17 +5,17 @@ Gear(d) is an opinionated tool for installing Docker images as containers onto a
 
     $ sudo gear install pmorie/sti-html-app my-sample-service
 
-to install the public image <code>pmorie/sti-html-app</code> to systemd on the local box with the service name "ctr-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (port 8080 is the default):
+to install the public image <code>pmorie/sti-html-app</code> to systemd on the local box with the service name "ctr-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (port 43273 is the default):
 
     $ sudo gear daemon
     2014/02/21 02:59:42 ports: searching block 41, 4000-4099
-    2014/02/21 02:59:42 Starting HTTP on :8080 ...
+    2014/02/21 02:59:42 Starting HTTP on :43273 ...
 
 You can also use the gear command against a remote daemon:
 
-    $ gear stop localhost:8080/my-sample-service
-    $ gear install pmorie/sti-html-app localhost:8080/my-sample-service.1 localhost:8080/my-sample-service.2
-    $ gear start localhost:8080/my-sample-service.1 localhost:8080/my-sample-service.2
+    $ gear stop localhost:43273/my-sample-service
+    $ gear install pmorie/sti-html-app localhost:43273/my-sample-service.1 localhost:43273/my-sample-service.2
+    $ gear start localhost:43273/my-sample-service.1 localhost:43273/my-sample-service.2
 
 The gear daemon and local commands must run as root to interface with the Docker daemon over its Unix socket and systemd over DBus.
 
@@ -54,65 +54,65 @@ Here are the initial set of supported container actions - these should map clean
 
 *   Create a new system unit file that runs a single docker image (install and start a container)
 
-        $ gear install pmorie/sti-html-app localhost:8080/my-sample-service --start
-        $ curl -X PUT "http://localhost:8080/container/my-sample-service" -H "Content-Type: application/json" -d '{"Image": "pmorie/sti-html-app", "Started":true}'
+        $ gear install pmorie/sti-html-app localhost:43273/my-sample-service --start
+        $ curl -X PUT "http://localhost:43273/container/my-sample-service" -H "Content-Type: application/json" -d '{"Image": "pmorie/sti-html-app", "Started":true}'
 
 *   Stop, start, and restart a container
 
-        $ gear stop localhost:8080/my-sample-service
-        $ curl -X PUT "http://localhost:8080/container/my-sample-service/stopped"
-        $ gear start localhost:8080/my-sample-service
-        $ curl -X PUT "http://localhost:8080/container/my-sample-service/started"
-        $ gear restart localhost:8080/my-sample-service
-        $ curl -X POST "http://localhost:8080/container/my-sample-service/restart"
+        $ gear stop localhost:43273/my-sample-service
+        $ curl -X PUT "http://localhost:43273/container/my-sample-service/stopped"
+        $ gear start localhost:43273/my-sample-service
+        $ curl -X PUT "http://localhost:43273/container/my-sample-service/started"
+        $ gear restart localhost:43273/my-sample-service
+        $ curl -X POST "http://localhost:43273/container/my-sample-service/restart"
 
 *   Deploy a set of containers on one or more systems, with links between them:
 
-        $ gear deploy tests/fixtures/simple_deploy.json localhost:8080
+        $ gear deploy tests/fixtures/simple_deploy.json localhost:43273
         $ gear start --with=$(ls simple_deploy.json* | head -n 1)
 
 *   View the systemd status of a container
 
-        $ gear status localhost:8080/my-sample-service
-        $ curl "http://localhost:8080/container/my-sample-service/status"
+        $ gear status localhost:43273/my-sample-service
+        $ curl "http://localhost:43273/container/my-sample-service/status"
 
 *   Tail the logs for a container (will end after 30 seconds)
 
-        $ curl "http://localhost:8080/container/my-sample-service/log"
+        $ curl "http://localhost:43273/container/my-sample-service/log"
 
 *   List all installed containers (for one or more servers)
 
-        $ gear list-units localhost:8080
-        $ curl "http://localhost:8080/containers"
+        $ gear list-units localhost:43273
+        $ curl "http://localhost:43273/containers"
 
 *   Create a new empty Git repository
 
-        $ curl -X PUT "http://localhost:8080/repository/my-sample-repo"
+        $ curl -X PUT "http://localhost:43273/repository/my-sample-repo"
 
 *   Link containers with local loopback ports (for e.g. 127.0.0.2:8081 -> 9.8.23.14:8080)
 
-        $ gear link -n=127.0.0.2:8081:9.8.23.14:8080 localhost:8080/my-sample-service
+        $ gear link -n=127.0.0.2:8081:9.8.23.14:8080 localhost:43273/my-sample-service
 
 *   Set a public key as enabling SSH or Git SSH access to a container or repository (respectively)
 
         $ gear keys --key-file=[FILE] my-sample-service
-        $ curl -X POST "http://localhost:8080/keys" -H "Content-Type: application/json" -d '{"Keys": [{"Type":"ssh-rsa","Value":"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}], "Containers": [{"Id": "my-sample-service"}]}'
+        $ curl -X POST "http://localhost:43273/keys" -H "Content-Type: application/json" -d '{"Keys": [{"Type":"ssh-rsa","Value":"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}], "Containers": [{"Id": "my-sample-service"}]}'
 
 *   Enable SSH access to join a container for a set of authorized keys
 *   Build a new image from a source URL and base image
 
-        $ curl -X POST "http://localhost:8080/build-image" -H "Content-Type: application/json" -d '{"BaseImage":"pmorie/fedora-mock","Source":"git://github.com/pmorie/simple-html","Tag":"mybuild-1"}'
+        $ curl -X POST "http://localhost:43273/build-image" -H "Content-Type: application/json" -d '{"BaseImage":"pmorie/fedora-mock","Source":"git://github.com/pmorie/simple-html","Tag":"mybuild-1"}'
 
 *   Fetch a Git archive zip for a repository
 
-        $ curl "http://localhost:8080/repository/my-sample-repo/archive/master"
+        $ curl "http://localhost:43273/repository/my-sample-repo/archive/master"
 
 *   Set and retrieve environment files for sharing between containers (patch and pull operations)
 
-        $ gear set-env localhost:8080/my-sample-service A=B B=C
-        $ gear env localhost:8080/my-sample-service
-        $ curl "http://localhost:8080/environment/my-sample-service"
-        $ gear set-env localhost:8080/my-sample-service --reset
+        $ gear set-env localhost:43273/my-sample-service A=B B=C
+        $ gear env localhost:43273/my-sample-service
+        $ curl "http://localhost:43273/environment/my-sample-service"
+        $ gear set-env localhost:43273/my-sample-service --reset
 
 *   More to come....
 

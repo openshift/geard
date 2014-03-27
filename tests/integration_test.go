@@ -189,7 +189,7 @@ func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 
 	s.daemonURI = os.Getenv("GEARD_URI")
 	if s.daemonURI == "" {
-		s.daemonURI = "localhost:8080"
+		s.daemonURI = "localhost:43273"
 	}
 
 	dockerURI := os.Getenv("DOCKER_URI")
