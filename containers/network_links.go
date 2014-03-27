@@ -111,7 +111,7 @@ func NewNetworkLinkFromString(s string) (*NetworkLink, error) {
 
 	// Handle the case where from_host isn't specified
 	if len(value) == 3 {
-		value = append([]string{"127.0.0.2"}, value...)
+		value = append([]string{"127.0.0.1"}, value...)
 	}
 
 	link := NetworkLink{}
