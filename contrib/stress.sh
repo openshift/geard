@@ -9,7 +9,7 @@ function header() {
   echo --------------------------
 }
 
-port=${PORT:-8080}
+port=${PORT:-43273}
 base="http://localhost:$port/token/__test__"
 count=${COUNT:-20}
 header "Connecting to $base for $count creates"

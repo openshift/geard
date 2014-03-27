@@ -19,7 +19,7 @@ else
     DEBUG_FLAG=''
 fi
 
-CLI_PORT=${CLI_PORT:-"8080"}
+CLI_PORT=${CLI_PORT:-"43273"}
 
 . /tmp/resty
 resty http://localhost:${CLI_PORT}/token/__test__ > /dev/null 2>&1
@@ -27,7 +27,7 @@ resty http://localhost:${CLI_PORT}/token/__test__ > /dev/null 2>&1
 function list-examples
 {
     echo "Supported env vars:"
-    echo "   CLI_PORT=8080 (default)"
+    echo "   CLI_PORT=43273 (default)"
     echo "   CLI_DEBUG=0 (default)"
     echo
     echo "$0 list-containers"

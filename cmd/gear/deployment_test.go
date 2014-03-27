@@ -10,7 +10,7 @@ import (
 )
 
 var noHosts cmd.Locators = cmd.Locators{}
-var oneHost cmd.Locators = cmd.Locators{&cmd.HostLocator{"127.0.0.1", 8080}}
+var oneHost cmd.Locators = cmd.Locators{&cmd.HostLocator{"127.0.0.1", 43273}}
 
 func createDeployment(body string) *Deployment {
 	deployment := &Deployment{}
