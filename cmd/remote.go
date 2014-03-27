@@ -102,20 +102,25 @@ func NewHostLocator(value string) (*HostLocator, error) {
 		return &HostLocator{}, nil
 	}
 
-	host, portString, err := net.SplitHostPort(value)
-	if err != nil {
-		return nil, err
-	}
-	id := &HostLocator{Host: host}
-	if portString != "" {
-		port, err := strconv.Atoi(portString)
+	id := &HostLocator{}
+	if strings.Contains(value, ":") {
+		host, portString, err := net.SplitHostPort(value)
 		if err != nil {
 			return nil, err
 		}
-		id.Port = containers.Port(port)
-		if err := id.Port.Check(); err != nil {
-			return nil, err
+		if portString != "" {
+			port, err := strconv.Atoi(portString)
+			if err != nil {
+				return nil, err
+			}
+			id.Port = containers.Port(port)
+			if err := id.Port.Check(); err != nil {
+				return nil, err
+			}
 		}
+		id.Host = host
+	} else {
+		id.Host = value
 	}
 	return id, nil
 }
@@ -231,7 +236,7 @@ func (r *HostLocator) ResolvedHostname() string {
 	return "localhost"
 }
 func (h *HostLocator) NewURI() (*url.URL, error) {
-	port := "2223"
+	port := "43273"
 	if h.Port != containers.Port(0) {
 		port = strconv.Itoa(int(h.Port))
 	}

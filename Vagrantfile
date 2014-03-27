@@ -49,7 +49,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   else
     puts "Sharing current directory with VM"
     config.vm.synced_folder '.', "/vagrant/", disabled: true
-    config.vm.synced_folder '.', "/vagrant/src/github.com/smarterclayton/geard", create: true
+    config.vm.synced_folder '.', "/vagrant/src/github.com/openshift/geard", create: true
   end
 
   # Provider-specific configuration so you can fine-tune various
@@ -73,10 +73,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
   end
 
-  config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/smarterclayton/geard/contrib/bootstrap-dev-vm.sh"
+  config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-dev-vm.sh"
 
   if !ENV.has_key?('SKIP_DAEMON_BOOTSTRAP')
-    config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/smarterclayton/geard/contrib/bootstrap-daemon.sh"
+    config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-daemon.sh"
   end
 
   # Enable provisioning with Puppet stand alone.  Puppet manifests

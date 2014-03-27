@@ -140,13 +140,13 @@ If you don't have those, you can use the following to run in a development vm:
 
 If you have Go installed locally (have a valid GOPATH env variable set), run:
 
-    go get github.com/smarterclayton/geard
-    cd $GOPATH/src/github.com/smarterclayton/geard
+    go get github.com/openshift/geard
+    cd $GOPATH/src/github.com/openshift/geard
     vagrant up
 
 If you don't have Go installed locally, run the following steps:
 
-    git clone git@github.com:smarterclayton/geard && cd geard
+    git clone git@github.com:openshift/geard && cd geard
     vagrant up
 
 The `geard` project is set up such that `vagrant up` will download and install `geard`'s dependencies as well as installing and enabling the systemd unit to run `geard` in a docker container under systemd.
