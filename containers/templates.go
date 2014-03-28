@@ -8,6 +8,7 @@ type ContainerUnit struct {
 	Id       Identifier
 	Image    string
 	PortSpec string
+	RunSpec  string
 	Slice    string
 	Isolate  bool
 	User     string
@@ -38,7 +39,8 @@ TimeoutStartSec=5m
 {{end}}
 
 {{define "COMMON_CONTAINER"}}
-{{ if .IncludePath }}.include {{.IncludePath}} {{ end }}
+[Install]
+WantedBy=container.target
 
 # Container information
 X-ContainerId={{.Id}}
@@ -54,7 +56,7 @@ X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 {{define "FORK"}}
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
-ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null || exec /usr/bin/docker run --create-only --name "{{.Id}}" {{.PortSpec}} --volumes-from "{{.Id}}" "{{.Image}}"'
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null || exec /usr/bin/docker run --create-only --name "{{.Id}}" {{.PortSpec}} {{.RunSpec}} --volumes-from "{{.Id}}" "{{.Image}}"'
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker fork "{{.Id}}"
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
@@ -69,7 +71,7 @@ ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
             --name "{{.Id}}" --rm \
             --volumes-from "{{.Id}}" \
-            -a stdout -a stderr {{.PortSpec}} \
+            -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
             -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
             "{{.Image}}" /.container.init
@@ -81,12 +83,10 @@ ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{define "SIMPLE"}}
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
-ExecStart=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null && \
-                      exec /usr/bin/docker start -a "{{.Id}}" || \
-                      exec /usr/bin/docker run --name "{{.Id}}" --volumes-from "{{.Id}}" -a stdout -a stderr {{.PortSpec}} "{{.Image}}"'
-ExecReload=/usr/bin/docker stop "{{.Id}}"
-ExecReload=/usr/bin/docker rm "{{.Id}}"
-ExecStop=/usr/bin/docker stop "{{.Id}}"
+ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} "{{.Image}}"
+ExecReload=-/usr/bin/docker stop "{{.Id}}"
+ExecReload=-/usr/bin/docker rm "{{.Id}}"
+ExecStop=-/usr/bin/docker stop "{{.Id}}"
 {{template "COMMON_CONTAINER" .}}
 {{end}}
 
@@ -100,7 +100,7 @@ ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
             --name "{{.Id}}" \
             --volumes-from "{{.Id}}" \
-            -a stdout -a stderr \
+            -a stdout -a stderr {{.RunSpec}} \
             --env LISTEN_FDS \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro \
             -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro \

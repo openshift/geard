@@ -1,61 +1,33 @@
 package containers
 
 import (
-	"bufio"
-	"fmt"
-	"io/ioutil"
 	"os"
-	"strings"
+	"path/filepath"
 )
 
-func WriteContainerState(id Identifier, active bool) error {
-	contents := []byte(unitStateContents(id.UnitDefinitionPathFor(), active))
-	if err := ioutil.WriteFile(id.UnitPathFor(), contents, 0660); err != nil {
-		return err
-	}
-	return nil
+func (i Identifier) activeUnitPathFor() string {
+	return filepath.Join("/etc/systemd/system/container-active.target.wants", i.UnitNameFor())
 }
 
-func WriteContainerStateTo(file *os.File, id Identifier, active bool) error {
-	if err := file.Truncate(0); err != nil {
-		return err
-	}
-
-	contents := []byte(unitStateContents(id.UnitDefinitionPathFor(), active))
-	if _, err := file.Write(contents); err != nil {
-		return err
-	}
-	return nil
-}
-
-func unitStateContents(path string, active bool) string {
-	var target string
-	if active {
-		target = "container-active"
-	} else {
-		target = "container"
-	}
-
-	return ".include " + path + "\n\n[Install]\nWantedBy=" + target + ".target\n"
-}
-
-func ReadContainerState(id Identifier) (bool, error) {
-	r, err := os.Open(id.UnitPathFor())
-	if err != nil {
+func (i Identifier) UnitStartOnBoot() (bool, error) {
+	if _, err := os.Lstat(i.activeUnitPathFor()); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
-	defer r.Close()
+	return true, nil
+}
 
-	scan := bufio.NewScanner(r)
-	for scan.Scan() {
-		line := scan.Text()
-		if strings.HasPrefix(line, "WantedBy=") {
-			wantedBy := strings.TrimPrefix(line, "WantedBy=")
-			return strings.Contains(wantedBy, "container-active.target"), nil
+func (i Identifier) SetUnitStartOnBoot(active bool) error {
+	if active {
+		if err := os.Symlink(i.UnitPathFor(), i.activeUnitPathFor()); err != nil && !os.IsExist(err) {
+			return err
+		}
+	} else {
+		if err := os.Remove(i.activeUnitPathFor()); err != nil && !os.IsNotExist(err) {
+			return err
 		}
 	}
-	if scan.Err() != nil {
-		return false, scan.Err()
-	}
-	return false, fmt.Errorf("Container state not found")
+	return nil
 }

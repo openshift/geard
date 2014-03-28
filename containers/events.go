@@ -92,17 +92,14 @@ func (e *EventListener) runner(errorChan chan error, eventChan chan *ContainerEv
 				event      ContainerEvent
 			)
 
-			_, err = os.Stat(id.UnitPathFor())
-			if err == nil {
+			if _, err := os.Stat(id.UnitPathFor()); err == nil {
 				fileExists = true
 			}
-
-			_, err = os.Stat(id.IdleFlagPathFor())
-			if err == nil {
+			if _, err := os.Stat(id.IdleUnitPathFor()); err == nil {
 				idleFlag = true
 			}
+			started, _ = id.UnitStartOnBoot()
 
-			started, _ = ReadContainerState(id)
 			if fileExists == false {
 				event = ContainerEvent{id, Deleted}
 			} else {

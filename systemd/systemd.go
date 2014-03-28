@@ -86,8 +86,8 @@ func InitializeSystemdFile(fType SystemdFileType, name string, template *templat
 		return nil
 	}
 
-	if _, errs := StartAndEnableUnit(Connection(), name+ext, path, "fail"); errs != nil {
-		log.Printf("gear: Unable to start and enable %s %s: %v", fType, name, errs)
+	if _, _, errs := Connection().EnableUnitFiles([]string{path}, false, true); errs != nil {
+		log.Printf("gear: Cannot enable %s %s: %v", fType, name, errs)
 	}
 
 	return nil

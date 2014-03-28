@@ -15,9 +15,9 @@ type DeleteContainerRequest struct {
 func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
-	idleFlagPath := j.Id.IdleFlagPathFor()
+	unitDefinitionsPath := j.Id.VersionedUnitsPathFor()
+	idleFlagPath := j.Id.IdleUnitPathFor()
 	socketUnitPath := j.Id.SocketUnitPathFor()
-	unitDefinitionPath := j.Id.UnitDefinitionPathFor()
 	homeDirPath := j.Id.BaseHomePath()
 
 	_, err := systemd.Connection().GetUnitProperties(unitName)
@@ -42,7 +42,7 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 		ports = containers.PortPairs{}
 	}
 
-	if err := containers.ReleaseExternalPorts(filepath.Dir(unitDefinitionPath), ports); err != nil {
+	if err := containers.ReleaseExternalPorts(filepath.Dir(unitPath), ports); err != nil {
 		log.Printf("delete_container: Unable to release ports: %v", err)
 	}
 
@@ -56,11 +56,15 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 		return
 	}
 
+	if err := j.Id.SetUnitStartOnBoot(false); err != nil {
+		log.Printf("delete_container: Unable to clear unit boot state: %v", err)
+	}
+
 	if err := os.Remove(socketUnitPath); err != nil && !os.IsNotExist(err) {
 		log.Printf("delete_container: Unable to remove socket unit path: %v", err)
 	}
 
-	if err := os.RemoveAll(filepath.Dir(unitDefinitionPath)); err != nil {
+	if err := os.RemoveAll(unitDefinitionsPath); err != nil {
 		log.Printf("delete_container: Unable to remove definitions for container: %v", err)
 	}
 

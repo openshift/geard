@@ -42,7 +42,7 @@ var (
 	resetEnv bool
 
 	start   bool
-	simple  bool
+	isolate bool
 	fork    bool
 	sockAct bool
 
@@ -96,7 +96,7 @@ func Execute() {
 		Long:  "Given a simple description of a group of containers, wire them together using the gear primitives.",
 		Run:   deployContainers,
 	}
-	deployCmd.Flags().BoolVar(&simple, "simple", false, "Use a simple container (experimental)")
+	deployCmd.Flags().BoolVar(&isolate, "isolate", false, "Use an isolated container running as a user")
 	deployCmd.Flags().BoolVar(&fork, "fork", false, "Use a forked container (experimental, requires docker branch smarterclayton/fork_and_create_only)")
 	gearCmd.AddCommand(deployCmd)
 
@@ -109,7 +109,7 @@ func Execute() {
 	installImageCmd.Flags().VarP(&portPairs, "ports", "p", "List of comma separated port pairs to bind '<internal>:<external>,...'. Use zero to request a port be assigned.")
 	installImageCmd.Flags().VarP(&networkLinks, "net-links", "n", "List of comma separated port pairs to wire '<local_host>:<local_port>:<remote_host>:<remote_port>,...'. local_host may be empty. It defaults to 127.0.0.1.")
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
-	installImageCmd.Flags().BoolVar(&simple, "simple", false, "Use a simple container (experimental)")
+	installImageCmd.Flags().BoolVar(&isolate, "isolate", false, "Use an isolated container running as a user")
 	installImageCmd.Flags().BoolVar(&sockAct, "socket-activated", false, "Use a socket-activated container (experimental, requires Docker branch)")
 	installImageCmd.Flags().BoolVar(&fork, "fork", false, "Use a forked container (experimental, requires docker branch openshift/fork_and_create_only)")
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
@@ -400,10 +400,10 @@ func deployContainers(cmd *cobra.Command, args []string) {
 				InstallContainerRequest: jobs.InstallContainerRequest{
 					RequestIdentifier: jobs.NewRequestIdentifier(),
 
-					Id:     instance.Id,
-					Image:  instance.Image,
-					Simple: simple,
-					Fork:   fork,
+					Id:      instance.Id,
+					Image:   instance.Image,
+					Isolate: isolate,
+					Fork:    fork,
 
 					Ports:        instance.Ports.PortPairs(),
 					NetworkLinks: instance.Links.NetworkLinks(),
@@ -500,7 +500,7 @@ func installImage(cmd *cobra.Command, args []string) {
 					Id:               on.(ResourceLocator).Identifier(),
 					Image:            imageId,
 					Started:          start,
-					Simple:           simple,
+					Isolate:          isolate,
 					Fork:             fork,
 					SocketActivation: sockAct,
 

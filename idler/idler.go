@@ -126,7 +126,7 @@ func (idler *Idler) Run() {
 				}
 
 				var idleFlag bool
-				_, err = os.Stat(id.IdleFlagPathFor())
+				_, err = os.Stat(id.IdleUnitPathFor())
 				if err == nil {
 					idleFlag = true
 				}
@@ -156,7 +156,7 @@ func (idler *Idler) unidleContainer(id containers.Identifier, p netfilter.NFPack
 
 	if !wasAlreadyAssigned {
 		//TODO: Ask geard to unidle container
-		if err := os.Remove(id.IdleFlagPathFor()); err != nil {
+		if err := os.Remove(id.IdleUnitPathFor()); err != nil {
 			fmt.Printf("unidle: Could not remove idle marker for %s: %v", id.UnitNameFor(), err)
 			p.SetVerdict(netfilter.NF_ACCEPT)
 			return
@@ -217,7 +217,7 @@ func (idler *Idler) idleContainer(id containers.Identifier) bool {
 	}
 
 	//TODO: Ask geard to idle container
-	f, err := os.Create(id.IdleFlagPathFor())
+	f, err := os.Create(id.IdleUnitPathFor())
 	if err != nil {
 		fmt.Printf("idler.idleContainer: Could not create idle marker for %s: %v", id.UnitNameFor(), err)
 		return false

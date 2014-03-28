@@ -23,10 +23,8 @@ func propIncludesString(value interface{}, key string) bool {
 	return false
 }
 
-func inStateOrTooSoon(id containers.Identifier, unit string, active, transition bool, rateLimit uint64) (inState bool, tooSoon bool, markedActive bool) {
+func inStateOrTooSoon(id containers.Identifier, unit string, active, transition bool, rateLimit uint64) (inState bool, tooSoon bool) {
 	if props, erru := systemd.Connection().GetUnitProperties(unit); erru == nil {
-		markedActive, _ = containers.ReadContainerState(id)
-
 		switch props["ActiveState"] {
 		case "active":
 			if active {
@@ -64,15 +62,15 @@ func inStateOrTooSoon(id containers.Identifier, unit string, active, transition 
 				}
 			}
 		}
-		now := time.Now().UnixNano() / 1000
+		/*now := time.Now().UnixNano() / 1000
 		if act, ok := props["ActiveEnterTimestamp"]; ok {
 			if inact, ok := props["InactiveEnterTimestamp"]; ok {
 				t1 := act.(uint64)
 				t2 := inact.(uint64)
 				if transition {
-					// compare against the most recent value
+					// if active is newest, ignore rate limit
 					if t1 > t2 {
-						t1, t2 = t2, t1
+						return
 					}
 				} else if !active {
 					t1, t2 = t2, t1
@@ -85,7 +83,7 @@ func inStateOrTooSoon(id containers.Identifier, unit string, active, transition 
 					}
 				}
 			}
-		}
+		}*/
 	}
 	return
 }
@@ -98,7 +96,7 @@ func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
-	inState, tooSoon, markedActive := inStateOrTooSoon(j.Id, unitName, true, false, rateLimitChanges)
+	inState, tooSoon := inStateOrTooSoon(j.Id, unitName, true, false, rateLimitChanges)
 	if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s starting\n", j.Id)
@@ -109,12 +107,10 @@ func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	if !markedActive {
-		if errs := containers.WriteContainerState(j.Id, true); errs != nil {
-			log.Print("alter_container_state: Unable to write state file: ", errs)
-			resp.Failure(ErrContainerStartFailed)
-			return
-		}
+	if errs := j.Id.SetUnitStartOnBoot(true); errs != nil {
+		log.Print("alter_container_state: Unable to persist whether the unit is started on boot: ", errs)
+		resp.Failure(ErrContainerStartFailed)
+		return
 	}
 
 	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {
@@ -144,7 +140,7 @@ type StoppedContainerStateRequest struct {
 func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 	unitName := j.Id.UnitNameFor()
 
-	inState, tooSoon, markedActive := inStateOrTooSoon(j.Id, unitName, false, false, rateLimitChanges)
+	inState, tooSoon := inStateOrTooSoon(j.Id, unitName, false, false, rateLimitChanges)
 	if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
@@ -155,12 +151,10 @@ func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	if markedActive {
-		if errs := containers.WriteContainerState(j.Id, false); errs != nil {
-			log.Print("alter_container_state: Unable to write state file: ", errs)
-			resp.Failure(ErrContainerStopFailed)
-			return
-		}
+	if errs := j.Id.SetUnitStartOnBoot(false); errs != nil {
+		log.Print("alter_container_state: Unable to persist whether the unit is started on boot: ", errs)
+		resp.Failure(ErrContainerStopFailed)
+		return
 	}
 
 	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
@@ -218,7 +212,7 @@ func (j *RestartContainerRequest) Execute(resp JobResponse) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
-	inState, tooSoon, markedActive := inStateOrTooSoon(j.Id, unitName, false, true, rateLimitChanges)
+	inState, tooSoon := inStateOrTooSoon(j.Id, unitName, false, true, rateLimitChanges)
 	if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s restarting\n", j.Id)
@@ -229,12 +223,10 @@ func (j *RestartContainerRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	if !markedActive {
-		if errs := containers.WriteContainerState(j.Id, true); errs != nil {
-			log.Print("alter_container_state: Unable to write state file: ", errs)
-			resp.Failure(ErrContainerRestartFailed)
-			return
-		}
+	if errs := j.Id.SetUnitStartOnBoot(true); errs != nil {
+		log.Print("alter_container_state: Unable to persist whether the unit is started on boot: ", errs)
+		resp.Failure(ErrContainerRestartFailed)
+		return
 	}
 
 	if err := systemd.EnableAndReloadUnit(systemd.Connection(), unitName, unitPath); err != nil {

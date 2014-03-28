@@ -51,13 +51,13 @@ func (i Identifier) UnitPathFor() string {
 	return filepath.Join(filepath.Dir(base), i.UnitNameFor())
 }
 
-func (i Identifier) IdleFlagPathFor() string {
+func (i Identifier) IdleUnitPathFor() string {
 	base := utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "units"), string(i), "", 0775)
-	return filepath.Join(filepath.Dir(base), i.IdleFlagFor())
+	return filepath.Join(filepath.Dir(base), i.UnitIdleFlagNameFor())
 }
 
-func (i Identifier) UnitDefinitionPathFor() string {
-	return i.VersionedUnitPathFor("definition")
+func (i Identifier) VersionedUnitsPathFor() string {
+	return i.VersionedUnitPathFor("")
 }
 
 func (i Identifier) VersionedUnitPathFor(suffix string) string {
@@ -68,7 +68,7 @@ func (i Identifier) UnitNameFor() string {
 	return fmt.Sprintf("%s%s.service", IdentifierPrefix, i)
 }
 
-func (i Identifier) IdleFlagFor() string {
+func (i Identifier) UnitIdleFlagNameFor() string {
 	return fmt.Sprintf("%s%s.idle", IdentifierPrefix, i)
 }
 

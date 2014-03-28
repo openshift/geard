@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	CONTAINER_STATE_CHANGE_TIMEOUT = time.Minute
-	DOCKER_STATE_CHANGE_TIMEOUT    = time.Minute
-	SYSTEMD_ACTION_DELAY           = time.Second * 2
+	CONTAINER_STATE_CHANGE_TIMEOUT = time.Second * 5
+	DOCKER_STATE_CHANGE_TIMEOUT    = time.Second * 5
+	SYSTEMD_ACTION_DELAY           = time.Second * 1
 	TestImage                      = "pmorie/sti-html-app"
 )
 
@@ -103,7 +103,7 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 		ticker     *time.Ticker
 	)
 
-	ticker = time.NewTicker(time.Second)
+	ticker = time.NewTicker(time.Second / 10)
 	defer ticker.Stop()
 
 	cInfo, err := s.sdconn.GetUnitProperties(id.UnitNameFor())
@@ -225,6 +225,39 @@ func (s *IntegrationTestSuite) SetupTest(c *chk.C) {
 func (s *IntegrationTestSuite) TearDownTest(c *chk.C) {
 }
 
+func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest000")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
+
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId)
+	data, err := cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerState(c, id, CONTAINER_STOPPED)
+
+	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
+	paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
+	c.Assert(err, chk.IsNil)
+	for _, p := range paths {
+		s.assertFilePresent(c, p, 0664, true)
+	}
+	s.assertFileAbsent(c, filepath.Join(id.HomePath(), "container-init.sh"))
+
+	ports, err := containers.GetExistingPorts(id)
+	c.Assert(err, chk.IsNil)
+	c.Assert(len(ports), chk.Equals, 0)
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Assert(err, chk.IsNil)
+	c.Log(string(data))
+	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest000.service; enabled)"), chk.Equals, true)
+	s.assertContainerState(c, id, CONTAINER_STOPPED)
+}
+
 func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 	id, err := containers.NewIdentifier("IntTest001")
 	c.Assert(err, chk.IsNil)
@@ -232,7 +265,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4000")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4000", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -250,7 +283,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	c.Assert(len(ports), chk.Equals, 1)
 
-	t := time.NewTicker(time.Second)
+	t := time.NewTicker(time.Second / 10)
 	defer t.Stop()
 	select {
 	case <-t.C:
@@ -291,7 +324,7 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4001")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4001", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -326,7 +359,7 @@ func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4002", "--start")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4002", "--start", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -396,7 +429,7 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4003")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4003", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -409,7 +442,7 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	c.Assert(len(ports), chk.Equals, 1)
 
-	t := time.NewTicker(time.Second)
+	t := time.NewTicker(time.Second / 10)
 	defer t.Stop()
 	select {
 	case <-t.C:
@@ -429,7 +462,7 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4004")
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4004", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -480,7 +513,7 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 //     c.Assert(err, chk.IsNil)
 // c.Assert(len(ports), chk.Equals, 1)
 //
-//     t := time.NewTicker(time.Second)
+//     t := time.NewTicker(time.Second/10)
 //     defer t.Stop()
 //     for true {
 //         select {
