@@ -142,7 +142,7 @@ func GetExistingPorts(id Identifier) (PortPairs, error) {
 	var existing *os.File
 	var err error
 
-	existing, err = os.Open(id.UnitDefinitionPathFor())
+	existing, err = os.Open(id.UnitPathFor())
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func readPortsFromUnitFile(r io.Reader) (PortPairs, error) {
 func GetSocketActivation(id Identifier) (bool, string, error) {
 	var err error
 	var existing *os.File
-	if existing, err = os.Open(id.UnitDefinitionPathFor()); err != nil {
+	if existing, err = os.Open(id.UnitPathFor()); err != nil {
 		return false, "disabled", err
 	}
 

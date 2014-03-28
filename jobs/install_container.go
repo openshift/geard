@@ -74,7 +74,6 @@ type InstallContainerRequest struct {
 func (req *InstallContainerRequest) Check() error {
 	if req.SocketActivation && len(req.Ports) == 0 {
 		req.SocketActivation = false
-		req.Isolate = true
 	}
 	if len(req.RequestIdentifier) == 0 {
 		return errors.New("A request identifier is required to create this item.")
@@ -110,11 +109,9 @@ func dockerPortSpec(p containers.PortPairs) string {
 }
 
 func (req *InstallContainerRequest) Execute(resp JobResponse) {
-
 	id := req.Id
 	unitName := id.UnitNameFor()
 	unitPath := id.UnitPathFor()
-	unitDefinitionPath := id.UnitDefinitionPathFor()
 	unitVersionPath := id.VersionedUnitPathFor(req.RequestIdentifier.String())
 
 	socketUnitName := id.SocketUnitNameFor()
@@ -230,16 +227,14 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 
 	var templateName string
 	switch {
-	case req.Simple:
-		templateName = "SIMPLE"
+	case req.Isolate:
+		templateName = "ISOLATED"
 	case req.Fork:
 		templateName = "FORK"
 	case req.SocketActivation:
 		templateName = "SOCKETACTIVATED"
-	case req.Isolate:
-		fallthrough
 	default:
-		templateName = "ISOLATED"
+		templateName = "SIMPLE"
 	}
 
 	if erre := containers.ContainerUnitTemplate.ExecuteTemplate(unit, templateName, args); erre != nil {
@@ -256,23 +251,20 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	}
 
 	// swap the new definition with the old one
-	if err := utils.AtomicReplaceLink(unitVersionPath, unitDefinitionPath); err != nil {
+	if err := utils.AtomicReplaceLink(unitVersionPath, unitPath); err != nil {
 		log.Printf("install_container: Failed to activate new unit: %+v", err)
 		resp.Failure(ErrContainerCreateFailed)
 		return
 	}
+	state.Close()
 
-	// write the container state (active, or not active) based on the current start
-	// state
-	if errs := containers.WriteContainerStateTo(state, id, req.Started); errs != nil {
-		log.Print("install_container: Unable to write state file: ", err)
-		resp.Failure(ErrContainerCreateFailed)
-		return
-	}
-	if err := state.Close(); err != nil {
-		log.Print("install_container: Unable to close state file: ", err)
-		resp.Failure(ErrContainerCreateFailed)
-		return
+	// write whether this container should be started on next boot
+	if req.Started {
+		if errs := id.SetUnitStartOnBoot(true); errs != nil {
+			log.Print("install_container: Unable to write container boot link: ", err)
+			resp.Failure(ErrContainerCreateFailed)
+			return
+		}
 	}
 
 	// Generate the socket file and ignore failures
