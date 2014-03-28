@@ -148,8 +148,8 @@ useradd -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}
 {{ else }}
 old_id=$(id -u {{.ContainerUser}})
 old_gid=$(id -g {{.ContainerUser}})
-/usr/sbin/usermod {{.ContainerUser}} --uid {{.Uid}}
-/usr/sbin/groupmod {{.ContainerUser}} --gid {{.Gid}}
+/usr/sbin/usermod --uid {{.Uid}} {{.ContainerUser}}
+/usr/sbin/groupmod --gid {{.Gid}} {{.ContainerUser}}
 for i in $(find / -uid ${old_id}); do PATH=/bin:/sbin:/usr/bin:/usr/sbin chown -R {{.Uid}} $i; done
 for i in $(find / -gid ${old_gid}); do PATH=/bin:/sbin:/usr/bin:/usr/sbin chgrp -R {{.Gid}} $i; done
 {{ end }}
