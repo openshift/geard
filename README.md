@@ -13,9 +13,9 @@ to install the public image <code>pmorie/sti-html-app</code> to systemd on the l
 
 You can also use the gear command against a remote daemon:
 
-    $ gear stop localhost:43273/my-sample-service
-    $ gear install pmorie/sti-html-app localhost:43273/my-sample-service.1 localhost:43273/my-sample-service.2
-    $ gear start localhost:43273/my-sample-service.1 localhost:43273/my-sample-service.2
+    $ gear stop localhost/my-sample-service
+    $ gear install pmorie/sti-html-app localhost/my-sample-service.1 localhost/my-sample-service.2
+    $ gear start localhost/my-sample-service.1 localhost/my-sample-service.2
 
 The gear daemon and local commands must run as root to interface with the Docker daemon over its Unix socket and systemd over DBus.
 
@@ -54,26 +54,26 @@ Here are the initial set of supported container actions - these should map clean
 
 *   Create a new system unit file that runs a single docker image (install and start a container)
 
-        $ gear install pmorie/sti-html-app localhost:43273/my-sample-service --start
+        $ gear install pmorie/sti-html-app localhost/my-sample-service --start
         $ curl -X PUT "http://localhost:43273/container/my-sample-service" -H "Content-Type: application/json" -d '{"Image": "pmorie/sti-html-app", "Started":true}'
 
 *   Stop, start, and restart a container
 
-        $ gear stop localhost:43273/my-sample-service
+        $ gear stop localhost/my-sample-service
         $ curl -X PUT "http://localhost:43273/container/my-sample-service/stopped"
-        $ gear start localhost:43273/my-sample-service
+        $ gear start localhost/my-sample-service
         $ curl -X PUT "http://localhost:43273/container/my-sample-service/started"
-        $ gear restart localhost:43273/my-sample-service
+        $ gear restart localhost/my-sample-service
         $ curl -X POST "http://localhost:43273/container/my-sample-service/restart"
 
 *   Deploy a set of containers on one or more systems, with links between them:
 
-        $ gear deploy tests/fixtures/simple_deploy.json localhost:43273
+        $ gear deploy tests/fixtures/simple_deploy.json localhost
         $ gear start --with=$(ls simple_deploy.json* | head -n 1)
 
 *   View the systemd status of a container
 
-        $ gear status localhost:43273/my-sample-service
+        $ gear status localhost/my-sample-service
         $ curl "http://localhost:43273/container/my-sample-service/status"
 
 *   Tail the logs for a container (will end after 30 seconds)
@@ -82,7 +82,7 @@ Here are the initial set of supported container actions - these should map clean
 
 *   List all installed containers (for one or more servers)
 
-        $ gear list-units localhost:43273
+        $ gear list-units localhost
         $ curl "http://localhost:43273/containers"
 
 *   Create a new empty Git repository
@@ -91,7 +91,7 @@ Here are the initial set of supported container actions - these should map clean
 
 *   Link containers with local loopback ports (for e.g. 127.0.0.2:8081 -> 9.8.23.14:8080). If local ip isn't specified, it defaults to 127.0.0.1
 
-        $ gear link -n=127.0.0.2:8081:9.8.23.14:8080 localhost:43273/my-sample-service
+        $ gear link -n=127.0.0.2:8081:9.8.23.14:8080 localhost/my-sample-service
 
 *   Set a public key as enabling SSH or Git SSH access to a container or repository (respectively)
 
@@ -110,10 +110,10 @@ Here are the initial set of supported container actions - these should map clean
 
 *   Set and retrieve environment files for sharing between containers (patch and pull operations)
 
-        $ gear set-env localhost:43273/my-sample-service A=B B=C
-        $ gear env localhost:43273/my-sample-service
+        $ gear set-env localhost/my-sample-service A=B B=C
+        $ gear env localhost/my-sample-service
         $ curl "http://localhost:43273/environment/my-sample-service"
-        $ gear set-env localhost:43273/my-sample-service --reset
+        $ gear set-env localhost/my-sample-service --reset
 
 *   More to come....
 
