@@ -74,7 +74,7 @@ func (p Port) IdentifierFor() (Identifier, error) {
 
 type HostPort struct {
 	Host string `json:"Host,omitempty"`
-	Port
+	Port `json:"Port,omitempty"`
 }
 
 func NewHostPort(hostport string) (HostPort, error) {

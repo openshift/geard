@@ -1,4 +1,6 @@
-package main
+// Classes that define relationships between containers (links)
+// and simple strategies for placement.
+package deployment
 
 import (
 	"encoding/json"
@@ -41,6 +43,15 @@ func newPortMappings(ports containers.PortPairs) PortMappings {
 func (p PortMappings) Find(port containers.Port) (*PortMapping, bool) {
 	for i := range p {
 		if p[i].Internal == port {
+			return &p[i], true
+		}
+	}
+	return nil, false
+}
+
+func (p PortMappings) FindTarget(target containers.HostPort) (*PortMapping, bool) {
+	for i := range p {
+		if p[i].Target == target {
 			return &p[i], true
 		}
 	}
@@ -477,7 +488,7 @@ func (d *Deployment) UpdateLinks() {
 			for k := range d.Instances {
 				ref := &d.Instances[k]
 				if ref.From == link.from {
-					if assignment, ok := ref.Ports.Find(link.FromPort); ok {
+					if assignment, ok := ref.Ports.FindTarget(containers.HostPort{link.FromHost, link.FromPort}); ok {
 						if assignment.External != 0 {
 							link.ToPort = assignment.External
 							break Found

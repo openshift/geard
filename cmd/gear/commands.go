@@ -19,6 +19,7 @@ import (
 	"github.com/openshift/cobra"
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/deployment"
 	"github.com/openshift/geard/dispatcher"
 	"github.com/openshift/geard/encrypted"
 	"github.com/openshift/geard/git"
@@ -344,7 +345,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 	if path == "" {
 		Fail(1, "Argument 1 must be deployment file describing how the containers are related")
 	}
-	deployment, err := NewDeploymentFromFile(path)
+	deploy, err := deployment.NewDeploymentFromFile(path)
 	if err != nil {
 		Fail(1, "Unable to load deployment file: %s", err.Error())
 	}
@@ -363,7 +364,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 	newPath := base + now
 
 	log.Printf("Deploying %s", newPath)
-	changes, removed, err := deployment.Describe(SimplePlacement(servers))
+	changes, removed, err := deploy.Describe(deployment.SimplePlacement(servers))
 	if err != nil {
 		Fail(1, "Deployment is not valid: %s", err.Error())
 	}
@@ -621,6 +622,9 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 }
 
 func deleteContainer(cmd *cobra.Command, args []string) {
+	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+		Fail(1, err.Error())
+	}
 	if len(args) < 1 {
 		Fail(1, "Valid arguments: <id> ...\n")
 	}
@@ -685,7 +689,7 @@ func linkContainers(cmd *cobra.Command, args []string) {
 }
 
 func startContainer(cmd *cobra.Command, args []string) {
-	if err := ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
 	if len(args) < 1 {
@@ -714,7 +718,7 @@ func startContainer(cmd *cobra.Command, args []string) {
 }
 
 func stopContainer(cmd *cobra.Command, args []string) {
-	if err := ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
 	if len(args) < 1 {
@@ -743,7 +747,7 @@ func stopContainer(cmd *cobra.Command, args []string) {
 }
 
 func restartContainer(cmd *cobra.Command, args []string) {
-	if err := ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
 	if len(args) < 1 {
@@ -772,7 +776,7 @@ func restartContainer(cmd *cobra.Command, args []string) {
 }
 
 func containerStatus(cmd *cobra.Command, args []string) {
-	if err := ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
 	if len(args) < 1 {

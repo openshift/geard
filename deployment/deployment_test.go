@@ -1,9 +1,10 @@
-package main
+package deployment
 
 import (
 	"encoding/json"
 	"github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/containers"
+	"io/ioutil"
 	"regexp"
 	"strings"
 	"testing"
@@ -20,6 +21,20 @@ func createDeployment(body string) *Deployment {
 		panic(err)
 	}
 	return deployment
+}
+
+func assignPorts(dep *Deployment) {
+	port := 10000
+	for i := range dep.Instances {
+		instance := &dep.Instances[i]
+		for j := range instance.Ports {
+			mapping := &instance.Ports[j]
+			if mapping.External.Default() {
+				mapping.External = containers.Port(port)
+				port++
+			}
+		}
+	}
 }
 
 func TestPrepareDeployment(t *testing.T) {
@@ -211,5 +226,33 @@ func TestPrepareDeploymentError(t *testing.T) {
 	}
 
 	// b, _ := json.MarshalIndent(next, "", "  ")
+	// t.Log(string(b))
+}
+
+func TestPrepareDeploymentInterlink(t *testing.T) {
+	body, _ := ioutil.ReadFile("../tests/fixtures/complex_deploy.json")
+	dep := createDeployment(string(body))
+	changes, _, err := dep.Describe(oneHost)
+	if err != nil {
+		t.Fatal("Should not have received an error", err)
+	}
+	if len(changes.Instances) != 5 {
+		t.Fatalf("Expected %d instances, got %d", 5, len(changes.Instances))
+	}
+
+	assignPorts(changes)
+	changes.UpdateLinks()
+
+	for i := range changes.Instances {
+		instance := changes.Instances[i]
+		for j := range instance.Links {
+			link := instance.Links[j]
+			if link.ToPort.Default() {
+				t.Fatalf("Expected all link ports to be assigned %s: %+v", instance.Id, link)
+			}
+		}
+	}
+
+	// b, _ := json.MarshalIndent(changes, "", "  ")
 	// t.Log(string(b))
 }
