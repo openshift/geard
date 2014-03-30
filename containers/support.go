@@ -139,15 +139,15 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 		d         *docker.DockerClient
 	)
 
-	if u, err = user.Lookup(id.LoginFor()); err != nil {
-		return err
+	if u, err = user.Lookup(id.LoginFor()); err == nil {
+		if err := GenerateAuthorizedKeys(id, u, true, false); err != nil {
+			log.Print(err.Error())
+		}
+	} else {
+		log.Print(err.Error())
 	}
 
 	if d, err = docker.GetConnection(dockerSocket); err != nil {
-		return err
-	}
-
-	if err := GenerateAuthorizedKeys(id, u, true, false); err != nil {
 		return err
 	}
 

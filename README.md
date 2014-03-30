@@ -68,7 +68,7 @@ Here are the initial set of supported container actions - these should map clean
 
 *   Deploy a set of containers on one or more systems, with links between them:
 
-        $ gear deploy tests/fixtures/simple_deploy.json localhost
+        $ gear deploy deployment/fixtures/simple_deploy.json localhost
         $ gear start --with=$(ls simple_deploy.json* | head -n 1)
 
 *   View the systemd status of a container

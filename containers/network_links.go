@@ -23,8 +23,10 @@ func (n *NetworkLink) Check() error {
 	if err := n.FromPort.Check(); err != nil {
 		return errors.New("The from port value must be a positive integer less than 65536")
 	}
-	if err := n.ToPort.CheckDefault(); err != nil {
-		return errors.New("The to port value must be a positive integer less than 65536 or zero")
+	if !n.ToPort.Default() {
+		if err := n.ToPort.Check(); err != nil {
+			return errors.New("The to port value must be a positive integer less than 65536 or zero")
+		}
 	}
 	return nil
 }

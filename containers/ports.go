@@ -8,6 +8,7 @@ import (
 	"github.com/openshift/geard/config"
 	"io"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,16 +18,26 @@ import (
 
 type Port uint
 
-func (p Port) Check() error {
-	if p < 1 || p > 65535 {
-		return errors.New("Port must be between 1 and 65536")
+const InvalidPort = 0
+
+func NewPortFromString(value string) (Port, error) {
+	i, err := strconv.Atoi(value)
+	if err != nil {
+		return InvalidPort, err
 	}
-	return nil
+	if i < 0 || i > 65535 {
+		return InvalidPort, errors.New("Port values must be between 0 and 65535")
+	}
+	return Port(i), nil
 }
 
-func (p Port) CheckDefault() error {
-	if p < 0 || p > 65535 {
-		return errors.New("Port value must be an integer less than 65536")
+func (p Port) Default() bool {
+	return p == InvalidPort
+}
+
+func (p Port) Check() error {
+	if p < 1 || p > 65535 {
+		return errors.New("Port must be between 1 and 65535")
 	}
 	return nil
 }
@@ -61,16 +72,38 @@ func (p Port) IdentifierFor() (Identifier, error) {
 	return "", fmt.Errorf("Container ID not found")
 }
 
+type HostPort struct {
+	Host string `json:"Host,omitempty"`
+	Port `json:"Port,omitempty"`
+}
+
+func NewHostPort(hostport string) (HostPort, error) {
+	host, portString, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return HostPort{}, err
+	}
+	port, err := NewPortFromString(portString)
+	if err != nil {
+		return HostPort{}, err
+	}
+	return HostPort{host, port}, nil
+}
+
+func (hostport HostPort) String() string {
+	return net.JoinHostPort(hostport.Host, string(hostport.Port))
+}
+
+func (hostport HostPort) Empty() bool {
+	return hostport.Port.Default()
+}
+
+func (hostport HostPort) Local() bool {
+	return hostport.Host == "" || hostport.Host == "127.0.0.1" || hostport.Host == "localhost"
+}
+
 type PortPair struct {
 	Internal Port
 	External Port `json:"External,omitempty"`
-}
-
-type portReservation struct {
-	PortPair
-	reserved  bool
-	allocated bool
-	exists    bool
 }
 
 type PortPairs []PortPair
@@ -117,26 +150,18 @@ func FromPortPairHeader(s string) (PortPairs, error) {
 		if len(value) != 2 {
 			return PortPairs{}, errors.New(fmt.Sprintf("The port string '%s' must be a comma delimited list of pairs <internal>:<external>,...", s))
 		}
-		internal, err := strconv.Atoi(value[0])
+		internal, err := NewPortFromString(value[0])
 		if err != nil {
 			return PortPairs{}, err
 		}
-		if internal < 0 || internal > 65535 {
-			return PortPairs{}, errors.New("Port values must be between 0 and 65535")
-		}
-		external, err := strconv.Atoi(value[1])
+		external, err := NewPortFromString(value[1])
 		if err != nil {
 			return PortPairs{}, err
-		}
-		if external < 0 || external > 65535 {
-			return PortPairs{}, errors.New("Port values must be between 0 and 65535")
 		}
 		ports = append(ports, PortPair{Port(internal), Port(external)})
 	}
 	return ports, nil
 }
-
-type portReservations []portReservation
 
 func GetExistingPorts(id Identifier) (PortPairs, error) {
 	var existing *os.File
@@ -158,14 +183,11 @@ func readPortsFromUnitFile(r io.Reader) (PortPairs, error) {
 		line := scan.Text()
 		if strings.HasPrefix(line, "X-PortMapping=") {
 			ports := strings.TrimPrefix(line, "X-PortMapping=")
-			var internal int
-			var external int
-			if _, err := fmt.Sscanf(ports, "%d:%d", &internal, &external); err != nil {
+			found, err := FromPortPairHeader(ports)
+			if err != nil {
 				continue
 			}
-			if internal > 0 && internal < 65536 && external > 0 && external < 65536 {
-				pairs = append(pairs, PortPair{Port(internal), Port(external)})
-			}
+			pairs = append(pairs, found...)
 		}
 	}
 	if scan.Err() != nil {
@@ -202,17 +224,6 @@ func readSocketActivationFromUnitFile(r io.Reader) (bool, string, error) {
 		return false, "disabled", scan.Err()
 	}
 	return false, "disabled", nil
-}
-
-// Reserve any unspecified external ports or return an error
-// if no ports are available.
-func (p PortPairs) reserve() (portReservations, error) {
-	reservation := make(portReservations, len(p))
-	for i := range p {
-		res := &reservation[i]
-		res.PortPair = p[i]
-	}
-	return reservation, nil
 }
 
 // Use existing port pairs where possible instead of allocating new ports.
@@ -261,42 +272,6 @@ func (p portReservations) reuse(existing PortPairs) (PortPairs, error) {
 		}
 	}
 	return unreserve, nil
-}
-
-// Write reservations to disk or return an error.  Will
-// attempt to clean up after a failure by removing partially
-// created links.
-func (p portReservations) reserve(path string) error {
-	var err error
-	for i := range p {
-		res := &p[i]
-		if !res.exists {
-			parent, direct := res.External.PortPathsFor()
-			os.MkdirAll(parent, 0770)
-			err := os.Symlink(path, direct)
-			if err != nil {
-				log.Printf("ports: Failed to reserve %d, rolling back: %v", res.External, err)
-				break
-			}
-			res.allocated = true
-		}
-	}
-
-	if err != nil {
-		for i := range p {
-			res := &p[i]
-			if res.allocated {
-				_, direct := res.External.PortPathsFor()
-				if errr := os.Remove(direct); errr == nil {
-					log.Printf("ports: Unable to rollback allocation %d: %v", res.External, err)
-					res.allocated = false
-				}
-			}
-		}
-		return err
-	}
-
-	return nil
 }
 
 type device string
@@ -372,6 +347,62 @@ func ReleaseExternalPorts(directory string, ports PortPairs) error {
 		}
 	}
 	return err
+}
+
+type portReservation struct {
+	PortPair
+	reserved  bool
+	allocated bool
+	exists    bool
+}
+
+type portReservations []portReservation
+
+// Reserve any unspecified external ports or return an error
+// if no ports are available.
+func (p PortPairs) reserve() (portReservations, error) {
+	reservation := make(portReservations, len(p))
+	for i := range p {
+		res := &reservation[i]
+		res.PortPair = p[i]
+	}
+	return reservation, nil
+}
+
+// Write reservations to disk or return an error.  Will
+// attempt to clean up after a failure by removing partially
+// created links.
+func (p portReservations) reserve(path string) error {
+	var err error
+	for i := range p {
+		res := &p[i]
+		if !res.exists {
+			parent, direct := res.External.PortPathsFor()
+			os.MkdirAll(parent, 0770)
+			err := os.Symlink(path, direct)
+			if err != nil {
+				log.Printf("ports: Failed to reserve %d, rolling back: %v", res.External, err)
+				break
+			}
+			res.allocated = true
+		}
+	}
+
+	if err != nil {
+		for i := range p {
+			res := &p[i]
+			if res.allocated {
+				_, direct := res.External.PortPathsFor()
+				if errr := os.Remove(direct); errr == nil {
+					log.Printf("ports: Unable to rollback allocation %d: %v", res.External, err)
+					res.allocated = false
+				}
+			}
+		}
+		return err
+	}
+
+	return nil
 }
 
 const portsPerBlock = Port(100) // changing this breaks disk structure... don't do it!

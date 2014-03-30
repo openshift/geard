@@ -1,0 +1,15 @@
+{
+  "containers":[
+    {
+      "name":"web",
+      "count":2,
+      "image":"pmorie/sti-html-app",
+      "publicports":[
+        {"internal":8080,"external":0}
+      ],
+      "links":[
+        {"to":"web"}
+      ]
+    }
+  ]
+}
