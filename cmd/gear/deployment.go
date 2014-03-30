@@ -8,6 +8,7 @@ import (
 	"github.com/openshift/geard/containers"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 )
 
@@ -22,14 +23,22 @@ type Deployment struct {
 	RandomizeIds bool
 }
 
-// A port and how it is seen in different contexts
-type PortAssignment struct {
+// A port on a container instance that is linked elsewhere
+type PortMapping struct {
 	containers.PortPair
-	Shared containers.Port `json:"Shared,omitempty"`
+	Target containers.HostPort
 }
-type PortAssignments []PortAssignment
+type PortMappings []PortMapping
 
-func (p PortAssignments) Find(port containers.Port) (*PortAssignment, bool) {
+func newPortMappings(ports containers.PortPairs) PortMappings {
+	assignments := make(PortMappings, len(ports))
+	for i := range ports {
+		assignments[i].PortPair = ports[i]
+	}
+	return assignments
+}
+
+func (p PortMappings) Find(port containers.Port) (*PortMapping, bool) {
 	for i := range p {
 		if p[i].Internal == port {
 			return &p[i], true
@@ -38,7 +47,7 @@ func (p PortAssignments) Find(port containers.Port) (*PortAssignment, bool) {
 	return nil, false
 }
 
-func (ports PortAssignments) Update(changed containers.PortPairs) bool {
+func (ports PortMappings) Update(changed containers.PortPairs) bool {
 	matched := true
 	for i := range ports {
 		port := &ports[i]
@@ -54,7 +63,7 @@ func (ports PortAssignments) Update(changed containers.PortPairs) bool {
 	return matched
 }
 
-func (ports PortAssignments) PortPairs() (dup containers.PortPairs) {
+func (ports PortMappings) PortPairs() (dup containers.PortPairs) {
 	dup = make(containers.PortPairs, len(ports))
 	for i := range ports {
 		dup[i] = ports[i].PortPair
@@ -64,10 +73,15 @@ func (ports PortAssignments) PortPairs() (dup containers.PortPairs) {
 
 // A relationship between two containers
 type Link struct {
-	To         string
-	UsePrimary bool              `json:"UsePrimary,omitempty"`
-	Ports      []containers.Port `json:"Ports,omitempty"`
-	Combine    bool              `json:"Combine,omitempty"`
+	To string
+
+	NonLocal  bool `json:"NonLocal:omitempty"`
+	MatchPort bool `json:"PortMatch:omitempty"`
+
+	UsePrimary bool `json:"UsePrimary,omitempty"`
+	Combine    bool `json:"Combine,omitempty"`
+
+	Ports []containers.Port `json:"Ports,omitempty"`
 
 	container *Container
 }
@@ -101,45 +115,40 @@ type Container struct {
 	Count    int
 	Affinity string `json:"Affinity,omitempty"`
 
-	// Number of instances known at this time
-	found int
+	// Instances for this container
+	instances InstanceRefs
 }
 type Containers []Container
 
-func (d *Deployment) CreateInstances(c *Container) ([]Instance, error) {
-	instances := []Instance{}
-	for i := c.found; i < c.Count; i++ {
-		var id containers.Identifier
-		var err error
-		if d.RandomizeIds {
-			id, err = containers.NewRandomIdentifier(d.IdPrefix)
-		} else {
-			id, err = containers.NewIdentifier(d.IdPrefix + c.Name + "-" + strconv.Itoa(i+1))
-		}
-		if err != nil {
-			return []Instance{}, err
-		}
-		instances = append(instances, Instance{
-			Id:        id,
-			From:      c.Name,
-			Image:     c.Image,
-			Ports:     newPortAssignments(c.PublicPorts),
-			container: c,
-		})
-	}
-	return instances, nil
+func (c *Container) AddInstance(instance *Instance) {
+	c.instances = append(c.instances, instance)
 }
 
-func newPortAssignments(ports containers.PortPairs) PortAssignments {
-	assignments := make(PortAssignments, len(ports))
-	for i := range ports {
-		assignments[i].PortPair = ports[i]
-	}
-	return assignments
+func (c *Container) Instances() InstanceRefs {
+	return c.instances
 }
 
-func (c *Container) Over() bool {
-	return c.found > c.Count
+func (c *Container) trimInstances() InstanceRefs {
+	count := len(c.instances) - c.Count
+	if count < 1 {
+		return InstanceRefs{}
+	}
+	removed := make(InstanceRefs, 0, count)
+	remain := make(InstanceRefs, 0, c.Count)
+	for i := range c.instances {
+		if c.instances[i].remove {
+			removed = append(removed, c.instances[i])
+			count--
+			if count < 1 {
+				break
+			}
+			continue
+		}
+		remain = append(remain, c.instances[i])
+	}
+	removed = append(removed, remain[c.Count:]...)
+	c.instances = remain[0:c.Count]
+	return removed
 }
 
 func (c Containers) Find(name string) (*Container, bool) {
@@ -154,7 +163,7 @@ func (c Containers) Find(name string) (*Container, bool) {
 func (c Containers) Copy() (dup Containers) {
 	dup = make(Containers, 0, len(c))
 	for _, container := range c {
-		container.found = 0
+		container.instances = InstanceRefs{}
 		links := make(Links, len(container.Links))
 		copy(links, container.Links)
 		container.Links = links
@@ -172,12 +181,13 @@ type Instance struct {
 	// The container definition this is from
 	From string
 	// The host system this is or should be deployed on
-	On    *cmd.HostLocator `json:"On,omitempty"`
-	Ports PortAssignments  `json:"Ports,omitempty"`
-	Links InstanceLinks    `json:"Links,omitempty"`
+	On *cmd.HostLocator `json:"On,omitempty"`
+	// The mapping of internal, external, and remote ports
+	Ports PortMappings  `json:"Ports,omitempty"`
+	Links InstanceLinks `json:"Links,omitempty"`
 
 	// Was this instance added.
-	Add bool `json:"Add,omitempty"`
+	add bool `json:"-"`
 
 	// The container this instance is associated with
 	container *Container
@@ -185,9 +195,18 @@ type Instance struct {
 	remove bool
 }
 type Instances []Instance
+type InstanceRefs []*Instance
 
 type hostnameResolver interface {
 	ResolvedHostname() string
+}
+
+func (i *Instance) Added() bool {
+	return i.add
+}
+
+func (i *Instance) MarkRemoved() {
+	i.remove = true
 }
 
 func (i *Instance) ResolvedHostname() string {
@@ -195,28 +214,6 @@ func (i *Instance) ResolvedHostname() string {
 }
 
 func (i *Instance) EnvironmentVariables() {
-
-}
-
-func (inst *Instance) EnsureReserved(ports portReservation) {
-	for j := range inst.Ports {
-		port := &inst.Ports[j]
-		if port.Shared == 0 {
-			port.Shared = ports.ReserveFrom(port.Internal, inst)
-		}
-	}
-}
-
-func (instances Instances) ReservePorts(ports portReservation) {
-	for i := range instances {
-		instance := &instances[i]
-		for j := range instance.Ports {
-			s := instance.Ports[j].Shared
-			if s != 0 {
-				ports.Reserve(s, instance)
-			}
-		}
-	}
 }
 
 func (instances Instances) Find(id containers.Identifier) (*Instance, bool) {
@@ -226,6 +223,16 @@ func (instances Instances) Find(id containers.Identifier) (*Instance, bool) {
 		}
 	}
 	return nil, false
+}
+
+func (instances Instances) ReferencesFor(name string) InstanceRefs {
+	refs := make(InstanceRefs, 0, 5)
+	for i := range instances {
+		if instances[i].From == name {
+			refs = append(refs, &instances[i])
+		}
+	}
+	return refs
 }
 
 func (refs Instances) Ids() (ids []cmd.Locator) {
@@ -239,7 +246,7 @@ func (refs Instances) Ids() (ids []cmd.Locator) {
 func (refs Instances) AddedIds() (ids []cmd.Locator) {
 	ids = make([]cmd.Locator, 0, len(refs))
 	for i := range refs {
-		if refs[i].Add {
+		if refs[i].add {
 			ids = append(ids, &cmd.ContainerLocator{*refs[i].On, refs[i].Id})
 		}
 	}
@@ -256,8 +263,6 @@ func (refs Instances) LinkedIds() (ids []cmd.Locator) {
 	return
 }
 
-type InstanceRefs []*Instance
-
 func (refs InstanceRefs) Ids() (ids []cmd.Locator) {
 	ids = make([]cmd.Locator, 0, len(refs))
 	for i := range refs {
@@ -266,33 +271,6 @@ func (refs InstanceRefs) Ids() (ids []cmd.Locator) {
 		}
 	}
 	return
-}
-
-type portReservation map[containers.Port]*Instance
-
-func newPortReservation() portReservation {
-	return make(portReservation)
-}
-
-func (p portReservation) ReserveFrom(from containers.Port, instance *Instance) (port containers.Port) {
-	for port = from; ; port++ {
-		if _, ok := p[port]; !ok {
-			p[port] = instance
-			return
-		}
-		if port > 65535 {
-			port = 40000
-		}
-	}
-	return
-}
-
-func (p portReservation) Reserve(port containers.Port, instance *Instance) bool {
-	if _, found := p[port]; !found {
-		p[port] = instance
-		return true
-	}
-	return false
 }
 
 func ExtractContainerLocatorsFromDeployment(path string, args *[]string) error {
@@ -324,158 +302,177 @@ func NewDeploymentFromFile(path string) (*Deployment, error) {
 	return deployment, nil
 }
 
-func (d Deployment) Describe(on cmd.Locators) (next *Deployment, removed InstanceRefs, err error) {
-	if len(on) == 0 {
-		err = errors.New("one or more hosts required")
-		return
+func (d *Deployment) CreateInstances(c *Container) error {
+	for i := len(c.instances); i < c.Count; i++ {
+		var id containers.Identifier
+		var err error
+		if d.RandomizeIds {
+			id, err = containers.NewRandomIdentifier(d.IdPrefix)
+		} else {
+			id, err = containers.NewIdentifier(d.IdPrefix + c.Name + "-" + strconv.Itoa(i+1))
+		}
+		if err != nil {
+			return err
+		}
+		instance := &Instance{
+			Id:    id,
+			From:  c.Name,
+			Image: c.Image,
+			Ports: newPortMappings(c.PublicPorts),
+
+			container: c,
+			add:       true,
+		}
+		c.AddInstance(instance)
 	}
+	return nil
+}
 
-	// reset the container list
-	from := d.Containers.Copy()
+type PlacementStrategy interface {
+	// Return true if the location of an existing container is no
+	// longer valid.
+	RemoveFromLocation(cmd.Locator) bool
+	// Allow the strategy to determine which location will host a
+	// container by setting Instance.On for each container in added.
+	// Failing to set an "On" for a container will return an error.
+	//
+	// Placement strategies may optionally suggest containers to remove
+	// when scaling down by invoking Instance.MarkRemoved(). The caller
+	// will then use those suggestions when determining the containers
+	// to purge.
+	Assign(added InstanceRefs, containers Containers) error
+}
 
-	// check existing instances and flag any that need to be removed
-	existing := make(Instances, 0, len(d.Instances))
-	for _, inst := range d.Instances {
-		// is the host available now
-		if inst.On == nil {
+type SimplePlacement cmd.Locators
+
+func (p SimplePlacement) RemoveFromLocation(on cmd.Locator) bool {
+	return !cmd.Locators(p).Has(on)
+}
+func (p SimplePlacement) Assign(added InstanceRefs, containers Containers) error {
+	locators := cmd.Locators(p)
+	if len(locators) == 0 {
+		return nil
+	}
+	pos := 0
+	for i := range added {
+		instance := added[i]
+		host, _ := cmd.NewHostLocator(locators[pos%len(locators)].HostIdentity())
+		instance.On = host
+		pos++
+	}
+	return nil
+}
+
+func (d Deployment) Describe(placement PlacementStrategy) (next *Deployment, removed InstanceRefs, err error) {
+	// copy the container list and clear any intermediate state
+	sources := d.Containers.Copy()
+
+	// assign instances to containers or the remove list
+	for _, instance := range d.Instances {
+		// is the instance invalid or no longer part of the cluster
+		if instance.On == nil {
 			continue
 		}
-		inst.remove = !on.Has(inst.On)
+		if placement.RemoveFromLocation(instance.On) {
+			removed = append(removed, &instance)
+			continue
+		}
 		// locate the container
-		if c, found := from.Find(inst.From); found {
-			inst.container = c
-			c.found++
-		}
-		existing = append(existing, inst)
-	}
-
-	// remove any instances that should no longer be present
-	valid := make(Instances, 0, len(d.Instances))
-	for i := range existing {
-		inst := &existing[i]
-		if inst.container == nil || inst.container.Over() || inst.remove {
-			if inst.container != nil {
-				inst.container.found--
-			}
-			removed = append(removed, inst)
+		c, found := sources.Find(instance.From)
+		if !found {
+			removed = append(removed, &instance)
 			continue
 		}
-		valid = append(valid, *inst)
+		c.AddInstance(&instance)
 	}
 
 	// create new instances for each container
-	for i := range from {
-		c := &from[i]
-		new, errc := d.CreateInstances(c)
-		if errc != nil {
+	added := make(InstanceRefs, 0)
+	for i := range sources {
+		c := &sources[i]
+		if errc := d.CreateInstances(c); errc != nil {
 			err = errc
 			return
 		}
-		valid = append(valid, new...)
-	}
-
-	// assign to hosts and ensure all ports have been reserved
-	reservedPorts := newPortReservation()
-	valid.ReservePorts(reservedPorts)
-	pos := 0
-	for i := range valid {
-		inst := &valid[i]
-		if inst.On == nil {
-			inst.Add = true
-			host, _ := cmd.NewHostLocator(on[pos%len(on)].HostIdentity())
-			inst.On = host
-			pos++
-		}
-		inst.EnsureReserved(reservedPorts)
-		inst.Links = InstanceLinks{}
-	}
-
-	for i := range from { // each container
-		source := &from[i]
-
-		for j := range source.Links { // each link in that container
-			link := &source.Links[j]
-			target, found := from.Find(link.To)
-			if !found {
-				err = errors.New(fmt.Sprintf("deployment: target %s not found for source %s", link.To, source.Name))
-				return
-			}
-			if len(target.PublicPorts) == 0 {
-				err = errors.New(fmt.Sprintf("deployment: target %s has no public ports to link to from %s", target.Name, source.Name))
-				return
-			}
-			link.container = target
-
-			// by default, use all target ports if non specified
-			linkedPorts := link.Ports
-			if len(linkedPorts) == 0 {
-				linkedPorts = make([]containers.Port, len(target.PublicPorts))
-				for k := range target.PublicPorts {
-					linkedPorts[k] = target.PublicPorts[k].Internal
-				}
-				link.Ports = linkedPorts
-			}
-			if len(linkedPorts) == 0 {
-				err = errors.New(fmt.Sprintf("deployment: target %s has no public ports", target.Name))
-				return
-			}
-
-			// the things that will be linked to
-			targetInstances := make([]*Instance, 0, target.Count)
-			for k := range valid {
-				if valid[k].From == target.Name {
-					targetInstances = append(targetInstances, &valid[k])
-				}
-			}
-
-			for _, p := range linkedPorts { // each port that is linked
-				// find or add a network link on each instance in this container
-				for k := range valid {
-					instance := &valid[k]
-					if instance.From != source.Name {
-						continue
-					}
-
-					for l := range targetInstances {
-						targetInstance := targetInstances[l]
-						port, found := targetInstance.Ports.Find(p)
-						if !found {
-							if _, has := target.PublicPorts.Find(p); !has {
-								err = errors.New(fmt.Sprintf("deployment: target port %d on %s is not found, cannot link from %s", p, target.Name, source.Name))
-								return
-							}
-							log.Printf("Exposing port %d from target %s so it can be linked", p, targetInstance.Id)
-							// expose the port - TBD whether this should be required to be explicit
-							port = &PortAssignment{containers.PortPair{p, containers.Port(0)}, reservedPorts.ReserveFrom(p, targetInstance)}
-							targetInstance.Ports = append(targetInstance.Ports, *port)
-						}
-
-						//log.Printf("Linking target %v to %v", targetInstance, instance)
-						instance.Links = append(instance.Links, InstanceLink{
-							NetworkLink: containers.NetworkLink{
-								FromPort: port.Shared,
-								ToPort:   port.External,
-								ToHost:   instance.ResolvedHostname(),
-							},
-							from:     target.Name,
-							fromPort: p,
-						})
-					}
-				}
+		for j := range c.instances {
+			if c.instances[j].add {
+				added = append(added, c.instances[j])
 			}
 		}
 	}
 
-	d.Instances = valid
+	// assign to hosts
+	errp := placement.Assign(added, sources)
+	if errp != nil {
+		err = errp
+		return
+	}
+
+	// cull any instances flagged for removal and enforce upper limits
+	for i := range sources {
+		for _, instance := range sources[i].Instances() {
+			if instance.On == nil {
+				err = errors.New("deployment: one or more instances were not assigned to a host")
+				return
+			}
+		}
+		removed = append(removed, sources[i].trimInstances()...)
+	}
+
+	// check for basic link consistency and ordering
+	links, erro := sources.OrderLinks()
+	if erro != nil {
+		err = erro
+		return
+	}
+
+	// expose ports for all links
+	for i := range links {
+		if erre := links[i].exposePorts(); erre != nil {
+			err = erre
+			return
+		}
+	}
+
+	// load and reserve all ports
+	table, errn := NewInstancePortTable(sources)
+	if errn != nil {
+		err = errn
+		return
+	}
+	for i := range links {
+		if errr := links[i].reserve(table); errr != nil {
+			err = errr
+			return
+		}
+	}
+
+	// generate the links
+	for i := range links {
+		if erra := links[i].appendLinks(); erra != nil {
+			err = erra
+			return
+		}
+	}
+
+	// create a copy of instances to return
+	instances := make(Instances, 0, len(added))
+	for i := range sources {
+		existing := sources[i].instances
+		for j := range existing {
+			instances = append(instances, *existing[j])
+		}
+	}
+	d.Instances = instances
 	next = &d
 	return
 }
 
 func (d *Deployment) UpdateLinks() {
 	for i := range d.Instances {
-		inst := &d.Instances[i]
-		for j := range inst.Links {
-			link := &inst.Links[j]
+		instance := &d.Instances[i]
+		for j := range instance.Links {
+			link := &instance.Links[j]
 		Found:
 			for k := range d.Instances {
 				ref := &d.Instances[k]
@@ -492,5 +489,162 @@ func (d *Deployment) UpdateLinks() {
 	}
 }
 
-type AntiAffinityDeploymentStrategy struct {
+// Return the set of links that should be resolved
+func (sources Containers) OrderLinks() (ordered containerLinks, err error) {
+	links := make(containerLinks, 0)
+
+	for i := range sources { // each container
+		source := &sources[i]
+
+		for j := range source.Links { // each link in that container
+			link := &source.Links[j]
+			target, found := sources.Find(link.To)
+			if !found {
+				err = errors.New(fmt.Sprintf("deployment: target %s not found for source %s", link.To, source.Name))
+				return
+			}
+			if len(target.PublicPorts) == 0 {
+				err = errors.New(fmt.Sprintf("deployment: target %s has no public ports to link to from %s", target.Name, source.Name))
+				return
+			}
+			link.container = target
+
+			// by default, use all target ports if non-specified
+			linkedPorts := link.Ports
+			if len(linkedPorts) == 0 {
+				linkedPorts = make([]containers.Port, len(target.PublicPorts))
+				for k := range target.PublicPorts {
+					linkedPorts[k] = target.PublicPorts[k].Internal
+				}
+				link.Ports = linkedPorts
+			}
+			if len(linkedPorts) == 0 {
+				err = errors.New(fmt.Sprintf("deployment: target %s has no public ports", target.Name))
+				return
+			}
+			links = append(links, containerLink{link, source, target})
+		}
+	}
+	sort.Sort(links)
+	ordered = links
+	return
+}
+
+// Rank order container links by their specificity
+func (c *containerLink) priority() int {
+	p := 0
+	if c.Link.MatchPort {
+		p += 4
+	}
+	if c.Link.NonLocal {
+		p += 2
+	}
+	if c.Source == c.Target {
+		p += 1
+	}
+	return p
+}
+func (c containerLinks) Less(a, b int) bool {
+	return c[a].priority() < c[b].priority()
+}
+func (c containerLinks) Swap(a, b int) {
+	c[a], c[b] = c[b], c[a]
+}
+func (c containerLinks) Len() int {
+	return len(c)
+}
+
+type containerLink struct {
+	*Link
+	Source *Container
+	Target *Container
+}
+type containerLinks []containerLink
+
+func (link containerLink) String() string {
+	return fmt.Sprintf("%s-%s", link.Source.Name, link.Target.Name)
+}
+
+func (link containerLink) exposePorts() error {
+	instances := link.Target.Instances()
+	for i := range link.Ports {
+		port := link.Ports[i]
+		for j := range instances {
+			target := instances[j]
+
+			_, found := target.Ports.Find(port)
+			if !found {
+				if _, has := link.Target.PublicPorts.Find(port); !has {
+					return errors.New(fmt.Sprintf("deployment: target port %d on %s is not found, cannot link from %s", port, link.Target.Name, link.Source.Name))
+				}
+				log.Printf("Exposing port %d from target %s so it can be linked", port, target.Id)
+				target.Ports = append(
+					target.Ports,
+					PortMapping{
+						containers.PortPair{port, containers.InvalidPort},
+						containers.HostPort{"", containers.InvalidPort},
+					},
+				)
+			}
+		}
+	}
+	return nil
+}
+
+func (link containerLink) reserve(pool PortAssignmentStrategy) error {
+	instances := link.Target.Instances()
+	for i := range link.Ports {
+		port := link.Ports[i]
+		for j := range instances {
+			instance := instances[j]
+			mapping, found := instance.Ports.Find(port)
+			if !found {
+				return errors.New(fmt.Sprintf("deployment: instance does not expose %d for link %s", port, link.String()))
+			}
+
+			if !mapping.Target.Empty() {
+				if link.NonLocal && !mapping.Target.Local() {
+					return errors.New(fmt.Sprintf("deployment: A local host IP is already bound to non-local link %s, needs to be reset.", link.String()))
+				}
+				if link.MatchPort && mapping.Target.Port != mapping.Internal {
+					return errors.New(fmt.Sprintf("deployment: The internal and shared ports are not the same for an instance %s on link %s, needs to be reset.", instance.Id, link.String()))
+				}
+				continue
+			}
+			mapping.Target = pool.Reserve(!link.NonLocal, link.MatchPort, port)
+		}
+	}
+	return nil
+}
+
+func (link containerLink) appendLinks() error {
+	targetInstances := link.Target.Instances()
+	sourceInstances := link.Source.Instances()
+
+	for i := range sourceInstances {
+		instance := sourceInstances[i]
+		for j := range targetInstances {
+			target := targetInstances[j]
+			for k := range link.Ports {
+				port := link.Ports[k]
+				mapping, found := target.Ports.Find(port)
+				if !found {
+					return errors.New(fmt.Sprintf("deployment: instance does not expose %d for link %s", port, link.String()))
+				}
+
+				instance.Links = append(instance.Links, InstanceLink{
+					NetworkLink: containers.NetworkLink{
+						FromHost: mapping.Target.Host,
+						FromPort: mapping.Target.Port,
+
+						ToPort: mapping.External,
+						ToHost: instance.ResolvedHostname(),
+					},
+					from:     link.Target.Name,
+					fromPort: port,
+				})
+			}
+		}
+	}
+	return nil
 }

@@ -363,7 +363,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 	newPath := base + now
 
 	log.Printf("Deploying %s", newPath)
-	changes, removed, err := deployment.Describe(servers)
+	changes, removed, err := deployment.Describe(SimplePlacement(servers))
 	if err != nil {
 		Fail(1, "Deployment is not valid: %s", err.Error())
 	}
@@ -412,7 +412,6 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		},
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
 			instance, _ := changes.Instances.Find(job.(*http.HttpInstallContainerRequest).InstallContainerRequest.Id)
-			instance.Add = false
 			if pairs, ok := r.Pending["Ports"].(containers.PortPairs); ok {
 				if !instance.Ports.Update(pairs) {
 					fmt.Fprintf(os.Stderr, "Not all ports listed %+v were returned by the server %+v", instance.Ports, pairs)

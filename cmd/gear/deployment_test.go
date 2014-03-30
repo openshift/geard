@@ -9,8 +9,9 @@ import (
 	"testing"
 )
 
-var noHosts cmd.Locators = cmd.Locators{}
-var oneHost cmd.Locators = cmd.Locators{&cmd.HostLocator{"127.0.0.1", 43273}}
+var localhost = cmd.HostLocator{"127.0.0.1", 0}
+var noHosts PlacementStrategy = SimplePlacement(cmd.Locators{})
+var oneHost PlacementStrategy = SimplePlacement(cmd.Locators{&localhost})
 
 func createDeployment(body string) *Deployment {
 	deployment := &Deployment{}
@@ -114,7 +115,7 @@ func TestPrepareDeploymentRemoveMissing(t *testing.T) {
 		t.Fatal("Instances without hosts should be ignored", removed)
 	}
 
-	dep.Instances[0].On = oneHost[0].(*cmd.HostLocator)
+	dep.Instances[0].On = &localhost
 	next, removed, err = dep.Describe(oneHost)
 	if err != nil {
 		t.Fatal("Error when describing one host", err)
