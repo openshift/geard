@@ -407,7 +407,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 					Fork:    fork,
 
 					Ports:        instance.Ports.PortPairs(),
-					NetworkLinks: instance.Links.NetworkLinks(),
+					NetworkLinks: instance.NetworkLinks(),
 				},
 			}
 		},
@@ -436,7 +436,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 			links := []jobs.ContainerLink{}
 			for i := range on {
 				instance, _ := changes.Instances.Find(on[i].(ResourceLocator).Identifier())
-				network := instance.Links.NetworkLinks()
+				network := instance.NetworkLinks()
 				if len(network) > 0 {
 					links = append(links, jobs.ContainerLink{instance.Id, network})
 				}

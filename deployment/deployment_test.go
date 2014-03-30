@@ -14,6 +14,14 @@ var localhost = cmd.HostLocator{"127.0.0.1", 0}
 var noHosts PlacementStrategy = SimplePlacement(cmd.Locators{})
 var oneHost PlacementStrategy = SimplePlacement(cmd.Locators{&localhost})
 
+func loadDeployment(path string) *Deployment {
+	body, err := ioutil.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+	return createDeployment(string(body))
+}
+
 func createDeployment(body string) *Deployment {
 	deployment := &Deployment{}
 	decoder := json.NewDecoder(strings.NewReader(body))
@@ -55,8 +63,8 @@ func TestPrepareDeployment(t *testing.T) {
       }
     ]
   }`)
-	if _, _, err := dep.Describe(noHosts); err == nil {
-		t.Fatal("No error when describing with no hosts")
+	if _, _, err := dep.Describe(noHosts); err != nil {
+		t.Fatal("Should not return error when describing with no hosts")
 	}
 	next, removed, err := dep.Describe(oneHost)
 	if err != nil {
@@ -196,8 +204,8 @@ func TestPrepareDeploymentError(t *testing.T) {
 	if len(next.Instances) != 5 {
 		t.Fatalf("Expected %d instances, got %d", 5, len(next.Instances))
 	}
-	if len(next.Instances[0].Links) != 3 {
-		t.Fatalf("Should have exactly 1 link %+v", next.Instances[0].Links)
+	if len(next.Instances[0].links) != 3 {
+		t.Fatalf("Should have exactly 1 link %+v", next.Instances[0].links)
 	}
 	if len(removed) != 0 {
 		t.Fatal("Should not have removed instances", removed)
@@ -215,8 +223,8 @@ func TestPrepareDeploymentError(t *testing.T) {
 	if len(next.Instances) != 5 {
 		t.Fatalf("Expected %d instances, got %d", 5, len(next.Instances))
 	}
-	if len(next.Instances[0].Links) != 5 {
-		t.Fatalf("Should have exactly 5 links (2 web links, 3 mongo links) %+v", next.Instances[0].Links)
+	if len(next.Instances[0].links) != 5 {
+		t.Fatalf("Should have exactly 5 links (2 web links, 3 mongo links) %+v", next.Instances[0].links)
 	}
 	if len(removed) != 0 {
 		t.Fatal("Should not have removed instances", removed)
@@ -230,8 +238,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 }
 
 func TestPrepareDeploymentInterlink(t *testing.T) {
-	body, _ := ioutil.ReadFile("../tests/fixtures/complex_deploy.json")
-	dep := createDeployment(string(body))
+	dep := loadDeployment("./fixtures/complex_deploy.json")
 	changes, _, err := dep.Describe(oneHost)
 	if err != nil {
 		t.Fatal("Should not have received an error", err)
@@ -245,12 +252,94 @@ func TestPrepareDeploymentInterlink(t *testing.T) {
 
 	for i := range changes.Instances {
 		instance := changes.Instances[i]
-		for j := range instance.Links {
-			link := instance.Links[j]
+		for j := range instance.links {
+			link := instance.links[j]
 			if link.ToPort.Default() {
 				t.Fatalf("Expected all link ports to be assigned %s: %+v", instance.Id, link)
 			}
 		}
+	}
+
+	// b, _ := json.MarshalIndent(changes, "", "  ")
+	// t.Log(string(b))
+}
+
+func TestPrepareDeploymentMongo(t *testing.T) {
+	dep := loadDeployment("./fixtures/mongo_deploy.json")
+	changes, _, err := dep.Describe(oneHost)
+	if err != nil {
+		t.Fatal("Should not have received an error", err)
+	}
+	if len(changes.Instances) != 3 {
+		t.Fatalf("Expected %d instances, got %d", 3, len(changes.Instances))
+	}
+
+	assignPorts(changes)
+	changes.UpdateLinks()
+
+	for i := range changes.Instances {
+		instance := changes.Instances[i]
+		port := instance.links[0].FromPort
+		host := instance.links[0].FromHost
+		if "192.168.1.1" != host {
+			t.Fatal("Expected first host to be 192.168.1.1", host)
+		}
+		for j, link := range instance.links {
+			if link.ToPort.Default() {
+				t.Fatalf("Expected all link ports to be assigned %s: %+v", instance.Id, link)
+			}
+			if link.FromPort != port {
+				t.Fatalf("Expected all link FromPorts to be the same %d: %d", port, link.FromPort)
+			}
+			if j > 0 && link.FromHost == host {
+				t.Fatalf("Expected all link FromHosts to be different %s: %s", host, link.FromHost)
+			}
+		}
+	}
+}
+
+func TestReloadDeploymentMongo(t *testing.T) {
+	dep := loadDeployment("./fixtures/mongo_deploy_existing.json")
+	changes, _, err := dep.Describe(oneHost)
+	if err != nil {
+		t.Fatal("Should not have received an error", err)
+	}
+	if len(changes.Instances) != 3 {
+		t.Fatalf("Expected %d instances, got %d", 3, len(changes.Instances))
+	}
+
+	assignPorts(changes)
+	changes.UpdateLinks()
+
+	for i := range changes.Instances {
+		instance := changes.Instances[i]
+		port := instance.links[0].FromPort
+		host := instance.links[0].FromHost
+		if "192.168.1.1" != host {
+			t.Fatal("Expected first host to be 192.168.1.1", host)
+		}
+		for j, link := range instance.links {
+			if link.ToPort.Default() {
+				t.Fatalf("Expected all link ports to be assigned %s: %+v", instance.Id, link)
+			}
+			if link.FromPort != port {
+				t.Fatalf("Expected all link FromPorts to be the same %d: %d", port, link.FromPort)
+			}
+			if j > 0 && link.FromHost == host {
+				t.Fatalf("Expected all link FromHosts to be different %s: %s", host, link.FromHost)
+			}
+		}
+	}
+
+	changes, removed, err := dep.Describe(noHosts)
+	if err != nil {
+		t.Fatal("Should not have received an error", err)
+	}
+	if len(changes.Instances) != 0 {
+		t.Fatalf("Expected %d instances, got %d", 0, len(changes.Instances))
+	}
+	if len(removed) != 3 {
+		t.Fatalf("Expected to remove %d instances, got %d", 3, len(removed))
 	}
 
 	// b, _ := json.MarshalIndent(changes, "", "  ")

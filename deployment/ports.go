@@ -7,6 +7,63 @@ import (
 	"net"
 )
 
+// A port on a container instance that is linked elsewhere
+type PortMapping struct {
+	containers.PortPair
+	Target containers.HostPort
+}
+type PortMappings []PortMapping
+
+func newPortMappings(ports containers.PortPairs) PortMappings {
+	assignments := make(PortMappings, len(ports))
+	for i := range ports {
+		assignments[i].PortPair = ports[i]
+	}
+	return assignments
+}
+
+func (p PortMappings) Find(port containers.Port) (*PortMapping, bool) {
+	for i := range p {
+		if p[i].Internal == port {
+			return &p[i], true
+		}
+	}
+	return nil, false
+}
+
+func (p PortMappings) FindTarget(target containers.HostPort) (*PortMapping, bool) {
+	for i := range p {
+		if p[i].Target == target {
+			return &p[i], true
+		}
+	}
+	return nil, false
+}
+
+func (ports PortMappings) Update(changed containers.PortPairs) bool {
+	matched := true
+	for i := range ports {
+		port := &ports[i]
+	NextPort:
+		for j := range changed {
+			if port.Internal == changed[j].Internal {
+				port.External = changed[j].External
+				break NextPort
+			}
+		}
+		matched = true
+	}
+	return matched
+}
+
+func (ports PortMappings) PortPairs() (dup containers.PortPairs) {
+	dup = make(containers.PortPairs, len(ports))
+	for i := range ports {
+		dup[i] = ports[i].PortPair
+	}
+	return
+}
+
 type PortAssignmentStrategy interface {
 	Reserve(loopback, same bool, from containers.Port) containers.HostPort
 }
@@ -59,10 +116,11 @@ func (p *InstancePortTable) nextHost(host net.IP, port containers.Port) containe
 			p.reserved[key] = true
 			return key
 		}
-		host[3]++
-		if host[3] == 255 {
-			host[2]++
-			host[3] = 1
+		last := len(host) - 1
+		host[last]++
+		if host[last] == 255 {
+			host[last-1]++
+			host[last] = 1
 		}
 		key.Host = host.String()
 	}

@@ -84,9 +84,11 @@ ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
 ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} "{{.Image}}"
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 ExecReload=-/usr/bin/docker stop "{{.Id}}"
 ExecReload=-/usr/bin/docker rm "{{.Id}}"
 ExecStop=-/usr/bin/docker stop "{{.Id}}"
+
 {{template "COMMON_CONTAINER" .}}
 {{end}}
 
