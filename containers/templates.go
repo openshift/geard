@@ -214,5 +214,5 @@ MemoryLimit=512M
 {{ if .Parent }}Slice={{.Parent}}{{ end }}
 
 [Install]
-WantedBy=container.target,container-active.target
+WantedBy=container.target container-active.target
 `))
