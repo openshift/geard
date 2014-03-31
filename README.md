@@ -1,7 +1,7 @@
 geard [![Build Status](https://travis-ci.org/openshift/geard.png?branch=master)](https://travis-ci.org/openshift/geard)
 =====
 
-Gear(d) is an opinionated tool for installing Docker images as containers onto a systemd-enabled Linux operating system (systemd 207 or newer).  It may be run as a command:
+geard is an opinionated tool for installing Docker images as containers onto a systemd-enabled Linux operating system (systemd 207 or newer).  It may be run as a command:
 
     $ sudo gear install pmorie/sti-html-app my-sample-service
 
@@ -68,8 +68,22 @@ Here are the initial set of supported container actions - these should map clean
 
 *   Deploy a set of containers on one or more systems, with links between them:
 
+        # create a simple two container web app
         $ gear deploy deployment/fixtures/simple_deploy.json localhost
-        $ gear start --with=$(ls simple_deploy.json* | head -n 1)
+
+        # create a mongo db replica set (some assembly required)
+        $ gear deploy deployment/fixtures/mongo_deploy.json localhost
+        $ sudo switchns db-1 /bin/bash
+        > mongo 192.168.1.1
+        MongoDB shell version: 2.4.9
+        > rs.initiate({members:[{_id:0,host:"192.168.1.1"}]})
+        > rs.add("192.168.1.2")
+        > rs.add("192.168.1.3")
+        > rs.status()
+        # wait....
+        > rs.status()
+
+    The argument to initiate() sets the correct hostname for the first member, otherwise the other members cannot connect.
 
 *   View the systemd status of a container
 
@@ -96,9 +110,11 @@ Here are the initial set of supported container actions - these should map clean
 *   Set a public key as enabling SSH or Git SSH access to a container or repository (respectively)
 
         $ gear keys --key-file=[FILE] my-sample-service
-        $ curl -X POST "http://localhost:43273/keys" -H "Content-Type: application/json" -d '{"Keys": [{"Type":"ssh-rsa","Value":"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}], "Containers": [{"Id": "my-sample-service"}]}'
+        $ curl -X POST "http://localhost:43273/keys" -H "Content-Type: application/json" -d '{"Keys": [{"Type":"authorized_keys","Value":"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}], "Containers": [{"Id": "my-sample-service"}]}'
 
 *   Enable SSH access to join a container for a set of authorized keys (requires 'gear install --isolate')
+
+        TODO: add fixture public and private key for example
 
 *   Build a new image from a source URL and base image
 
@@ -115,11 +131,13 @@ Here are the initial set of supported container actions - these should map clean
         $ curl "http://localhost:43273/environment/my-sample-service"
         $ gear set-env localhost/my-sample-service --reset
 
+    TODO: Currently environment is not loaded into the running container, waiting for the "--env-file" option to land in Docker master.
+
 *   More to come....
 
 The daemon is focused on allowing an administrator to easily ensure a given Docker container will *always* run on the system by creating a systemd unit for the docker run command.  It executes the Docker container processes as children of systemd - this means that on termination systemd can auto restart the container, set additional namespace options, capture stdout and stderr to journald, and assign auditing information to those child processes.
 
-Note: foreground execution is currently not in Docker master - see https://github.com/alexlarsson/docker/tree/forking-run-systemd, https://github.com/alexlarsson/docker/tree/forking-run, and https://github.com/smarterclayton/docker/tree/fork_and_create_only for some of the prototype work in this space.
+Note: foreground execution is currently not in Docker master - see https://github.com/alexlarsson/docker/tree/forking-run-systemd, https://github.com/alexlarsson/docker/tree/forking-run, and https://github.com/smarterclayton/docker/tree/fork_and_create_only for some of the prototype work in this space. A long-running dockerinit process will become the PID=1 in the child processes.
 
 Each geard unit can be assigned a unique Unix user (defaults to true, can use --simple to bypass) and is the user context that the container is run under for quota and security purposes.  An SELinux MCS category label will automatically be assigned to the container, ensuring that each container is more deeply isolated.  Containers are added to a default systemd slice that may have cgroup rules applied to limit them.
 
@@ -181,6 +199,31 @@ This will build the Docker image and start the geard.service systemd unit (as we
 See [contrib/example.sh](contrib/example.sh) and [contrib/stress.sh](contrib/stress.sh) for more examples of API calls.
 
 
+Concepts
+--------
+
+Outline of how some of the core operations work:
+
+* Linking - use iptable rules and environment variables to simplify container interconnect
+* SSH - generate authorized_keys for a user on demand
+* Isolated container - start an arbitrary image and force it to run as a given user on the host by chown the image prior to execution
+* Idling - use iptable rules to wake containers on SYN packets
+* Git - host Git repositories inside a running Docker container
+* Logs - stream journald log entries to clients
+* Builds - use transient systemd units to execute a build inside a container
+* Jobs - run one-off jobs as systemd transient units and extract their logs and output after completion
+
+Not yet implemented:
+
+* Integrated health check - mark containers as available once a pluggable/configurable health check passes
+* Joining - reconnect to an already running operation
+* Direct server to server image pulls - allow hosts to act as a distributed registry
+* Job callbacks - invoke a remote endpoint after an operation completes
+* Local routing - automatically distribute config for inbound and outbound proxying via HAProxy
+* Repair - cleanup and perform consistency checks on stored data (most operations assume some cleanup)
+* Capacity reporting - report capacity via API calls, allow precondition PUTs based on remaining capacity ("If-Match: capacity>=5"), allow capacity to be defined via config
+
+
 API Design
 ----------
 
@@ -230,14 +273,21 @@ Assumptions:
 
 The on disk structure of geard is exploratory at the moment.  The major components are described below:
 
+    /etc/systemd/system/container-active.target.wants/
+      ctr-abcdef.service -> <symlink>
+
+        This directory is read by systemd on startup (container-active.target is WantedBy multi-user) to 
+        start containers on startup.  Containers stopped via the stop API call will not be started on
+        reboot.
+
     /var/lib/containers/
       All content is located under this root
 
       units/
         ab/
-          ctr-abcdef.service  # systemd unit file that points to the definition
+          ctr-abcdef.service   # hardlink to the current unit file version
+          ctr-abcdef.idle      # flag indicating this unit is currently idle
           abcdef/
-            definition         # hardlink with the full spec for this service
             <requestid>        # a particular version of the unit file.
 
         A container is considered present on this system if a service file exists inside the namespaced container
@@ -246,6 +296,9 @@ The on disk structure of geard is exploratory at the moment.  The major componen
         The unit file is "enabled" in systemd (symlinked to systemd's unit directory) upon creation, and "disabled"
         (unsymlinked) on the remove operation.  The definition can be updated atomically (write new definition,
         update hardlink) when a new version of the container is deployed to the system.
+
+        If a container is idled, a flag is written to the appropriate units directory.  Only containers with an
+        idle flag are considered valid targets for unidling.
 
       targets/
         container.target         # default target
@@ -346,7 +399,7 @@ The on disk structure of geard is exploratory at the moment.  The major componen
 Building Images
 ---------------
 
-Gear(d) uses [Docker Source to Images (STI)](http://github.com/openshift/docker-source-to-images)
+geard uses [Docker Source to Images (STI)](http://github.com/openshift/docker-source-to-images)
 to build deployable images from a base image and application source.  STI supports a number of
 use cases for building deployable images, including:
 
