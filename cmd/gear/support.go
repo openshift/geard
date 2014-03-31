@@ -89,7 +89,7 @@ func InitPreStart(dockerSocket string, id containers.Identifier, imageName strin
 		socketActivationType == "proxied",
 	}
 
-	file, _, err := utils.OpenFileExclusive(path.Join(id.HomePath(), "container-init.sh"), 0700)
+	file, _, err := utils.OpenFileExclusive(path.Join(id.RunPathFor(), "container-init.sh"), 0700)
 	if err != nil {
 		fmt.Printf("container init pre-start: Unable to open script file: %v\n", err)
 		return err
@@ -104,7 +104,7 @@ func InitPreStart(dockerSocket string, id containers.Identifier, imageName strin
 		return err
 	}
 
-	file, _, err = utils.OpenFileExclusive(path.Join(id.HomePath(), "container-cmd.sh"), 0705)
+	file, _, err = utils.OpenFileExclusive(path.Join(id.RunPathFor(), "container-cmd.sh"), 0705)
 	if err != nil {
 		fmt.Printf("container init pre-start: Unable to open cmd script file: %v\n", err)
 		return err

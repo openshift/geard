@@ -17,6 +17,7 @@ type ContainerUnit struct {
 	ReqId    string
 
 	HomeDir         string
+	RunDir          string
 	EnvironmentPath string
 	ExecutablePath  string
 	IncludePath     string
@@ -69,7 +70,7 @@ ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" \
           --volumes-from "{{.Id}}-data" \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
           -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
-          {{ if .Isolate }} -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
+          {{ if .Isolate }} -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro -v {{.RunDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
           "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
 # Set links (requires container have a name)
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
@@ -92,7 +93,7 @@ ExecStart=/usr/bin/docker run --rm --foreground \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
           {{.PortSpec}} {{.RunSpec}} \
           --name "{{.Id}}" --volumes-from "{{.Id}}-data" \
-          {{ if .Isolate }} -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
+          {{ if .Isolate }} -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro -v {{.RunDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
           "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
 # Set links (requires container have a name)
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
@@ -112,8 +113,8 @@ ExecStart=/usr/bin/docker run \
             {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
             -a stdout -a stderr {{.RunSpec}} \
             --env LISTEN_FDS \
-            -v {{.HomeDir}}/container-init.sh:/.container.init:ro \
-            -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro \
+            -v {{.RunDir}}/container-init.sh:/.container.init:ro \
+            -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro \
             -v /usr/sbin/systemd-socket-proxyd:/usr/sbin/systemd-socket-proxyd:ro \
             -u root -f --rm \
             "{{.Image}}" /.container.init

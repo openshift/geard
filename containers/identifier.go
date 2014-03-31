@@ -105,6 +105,10 @@ func (i Identifier) HomePath() string {
 	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "home"), string(i), "home", 0775)
 }
 
+func (i Identifier) RunPathFor() string {
+	return utils.IsolateContentPathWithPerm(config.ContainerRunPath(), string(i), "/", 0775)
+}
+
 func (i Identifier) AuthKeysPathFor() string {
 	return filepath.Join(i.HomePath(), ".ssh", "authorized_keys")
 }
