@@ -425,6 +425,15 @@ func deployContainers(cmd *cobra.Command, args []string) {
 
 	changes.UpdateLinks()
 
+	for _, c := range changes.Containers {
+		instances := c.Instances()
+		if len(instances) > 0 {
+			for _, link := range instances[0].NetworkLinks() {
+				fmt.Printf("linking %s: %s:%d -> %s:%d\n", c.Name, link.FromHost, link.FromPort, link.ToHost, link.ToPort)
+			}
+		}
+	}
+
 	contents, _ := json.Marshal(changes)
 	if err := ioutil.WriteFile(newPath, contents, 0664); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write %s: %s\n", newPath, err.Error())
