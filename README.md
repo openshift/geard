@@ -71,12 +71,14 @@ Here are the initial set of supported container actions - these should map clean
         # create a simple two container web app
         $ gear deploy deployment/fixtures/simple_deploy.json localhost
 
+    The links between containers are iptables based rules - try curling 127.0.0.1:8081 to see the second web container.
+
         # create a mongo db replica set (some assembly required)
         $ gear deploy deployment/fixtures/mongo_deploy.json localhost
         $ sudo switchns db-1 /bin/bash
         > mongo 192.168.1.1
         MongoDB shell version: 2.4.9
-        > rs.initiate({members:[{_id:0,host:"192.168.1.1"}]})
+        > rs.initiate({_id: "replica0", version: 1, members:[{_id: 0, host:"192.168.1.1:27017"}]})
         > rs.add("192.168.1.2")
         > rs.add("192.168.1.3")
         > rs.status()

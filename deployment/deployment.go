@@ -135,6 +135,7 @@ func (d Deployment) Describe(placement PlacementStrategy) (next *Deployment, rem
 			instances = append(instances, *existing[j])
 		}
 	}
+	d.Containers = sources
 	d.Instances = instances
 	next = &d
 	return
