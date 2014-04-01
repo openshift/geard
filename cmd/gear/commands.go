@@ -382,7 +382,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 			},
 			Output: os.Stdout,
 			OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-				fmt.Fprintf(w, "Deleted %s", job.(*http.HttpDeleteContainerRequest).Label)
+				fmt.Fprintf(w, "Deleted %s", job.(jobs.LabeledJob).JobLabel())
 			},
 			LocalInit: needsData,
 		}.Stream()
@@ -448,7 +448,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		},
 		Output: os.Stdout,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			fmt.Fprintf(w, "Links set on %s\n", job.(*http.HttpLinkContainersRequest).Label)
+			fmt.Fprintf(w, "Links set on %s\n", job.(jobs.LabeledJob).JobLabel())
 		},
 	}.Stream()
 
@@ -645,7 +645,7 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 		},
 		Output: os.Stdout,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			fmt.Fprintf(w, "Deleted %s", job.(*http.HttpDeleteContainerRequest).Label)
+			fmt.Fprintf(w, "Deleted %s", job.(jobs.LabeledJob).JobLabel())
 		},
 		LocalInit: needsSystemdAndData,
 	}.StreamAndExit()
