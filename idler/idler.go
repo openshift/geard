@@ -120,7 +120,7 @@ func (idler *Idler) Run() {
 			fmt.Fprintf(w, "[%v] Packet counts:\n\tContainer\tActive?\tIdled?\tPackets\n", time.Now().Format(time.RFC3339))
 			iptables.ResetPacketCount()
 			for id, pkts := range cpkt {
-				started, err := containers.ReadContainerState(id)
+				started, err := id.UnitStartOnBoot()
 				if err != nil {
 					fmt.Printf("Error reading container state for %v: %v\n", id, err)
 				}
