@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/openshift/cobra"
+	"github.com/spf13/cobra"
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/deployment"
