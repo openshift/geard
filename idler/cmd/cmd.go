@@ -3,7 +3,7 @@
 package cmd
 
 import (
-	"github.com/openshift/cobra"
+	"github.com/spf13/cobra"
 	cmd "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/idler"
