@@ -1,5 +1,9 @@
 #!/bin/bash -x
 
+echo "Downloading test dependencies"
+go get -d -t github.com/gorilla/context github.com/gorilla/mux launchpad.net/gocheck
+echo "..done"
+
 rm -f tests.test
 go test -tags integration -c github.com/openshift/geard/tests
 sudo ./tests.test -gocheck.v $@

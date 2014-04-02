@@ -1,0 +1,114 @@
+#!/bin/bash
+
+function usage() {
+	echo "vendor -l|-v <Package URL>"
+	echo "-l List packages that may been to be vendored"
+	echo "-v vendor a package"
+	exit 1
+}
+
+list=false
+vendor=false
+
+while getopts "lv" o; do
+	case "${o}" in
+		l) list=true;;
+		v) vendor=true;;
+		*) usage;;
+	esac
+done
+
+if $list && $vendor; then
+  usage
+  exit
+fi
+
+if  ! $list && ! $vendor; then
+  usage
+  exit
+fi
+
+#don't vendor docker or its dependencies
+if [ ! -d $GOPATH/src/github.com/dotcloud/docker ]; then
+  go get -t -d github.com/dotcloud/docker
+fi
+if [ ! -d $GOPATH/src/code.google.com/p/go.crypto ]; then
+  go get -t -d code.google.com/p/go.crypto
+fi
+
+ORIG_GOPATH=$GOPATH
+
+if $list; then
+  LIST=()
+  rm -rf /tmp/vendor_pkg_list
+  mkdir -p /tmp/vendor_pkg_list
+  export GOPATH=/tmp/vendor_pkg_list:$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
+  
+  #vendor missing packages. (Repeat to get transitive dependencies)
+  output=`go get -d -v -t ./... 2>&1`
+  echo $output | grep "(download)" > /dev/null
+  if [ $? -ne 0 ]; then
+    exit
+  fi
+  IFS=$'\n'; for pkg_line in $output; do
+    echo $pkg_line | grep "(download)" > /dev/null
+    if [ $? -eq 0 ]; then
+      pkg=`echo $pkg_line | awk '{ print $1 }'`
+      echo $pkg
+    fi
+  done
+  
+  pushd /tmp/vendor_pkg_list > /dev/null
+  for i in {1..10}; do
+    output=`go get -d -v -t ./... 2>&1`
+    echo $output | grep "(download)" > /dev/null
+    if [ $? -ne 0 ]; then
+      break
+    fi
+    IFS=$'\n'; for pkg_line in $output; do
+      echo $pkg_line | grep "(download)" > /dev/null
+      if [ $? -eq 0 ]; then
+        pkg=`echo $pkg_line | awk '{ print $1 }'`
+      echo $pkg
+      fi
+    done
+  done
+  popd > /dev/null
+
+  rm -rf /tmp/vendor_pkg_list  
+fi
+
+if $vendor; then
+  pkg=$2
+  
+  if [ "x${pkg}x" == "xx" ]; then
+    echo "No package specified"
+    echo " "
+    usage
+    exit
+  fi
+  
+  current_branch=`git symbolic-ref --short HEAD`
+  mkdir -p "vendor/src/"
+  echo $pkg | grep "git" > /dev/null
+  if [ $? -eq 0 ]; then
+    remote_name=`echo $pkg | tr '/' '_'`
+    branch_name="subtree_${remote_name}"
+    remote_name="vndr_${remote_name}"
+    git remote add $remote_name http://$pkg
+    git fetch $remote_name
+    git branch -f $branch_name $remote_name/master
+    git subtree add --squash --prefix=vendor/src/$pkg $branch_name
+    rev=`git log $branch_name -1 | grep commit`
+    
+    echo -e "Push branches ${current_branch} and ${branch_name}\n"
+    echo -e "git push origin ${current_branch}"
+    echo -e "git push origin ${branch_name}"
+  else
+    echo "not a github package. copying it into the vendor directory"
+    export GOPATH=$ORIG_GOPATH/src/github.com/openshift/geard/vendor:$ORIG_GOPATH
+    go get -d -v $pkg
+    git add $ORIG_GOPATH/src/github.com/openshift/geard/vendor/src/$pkg
+    echo "Commit and push ${current_branch}"
+  fi
+fi
