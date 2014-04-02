@@ -1,2 +1,3 @@
-Based off upstream commit 2acf4aeb1b83dc80229854d078fa315a93453eb8
-Vendored on Wed Apr  2 18:31:21 UTC 2014
+Based off github.com/ant0ine/go-json-rest commit 2ebc7140749543779a5cbdb1a1d325615330532d
+Vendored on Feb 11 2014
+Additonal changesets since code was copied
