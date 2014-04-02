@@ -1,6 +1,7 @@
 package containers
 
 import (
+	"github.com/openshift/geard/config"
 	"text/template"
 )
 
@@ -22,6 +23,8 @@ type ContainerUnit struct {
 	PortPairs            PortPairs
 	SocketUnitName       string
 	SocketActivationType string
+
+	DockerFeatures config.DockerFeatures
 }
 
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
@@ -52,13 +55,16 @@ X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 {{end}}
 {{end}}
 
-{{/* A unit that uses Docker with the 'fork' command and '--create-only' flag to boot an image */}}
+{{/* A unit that uses Docker with the 'foreground' flag to run an image under the current context */}}
 {{define "FORK"}}
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
-ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" 2>/dev/null || exec /usr/bin/docker run --create-only --name "{{.Id}}" {{.PortSpec}} {{.RunSpec}} --volumes-from "{{.Id}}" "{{.Image}}"'
-ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
-ExecStart=/usr/bin/docker fork "{{.Id}}"
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" || exec docker run --name "{{.Id}}" --volumes-from "{{.Id}}" busybox'
+ExecStart=/usr/bin/docker run --foreground \
+          {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
+          {{.PortSpec}} {{.RunSpec}} \
+          --volumes-from "{{.Id}}" \
+          "{{.Image}}"
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{template "COMMON_CONTAINER" .}}
 {{end}}
@@ -71,6 +77,7 @@ ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
             --name "{{.Id}}" --rm \
             --volumes-from "{{.Id}}" \
+            {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
             -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
             -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
@@ -83,7 +90,10 @@ ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{define "SIMPLE"}}
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
-ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} "{{.Image}}"
+ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" \
+          {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
+          -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
+          "{{.Image}}"
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 ExecReload=-/usr/bin/docker stop "{{.Id}}"
 ExecReload=-/usr/bin/docker rm "{{.Id}}"
@@ -102,6 +112,7 @@ ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
 ExecStart=/usr/bin/docker run \
             --name "{{.Id}}" \
             --volumes-from "{{.Id}}" \
+            {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
             -a stdout -a stderr {{.RunSpec}} \
             --env LISTEN_FDS \
             -v {{.HomeDir}}/container-init.sh:/.container.init:ro \

@@ -18,6 +18,7 @@ import (
 
 	"github.com/openshift/cobra"
 	. "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/deployment"
 	"github.com/openshift/geard/dispatcher"
@@ -88,6 +89,7 @@ func Execute() {
 	}
 	gearCmd.PersistentFlags().StringVar(&(keyPath), "key-path", "", "Specify the directory containing the server private key and trusted client public keys")
 	gearCmd.PersistentFlags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
+	gearCmd.PersistentFlags().BoolVar(&(config.SystemDockerFeatures.EnvironmentFile), "has-env-file", false, "(experimental) Use --env-file with Docker, requires master from Apr 1st")
 	gearCmd.PersistentFlags().StringVarP(&hostIp, "host-ip", "H", GuessHostIp(), "IP address to listen for traffic")
 	gearCmd.PersistentFlags().StringVar(&deploymentPath, "with", "", "Provide a deployment descriptor to operate on")
 
@@ -98,7 +100,7 @@ func Execute() {
 		Run:   deployContainers,
 	}
 	deployCmd.Flags().BoolVar(&isolate, "isolate", false, "Use an isolated container running as a user")
-	deployCmd.Flags().BoolVar(&fork, "fork", false, "Use a forked container (experimental, requires docker branch smarterclayton/fork_and_create_only)")
+	deployCmd.Flags().BoolVar(&fork, "fork", false, "Run the container in the foreground (experimental, requires docker branch alexlarsson/forking-run)")
 	gearCmd.AddCommand(deployCmd)
 
 	installImageCmd := &cobra.Command{
@@ -112,7 +114,7 @@ func Execute() {
 	installImageCmd.Flags().BoolVar(&start, "start", false, "Start the container immediately")
 	installImageCmd.Flags().BoolVar(&isolate, "isolate", false, "Use an isolated container running as a user")
 	installImageCmd.Flags().BoolVar(&sockAct, "socket-activated", false, "Use a socket-activated container (experimental, requires Docker branch)")
-	installImageCmd.Flags().BoolVar(&fork, "fork", false, "Use a forked container (experimental, requires docker branch openshift/fork_and_create_only)")
+	installImageCmd.Flags().BoolVar(&fork, "fork", false, "Run the container in the foreground (experimental, requires docker branch alexlarsson/forking-run)")
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")

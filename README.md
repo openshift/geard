@@ -133,7 +133,11 @@ Here are the initial set of supported container actions - these should map clean
         $ curl "http://localhost:43273/environment/my-sample-service"
         $ gear set-env localhost/my-sample-service --reset
 
-    TODO: Currently environment is not loaded into the running container, waiting for the "--env-file" option to land in Docker master.
+    You can set environment during installation
+
+        $ gear install ccoleman/envtest localhost/env-test1 --env-file=deployment/fixtures/simple.env
+
+    Loading environment into a running container is dependent on the "docker run --env-file" option in Docker master from 0.9.x after April 1st.  You must start the daemon with "gear daemon --has-env-file" in order to use the option - this option will be made the default after 0.9.1 lands and the minimal requirements will be updated.
 
 *   More to come....
 
@@ -152,7 +156,7 @@ Try it out
 The geard code depends on:
 
 * systemd 207 (Fedora 20 or newer)
-* Docker 0.7 or newer
+* Docker 0.7 or newer (0.9.x from Apr 1 to use --env-file, various other experimental features not in tree)
 
 If you don't have those, you can use the following to run in a development vm:
 

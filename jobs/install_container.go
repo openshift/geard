@@ -18,26 +18,35 @@ import (
 // This job will install a given container definition as a systemd service unit,
 // or update the existing definition if one already exists.
 //
-// Preconditions for starting a container:
+// There are a number of run modes for containers.  Some options the caller must
+// decide:
 //
-// 1) Reserve external ports and define port mappings
-// 2) Create container user and set quota
-// 3) Ensure container volumes (persistent data) are assigned proper UID
-// 4) Map the container user to the appropriate user inside the image
-// 5) Download the image locally
+// * Is the container transient?
+//   Should stop remove any data not in a volume - accomplished by running as a
+//   specific user, and by using 'docker run --rm' as ExecStart=
 //
-// Operations that require a started container:
+// * Is the container isolated from the rest of the system?
+//   Some use cases involve the container having access to the host disk or sockets
+//   to perform system roles.  Other use cases wish to make multi-tenancy safe.
 //
-// 1) Set any internal iptable mappings to other containers (requires namespace)
-//    TODO: Switch to a libcontainer strategy
+// * Is the container hooked up to other containers?
+//   The defined unit should allow regular docker linking (name based pairing),
+//   the iptable based SDN implemented here, and the propagation to the container
+//   environment of that configuration (whether as ENV vars or a file).
 //
-// Operations that can occur after the container is created but do not block creation:
+// Isolated containers:
 //
-// 1) Enable SSH access to the container
+// An isolated container runs in a way that protects it from other containers on
+// the system.  At a minimum today this means:
 //
-// Operations that can occur on startup or afterwards
+// 1) Create a user to represent the container, and run the process in the container
+//    as that user.  Avoids root compromise
+// 2) Assign a unique MCS category label to the container.
 //
-// 1) Publicly exposing ports
+// In the future the need for #1 is removed by user namespaces, although given the
+// relative immaturity of that function in the kernel at the present time it is not
+// considered sufficiently secure for production use.
+//
 
 type InstallContainerRequest struct {
 	RequestIdentifier `json:"-"`
@@ -223,6 +232,8 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 		PortPairs:            reserved,
 		SocketUnitName:       socketUnitName,
 		SocketActivationType: socketActivationType,
+
+		DockerFeatures: config.SystemDockerFeatures,
 	}
 
 	var templateName string

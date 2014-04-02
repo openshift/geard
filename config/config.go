@@ -11,3 +11,9 @@ func ContainerBasePath() string {
 type DockerConfiguration struct {
 	Socket string
 }
+
+type DockerFeatures struct {
+	EnvironmentFile bool
+}
+
+var SystemDockerFeatures = DockerFeatures{}

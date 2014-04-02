@@ -336,7 +336,7 @@ func ReleaseExternalPorts(directory string, ports PortPairs) error {
 			}
 			continue
 		}
-		if directory != "" && filepath.Dir(path) != directory {
+		if directory != "" && path != directory {
 			log.Printf("ports: Path %s is not under %s and will not be removed", path, directory)
 		}
 		if errr := os.Remove(direct); errr != nil {
