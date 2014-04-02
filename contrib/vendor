@@ -16,6 +16,18 @@ for i in {1..10} ; do
 done
 go get ./...
 
+ADDITIONAL_TAGS="selinux idler"
+for tag in $ADDITIONAL_TAGS; do
+  #vendor missing packages. (Repeat to get transitive dependencies)
+  for i in {1..10} ; do
+    go get -d -v -t -tags "${tag}" ./... 2>&1 | grep "(download)"
+    if [ $? -ne 0 ]; then
+      break
+    fi
+  done
+  go get -tags "${tag}" ./...
+done
+
 pushd $ORIG_GOPATH/src/github.com/openshift/geard/vendor
 for i in `find $ORIG_GOPATH/src/github.com/openshift/geard/vendor -type d -name .git`; do
   pushd $i 2>&1 > /dev/null
