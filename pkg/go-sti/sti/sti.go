@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pmorie/go-sti"
+	"github.com/openshift/geard/pkg/go-sti"
 	"github.com/smarterclayton/cobra"
 )
 
@@ -49,7 +49,7 @@ func Execute() {
 		Use:   "sti",
 		Short: "STI is a tool for building repeatable docker images",
 		Long: `A command-line interface for the sti library
-              Complete documentation is available at http://github.com/pmorie/go-sti`,
+              Complete documentation is available at http://github.com/openshift/geard/pkg/go-sti`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Usage()
 		},
