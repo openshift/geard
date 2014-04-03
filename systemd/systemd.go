@@ -3,7 +3,7 @@ package systemd
 import (
 	"encoding/base64"
 	"fmt"
-	db "github.com/github.com/godbus/dbus"
+	db "github.com/godbus/dbus"
 	"github.com/openshift/geard/config"
 	"github.com/openshift/go-systemd/dbus"
 	"io"

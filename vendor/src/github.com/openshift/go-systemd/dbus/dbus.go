@@ -21,7 +21,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/github.com/godbus/dbus"
+	"github.com/godbus/dbus"
 )
 
 const signalBuffer = 100
