@@ -4,7 +4,7 @@ import (
 	"os"
 	"os/user"
 
-	"github.com/openshift/cobra"
+	"github.com/spf13/cobra"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/git"
 )

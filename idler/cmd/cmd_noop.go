@@ -3,7 +3,7 @@
 package cmd
 
 import (
-	"github.com/openshift/cobra"
+	"github.com/spf13/cobra"
 )
 
 func LoadCommand(gearCmd *cobra.Command, pDockerSocket *string, pHostIp *string) {
