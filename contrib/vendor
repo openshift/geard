@@ -106,7 +106,7 @@ if $vendor; then
     echo -e "git push origin ${branch_name}"
   else
     echo "not a github package. copying it into the vendor directory"
-    export GOPATH=$ORIG_GOPATH/src/github.com/openshift/geard/vendor:$ORIG_GOPATH
+    export GOPATH=$ORIG_GOPATH/src/github.com/openshift/geard/vendor
     go get -d -v $pkg
     git add $ORIG_GOPATH/src/github.com/openshift/geard/vendor/src/$pkg
     echo "Commit and push ${current_branch}"
