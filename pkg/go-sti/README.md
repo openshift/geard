@@ -37,7 +37,7 @@ generates a Dockerfile and calls `docker build` to produce the output image:
 
 1. `sti` generates a `Dockerfile` to describe the output image:
     1. Based on the build image
-    1. Adds the application source at `/usr/src` in the container
+    1. Adds the application source at `/tmp/src` in the container
     1. Calls `/usr/bin/prepare` in the container
     1. Sets the image's default command to `/usr/bin/run`
 1. `sti` calls `docker build` to produce the output image
@@ -45,8 +45,8 @@ generates a Dockerfile and calls `docker build` to produce the output image:
 `sti` also supports building images with `docker run`.  When building this way, the workflow is:
 
 1. `sti` creates a container based on the build image. with:
-    1. The application source bind-mounted to `/usr/src`
-    1. The build artifacts bind-mounted to `/usr/artifacts` (if applicable - see incremental builds)
+    1. The application source bind-mounted to `/tmp/src`
+    1. The build artifacts bind-mounted to `/tmp/artifacts` (if applicable - see incremental builds)
     1. Runs the build image's `/usr/bin/prepare` script
 1. `sti` starts the container and waits for it to finish running
 1. `sti` commits the container, setting the CMD for the output image to be `/usr/bin/run`
@@ -78,16 +78,16 @@ The basic build process is as follows:
 If the source image is compatible, a prior build already exists, and the `--clean` option is not used,
 the workflow is as follows:
 
-1. `sti` creates a new docker container from the prior build image, with a volume in `/usr/artifacts`
+1. `sti` creates a new docker container from the prior build image, with a volume in `/tmp/artifacts`
 1. `sti` runs `/usr/bin/save-artifacts` in this container - this script is responsible for copying
-   the build artifacts into `/usr/artifacts`.
+   the build artifacts into `/tmp/artifacts`.
 1. `sti` builds the new output image using the selected build methodology:
-    1. The artifacts from the previous build will be in `/usr/artifacts` during the build
+    1. The artifacts from the previous build will be in `/tmp/artifacts` during the build
     1. The build image's `/usr/bin/prepare` script is responsible for detecting and using the build
        artifacts
 
 Note the invocation of the `save-artifacts` script; this script is responsible for moving build
-dependencies to `/usr/artifacts`
+dependencies to `/tmp/artifacts`
 
 ### Extended builds
 
@@ -97,15 +97,15 @@ runtime image. The workflow for extended builds is as follows:
 1. `sti` looks for the previous build image for the tag, `<tag>-build`.
 1. If that image exists:
     1. `sti` creates a container from this image and runs `/usr/bin/save-artifacts` in it
-1. `sti` creates a build container from the build image with a volume at `/usr/build`
+1. `sti` creates a build container from the build image with a volume at `/tmp/build`
    and bind-mounts in the artifacts from the prior build, if applicable
 1. `sti` runs `/usr/bin/prepare` in the build container - this script is responsible for
-   populating `/usr/build` with the result of the build
+   populating `/tmp/build` with the result of the build
 1. `sti` builds the output image with the selected build methodology:
     1. The base image will be the runtime image
-    1. The output of the source build step will be in `/usr/src` during the build
+    1. The output of the source build step will be in `/tmp/src` during the build
     1. The runtime image's `/usr/bin/prepare` script is responsible for being able to deploy the
-       artifact in `/usr/src`
+       artifact in `/tmp/src`
 1. If the docker build succeeds, the build container is tagged as `<tag>-build`
 
 You might have noticed that the above workflow describes something like an incremental build.
@@ -184,7 +184,7 @@ If the build is successful, the built image will be tagged with `APP_IMAGE_TAG`.
 
 If the build image is compatible with incremental builds, `sti build` will look for an image tagged
 with `APP_IMAGE_TAG`.  If an image is present with that tag, `sti build` will save the build
-artifacts from that image and add them to the build container at `/usr/artifacts` so an image's
+artifacts from that image and add them to the build container at `/tmp/artifacts` so an image's
 `/usr/bin/prepare` script can restore them before building the source.
 
 When using an image that supports incremental builds, you can do a clean build with `--clean`:
@@ -199,12 +199,12 @@ the `-R` option perform an extended build targeting a runtime image:
 When specifying a runtime image, the build image must be compatible with incremental builds.
 `sti build` will look for an image tagged with `<APP_IMAGE_TAG>-build`.  If an image is present with
 that tag, `sti build` will save the build artifacts from that image and add them to the build
-container at `/usr/artifacts` so the build image's `/usr/bin/prepare` script can restore them before
+container at `/tmp/artifacts` so the build image's `/usr/bin/prepare` script can restore them before
 building the source.  The build image's `/usr/bin/prepare` script is responsible for populating
-`/usr/build` with an artifact to be deployed into the runtime container.
+`/tmp/build` with an artifact to be deployed into the runtime container.
 
 After performing the build, a new runtime image is created based on the image tagged with
-`RUNTIME_IMAGE_TAG` with the output of the build in `/usr/src`.  The runtime image's
+`RUNTIME_IMAGE_TAG` with the output of the build in `/tmp/src`.  The runtime image's
 `/usr/bin/prepare` script is responsible for detecting and deploying the artifact.  If the build is
 successful, two images are tagged:
 

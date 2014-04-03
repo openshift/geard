@@ -18,7 +18,7 @@ func parseEnvs(envStr string) (map[string]string, error) {
 		return nil, nil
 	}
 
-	var envs map[string]string
+	envs := make(map[string]string)
 	pairs := strings.Split(envStr, ",")
 
 	for _, pair := range pairs {
