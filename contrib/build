@@ -31,14 +31,11 @@ if $use_selinux; then
 fi
 
 if $build_idler; then
-  if [ ! -f /usr/include/libnetfilter_queue/libnetfilter_queue.h ]; then
-    sudo yum install -y libnetfilter_queue-devel
-  fi
 	tags="$tags idler"
 fi
 
 if $handle_systemd; then
-	docker build -rm -t ccoleman/geard /vagrant && sudo systemctl restart geard.service	
+	docker build -rm -t ccoleman/geard $ORIG_GOPATH && sudo systemctl restart geard.service	
 else
 	echo "Downloading build dependencies"  
 	# these packages should not be vendored
@@ -53,8 +50,8 @@ else
 	go install -tags "$tags" github.com/openshift/geard/cmd/switchns
 	go install -tags "$tags" github.com/openshift/geard/cmd/gear-auth-keys-command
 
-	sudo /usr/bin/cp -f $ORIG_GOPATH/bin/gear-auth-keys-command .
-	sudo /usr/bin/cp -f $ORIG_GOPATH/bin/switchns .
-	sudo /usr/bin/cp -f $ORIG_GOPATH/bin/gear .
+	/usr/bin/cp -f $ORIG_GOPATH/bin/gear-auth-keys-command .
+	/usr/bin/cp -f $ORIG_GOPATH/bin/switchns .
+	/usr/bin/cp -f $ORIG_GOPATH/bin/gear .
 	echo "..done"  
 fi
