@@ -19,7 +19,7 @@ You can then use go-netfilter-queue to inspect the packets:
     
     import (
             "fmt"
-            "github.com/kraman/go-netfilter-queue"
+            "github.com/openshift/geard/pkg/go-netfilter-queue"
             "os"
     )
     

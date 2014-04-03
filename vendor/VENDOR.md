@@ -11,7 +11,7 @@ For geard, a script is provided which will help with vendoring packages.
   1. Ensure that the package you wish to vendor is not in your gopath
   2. Run ```./contrib/vendor -l``` to get a list of packages which may need to be vendored
   3. Run ```./contrib/vendor -v <Package URL>``` to vendor the package
-     Eg: ```./contrib/vendor -v github.com/kraman/go-netfilter-queue```
+     Eg: ```./contrib/vendor -v github.com/fsouza/go-dockerclient```
 
 Updating vendored packages
 ==========================
