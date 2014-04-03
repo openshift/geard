@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/openshift/geard/pkg/go-sti"
-	"github.com/smarterclayton/cobra"
+	"github.com/spf13/cobra"
 )
 
 func parseEnvs(envStr string) (map[string]string, error) {
