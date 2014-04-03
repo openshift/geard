@@ -141,13 +141,35 @@ Here are the initial set of supported container actions - these should map clean
 
 *   More to come....
 
-The daemon is focused on allowing an administrator to easily ensure a given Docker container will *always* run on the system by creating a systemd unit for the docker run command.  It executes the Docker container processes as children of systemd - this means that on termination systemd can auto restart the container, set additional namespace options, capture stdout and stderr to journald, and assign auditing information to those child processes.
+geard allows an administrator to easily ensure a given Docker container will *always* run on the system by creating a systemd unit describing a docker run command.  It will execute the Docker container processes as children of the systemd unit, allowing auto restart of the container, customization of additional namespace options, the capture stdout and stderr to journald, and audit/seccomp integration to those child processes.
 
-Note: foreground execution is currently not in Docker master - see https://github.com/alexlarsson/docker/tree/forking-run-systemd, https://github.com/alexlarsson/docker/tree/forking-run, and https://github.com/smarterclayton/docker/tree/fork_and_create_only for some of the prototype work in this space. A long-running dockerinit process will become the PID=1 in the child processes.
+Note: foreground execution is currently not in Docker master - see https://github.com/alexlarsson/docker/tree/forking-run for some prototype work demonstrating the concept.
 
-Each geard unit can be assigned a unique Unix user (defaults to true, can use --simple to bypass) and is the user context that the container is run under for quota and security purposes.  An SELinux MCS category label will automatically be assigned to the container, ensuring that each container is more deeply isolated.  Containers are added to a default systemd slice that may have cgroup rules applied to limit them.
+Each created systemd unit can be assigned a unique Unix user for quota and security purposes.  An SELinux MCS category label will automatically be assigned to the container to separate it from the other containers on the system, and containers can be set into  systemd slices with resource constraints.
 
 A container may also be optionally enabled for public key SSH access for a set of known keys under the user identifier associated with the container.  On SSH to the host, they'll join the running namespace for that container.
+
+
+How can geard be used in orchestration?
+---------------------------------------
+
+geard is intended to be useful in different scales of container management:
+
+- as a simple command line tool that can quickly generate new unit files and complement the systemctl command line
+- as a component in a large distributed infrastructure under the control of a central orchestrator
+- as an extensible component for other forms of orchestration
+
+As this is a wide range of scales to satisfy, the core operations are designed to be usable over most common transports - including HTTP, message queues, and gossip protocols.  The default transport is HTTP, and a few operations like log streaming or waiting for operations to complete are best modeled by direct HTTP calls to a given server.  The remaining calls expect to receive a limited set of input and then effect changes to the state of the system - operations like install, delete, stop, and start.  In many cases these are simple passthrough calls to the systemd DBus API and persist additional data to disk (described below).  However, other orchestration styles like pull-from-config-server could implement a transport that would watch the config server for changes and then invoke those fundamental primitives.
+
+From the gear CLI, you can perform operations directly as root or connect to one or more geard instances over HTTP (or another transport).  This works well for managing a few servers or interacting with a subset of hosts in a larger system.
+
+![cli_topologies](./docs/simple_cli_topology.png "CLI interactions with the server")
+
+At larger scales, an orchestrator component is required to implement features like automatic rebalancing of hosts, failure detection, and autoscaling.  The different types of orchestrators and some of their limitations are shown in the diagrams below:
+
+![orchestration_topologies](./docs/orchestration_topologies.png "Orchestration styles and limitations")
+
+More coming soon!
 
 
 Try it out
