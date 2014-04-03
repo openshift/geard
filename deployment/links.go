@@ -102,7 +102,7 @@ func (c *containerLink) priority() int {
 	return p
 }
 func (c containerLinks) Less(a, b int) bool {
-	return c[a].priority() < c[b].priority()
+	return c[a].priority() > c[b].priority()
 }
 func (c containerLinks) Swap(a, b int) {
 	c[a], c[b] = c[b], c[a]
