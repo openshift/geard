@@ -23,6 +23,7 @@ const (
 	DOCKER_STATE_CHANGE_TIMEOUT    = time.Second * 5
 	SYSTEMD_ACTION_DELAY           = time.Second * 1
 	TestImage                      = "pmorie/sti-html-app"
+	EnvImage                       = "ccoleman/envtest"
 )
 
 //Hookup gocheck with go test
@@ -108,10 +109,10 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 
 	cInfo, err := s.sdconn.GetUnitProperties(id.UnitNameFor())
 	c.Assert(err, chk.IsNil)
-	switch {
-	case cInfo["SubState"] == "running":
+	switch cInfo["SubState"] {
+	case "running":
 		curState = CONTAINER_STARTED
-	case cInfo["SubState"] == "dead" || cInfo["SubState"] == "failed" || cInfo["SubState"] == "stop-sigterm" || cInfo["SubState"] == "stop":
+	case "dead", "failed", "stop-sigterm", "stop":
 		didStop = true
 		curState = CONTAINER_STOPPED
 	}
@@ -123,13 +124,13 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 			case <-ticker.C:
 				cInfo, err := s.sdconn.GetUnitProperties(id.UnitNameFor())
 				c.Assert(err, chk.IsNil)
-				switch {
-				case cInfo["SubState"] == "running":
+				switch cInfo["SubState"] {
+				case "running":
 					curState = CONTAINER_STARTED
 					if didStop {
 						didRestart = true
 					}
-				case cInfo["SubState"] == "dead" || cInfo["SubState"] == "failed" || cInfo["SubState"] == "stop-sigterm" || cInfo["SubState"] == "stop":
+				case "dead", "failed", "stop-sigterm", "stop":
 					didStop = true
 					curState = CONTAINER_STOPPED
 				}
@@ -256,6 +257,28 @@ func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest000.service; enabled)"), chk.Equals, true)
 	s.assertContainerState(c, id, CONTAINER_STOPPED)
+}
+
+func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
+	id, err := containers.NewIdentifier("IntTest008")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
+
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+	cmd := exec.Command("/var/lib/containers/bin/gear", "install", EnvImage, hostContainerId, "--env-file=deployment/fixtures/simple.env", "--start")
+	data, err := cmd.CombinedOutput()
+	c.Log(cmd.Args)
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	time.Sleep(time.Second / 4) // startup time is indeterminate unfortunately because gear init --post continues to run
+
+	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Assert(err, chk.IsNil)
+	c.Log(string(data))
+	c.Assert(strings.Contains(string(data), "TEST=\"value\""), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "QUOTED=\"foo\""), chk.Equals, true)
 }
 
 func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {

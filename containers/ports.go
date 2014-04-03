@@ -336,7 +336,7 @@ func ReleaseExternalPorts(directory string, ports PortPairs) error {
 			}
 			continue
 		}
-		if directory != "" && filepath.Dir(path) != directory {
+		if directory != "" && path != directory {
 			log.Printf("ports: Path %s is not under %s and will not be removed", path, directory)
 		}
 		if errr := os.Remove(direct); errr != nil {
@@ -466,7 +466,7 @@ func (p *portAllocator) findPorts() {
 		if erro == nil {
 			names, errr := f.Readdirnames(int(portsPerBlock))
 			f.Close()
-			if errr != nil {
+			if errr != nil && errr != io.EOF {
 				log.Printf("ports: failed to read %s: %v", parent, errr)
 				if p.fail() {
 					goto finished

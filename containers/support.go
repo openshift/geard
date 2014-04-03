@@ -151,21 +151,23 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 		return err
 	}
 
-	const CONTAINER_RUNNING_WAIT_TIME = 10
-	for i := 0; i < CONTAINER_RUNNING_WAIT_TIME; i++ {
-		if container, err = d.GetContainer(id.ContainerFor(), true); err != nil {
-			return err
-		}
-		if container.State.Running {
-			break
-		} else {
-			log.Printf("Waiting for container to run.")
-			time.Sleep(time.Second)
-		}
-	}
-
 	if file, err := os.Open(id.NetworkLinksPathFor()); err == nil {
 		defer file.Close()
+
+		const ContainerInterval = time.Second / 3
+		const ContainerWait = time.Second * 3
+		for i := 0; i < int(ContainerWait/ContainerInterval); i++ {
+			if container, err = d.GetContainer(id.ContainerFor(), true); err != nil {
+				return err
+			}
+			if container.State.Running {
+				break
+			} else {
+				log.Printf("Waiting for container to run.")
+				time.Sleep(ContainerInterval)
+			}
+		}
+
 		pid, err := d.ChildProcessForContainer(container)
 		if err != nil {
 			return err
