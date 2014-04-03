@@ -3,7 +3,7 @@
 package idler
 
 import (
-	"github.com/kraman/go-netfilter-queue"
+	"github.com/openshift/geard/pkg/go-netfilter-queue"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/idler/config"
