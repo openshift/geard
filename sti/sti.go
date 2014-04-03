@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pmorie/go-sti"
-	"github.com/smarterclayton/cobra"
+	"github.com/openshift/geard/pkg/go-sti"
+	"github.com/spf13/cobra"
 )
 
 func parseEnvs(envStr string) (map[string]string, error) {
@@ -18,7 +18,7 @@ func parseEnvs(envStr string) (map[string]string, error) {
 		return nil, nil
 	}
 
-	var envs map[string]string
+	envs := make(map[string]string)
 	pairs := strings.Split(envStr, ",")
 
 	for _, pair := range pairs {
