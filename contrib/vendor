@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -eu
 
 function usage() {
 	echo "vendor -l|-v <Package URL>"
@@ -39,7 +39,6 @@ fi
 ORIG_GOPATH=$GOPATH
 
 if $list; then
-  LIST=()
   rm -rf /tmp/vendor_pkg_list
   mkdir -p /tmp/vendor_pkg_list
   export GOPATH=/tmp/vendor_pkg_list:$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
