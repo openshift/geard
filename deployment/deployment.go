@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/openshift/geard/containers"
+	"log"
 	"os"
 	"strconv"
 )
@@ -97,6 +98,8 @@ func (d Deployment) Describe(placement PlacementStrategy) (next *Deployment, rem
 		err = erro
 		return
 	}
+
+	log.Printf("Order: %+v", links)
 
 	// expose ports for all links
 	for i := range links {
