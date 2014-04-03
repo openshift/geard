@@ -1,10 +1,10 @@
 #!/bin/bash
 echo "Initializing gear daemon"
-docker pull ccoleman/geard
-docker pull kraman/githost
-docker pull pmorie/sti-html-app
-systemctl start /usr/lib/systemd/system/geard.service
 
-echo "stop and & disable geard.service if you are compiling it locally"
-echo "systemctl stop /usr/lib/systemd/system/geard.service"
-echo "systemctl disable /usr/lib/systemd/system/geard.service"
+echo "To use the geard service, run"
+echo "systemctl enable /usr/lib/systemd/system/geard.service"
+echo "systemctl start geard"
+echo ""
+echo "Otherwise, run"
+echo "vagrant ssh"
+echo "contrib/build"

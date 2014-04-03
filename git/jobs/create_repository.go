@@ -153,7 +153,7 @@ func InitializeRepository(repositoryId git.RepoIdentifier, repositoryURL string)
 	}
 
 	switchns := filepath.Join(config.ContainerBasePath(), "bin", "switchns")
-	cmd := exec.Command(switchns, "geard-git-host", "/git/init-repo", repositoryId.RepositoryPathFor(), u.Uid, u.Gid, repositoryURL)
+	cmd := exec.Command(switchns, "geard-githost", "/git/init-repo", repositoryId.RepositoryPathFor(), u.Uid, u.Gid, repositoryURL)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
