@@ -2,7 +2,7 @@
 echo "Installing dependencies and setting up vm for geard development"
 yum update -y
 yum install -y docker-io golang git hg bzr libselinux-devel
-yum install -y vim tig glibc-static btrfs-progs-devel device-mapper-devel sqlite-devel
+yum install -y vim tig glibc-static btrfs-progs-devel device-mapper-devel sqlite-devel libnetfilter_queue-devel gcc gcc-c++
 usermod -a -G docker vagrant
 systemctl enable docker.service
 systemctl start docker

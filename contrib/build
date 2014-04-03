@@ -1,4 +1,7 @@
-#!/bin/bash -x
+#!/bin/bash
+
+ORIG_GOPATH=$GOPATH
+export GOPATH=$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
 
 function usage() {
 	echo "build [-s] [-d] [-i]"
@@ -32,14 +35,23 @@ if $build_idler; then
 fi
 
 if $handle_systemd; then
-	docker build -rm -t ccoleman/geard /vagrant && sudo systemctl restart geard.service	
+	docker build -rm -t ccoleman/geard $ORIG_GOPATH && sudo systemctl restart geard.service	
 else
-	go get -t -tags "$tags" ./...
+	echo "Downloading build dependencies"  
+	# these packages should not be vendored
+	go get -d code.google.com/p/go.crypto
+	echo " "
+	echo "Note: Packages downloaded by go get at this point may need to be vendored."
+	go get -v -d -tags "$tags" ./...
+	echo "..done"
+  
+	echo "Building.."
 	go install -tags "$tags" github.com/openshift/geard/cmd/gear
 	go install -tags "$tags" github.com/openshift/geard/cmd/switchns
 	go install -tags "$tags" github.com/openshift/geard/cmd/gear-auth-keys-command
 
-	sudo /usr/bin/cp -f $GOPATH/bin/gear-auth-keys-command .
-	sudo /usr/bin/cp -f $GOPATH/bin/switchns .
-	sudo /usr/bin/cp -f $GOPATH/bin/gear .
+	/usr/bin/cp -f $ORIG_GOPATH/bin/gear-auth-keys-command .
+	/usr/bin/cp -f $ORIG_GOPATH/bin/switchns .
+	/usr/bin/cp -f $ORIG_GOPATH/bin/gear .
+	echo "..done"  
 fi
