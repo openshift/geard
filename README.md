@@ -155,13 +155,13 @@ How can geard be used in orchestration?
 
 geard is intended to be useful in different scales of container management:
 
-- as a simple command line tool that can quickly generate new unit files and complement the systemctl command line
-- as a component in a large distributed infrastructure under the control of a central orchestrator
-- as an extensible component for other forms of orchestration
+* as a simple command line tool that can quickly generate new unit files and complement the systemctl command line
+* as a component in a large distributed infrastructure under the control of a central orchestrator
+* as an extensible component for other forms of orchestration
 
-As this is a wide range of scales to satisfy, the core operations are designed to be usable over most common transports - including HTTP, message queues, and gossip protocols.  The default transport is HTTP, and a few operations like log streaming or waiting for operations to complete are best modeled by direct HTTP calls to a given server.  The remaining calls expect to receive a limited set of input and then effect changes to the state of the system - operations like install, delete, stop, and start.  In many cases these are simple passthrough calls to the systemd DBus API and persist additional data to disk (described below).  However, other orchestration styles like pull-from-config-server could implement a transport that would watch the config server for changes and then invoke those fundamental primitives.
+As this is a wide range of scales to satisfy, the core operations are designed to be usable over most common transports - including HTTP, message queues, and gossip protocols.  The default transport is HTTP, and a few operations like log streaming, transferring large binary files, or waiting for operations to complete are best modeled by direct HTTP calls to a given server.  The remaining calls expect to receive a limited set of input and then effect changes to the state of the system - operations like install, delete, stop, and start.  In many cases these are simple passthrough calls to the systemd DBus API and persist additional data to disk (described below).  However, other orchestration styles like pull-from-config-server could implement a transport that would watch the config server for changes and then invoke those fundamental primitives.
 
-From the gear CLI, you can perform operations directly as root or connect to one or more geard instances over HTTP (or another transport).  This works well for managing a few servers or interacting with a subset of hosts in a larger system.
+From the gear CLI, you can perform operations directly as root (use the embedded gear API library code) or connect to one or more geard instances over HTTP (or another transport).  This works well for managing a few servers or interacting with a subset of hosts in a larger system.
 
 ![cli_topologies](./docs/simple_cli_topology.png "CLI interactions with the server")
 
@@ -169,7 +169,11 @@ At larger scales, an orchestrator component is required to implement features li
 
 ![orchestration_topologies](./docs/orchestration_topologies.png "Orchestration styles and limitations")
 
-More coming soon!
+As noted, the different topologies have different security and isolation characteristics - generally you trade ease of setup and ease of distributing changes for increasing host isolation.  At the extreme, a large multi-tenant provider may want to minimize the risks of host compromise by preventing nodes from being able to talk to each other, except when the orchestrator delegates.  The encrypted/ package demonstrates one way of doing host delegation - a signed, encrypted token which only the orchestrator can generate, but hosts can validate.  The orchestrator can then give node 1 a token which allows it to call an API on node 2.
+
+A second part of securing large clusters is ensuring the data flowing back to the orchestrator can be properly attributed - if a host is compromised it should not be able to write data onto a shared message bus that masquerades as other hosts, or to execute commands on those other hosts.  This usually means a request-reply pattern (such as implemented by MCollective over STOMP) where requests are read off one queue and written to another, and the caller is responsible for checking that responses match valid requests.
+
+On the other end of the spectrum, in small clusters ease of setup is the gating factor and there tend to be less extreme multi-tenant security concerns.  A [gossip network](http://www.serfdom.io) or distributed config server like [etcd](https://github.com/coreos/etcd) can integrate with geard to serve as both data store and transport layer.
 
 
 Try it out
@@ -261,7 +265,9 @@ The API takes into account the concept of "joining" - if two requests are made w
 
 All non-content-streaming jobs (which should already be idempotent and repeatable) will eventually be structured in two phases - execute and report.  The execute phase attempts to assert that the state on the host is accurate (systemd unit created, symlinks on disk, data input correct) and to return a 2xx response on success or an error body and 4xx or 5xx response on error as fast as possible.  API operations should *not* wait for asynchronous events like the stable start status of a process, the external ports being bound, or image specific data to be written to disk.  Instead, those are modelled with separate API calls.  The report phase is optional for all jobs, and is where additional data may be streamed to the consumer over HTTP or a message bus.
 
-In general, the philosophy of create/fail fast operations is based around the recognition that distributed systems may fail at any time, but those failures are rare.  If a failure does occur, the recovery path is for a client to retry the operation as originally submitted, or to delete the affected resources, or in rare cases for the system to autocorrect.  A service may take several minutes to start only to fail - since failure cannot be predicted, clients should be given tools to recognize and correct failures.
+In general, the philosophy of create/fail fast operations is based around the recognition that distributed systems may fail at any time, but those failures are rare.  If a failure does occur, the recovery path is for a client to retry the operation as originally submitted, or to delete the affected resources, for for a resynchronization to occur.  A service may take several minutes to start only to fail - since failure cannot be predicted, clients should be given tools to recognize and correct failures.
+
+At the current time there are no resynchronization operations implemented, but the additional metadata (vector clocks or consistent versions) for that should be supportable via the existing interfaces.  An orchestrator would prepare a list of the expected resource state and a reasonably synchronized clock identifier, and the agent would be able to compare that to the persisted resources on disk older than a window. The "repair" functionality on the agent would perform a similar function - ensuring that the set of persisted resources (units, links, port mappings, keys) are internally consistent, and that outside of a minimum window (minutes) any unreferenced content is removed.
 
 
 ### Concrete example:
