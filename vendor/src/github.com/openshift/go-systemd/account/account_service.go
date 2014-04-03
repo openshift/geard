@@ -19,7 +19,7 @@ package account
 import (
 	"errors"
 	"fmt"
-	"github.com/guelfey/go.dbus"
+	"github.com/github.com/godbus/dbus"
 )
 
 var (

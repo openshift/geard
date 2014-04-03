@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/guelfey/go.dbus"
+	"github.com/github.com/godbus/dbus"
 )
 
 const (
