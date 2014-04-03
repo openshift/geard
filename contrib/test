@@ -1,5 +1,8 @@
 #!/bin/bash -x
 
+ORIG_GOPATH=$GOPATH
+export GOPATH=$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
+
 echo "Downloading test dependencies"
 go get -d -t github.com/gorilla/context github.com/gorilla/mux launchpad.net/gocheck
 echo "..done"
