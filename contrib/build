@@ -39,7 +39,6 @@ if $handle_systemd; then
 else
 	echo "Downloading build dependencies"  
 	# these packages should not be vendored
-	go get -d code.google.com/p/go.crypto
 	echo " "
 	echo "Note: Packages downloaded by go get at this point may need to be vendored."
 	go get -v -d -tags "$tags" ./...
