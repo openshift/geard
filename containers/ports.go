@@ -466,7 +466,7 @@ func (p *portAllocator) findPorts() {
 		if erro == nil {
 			names, errr := f.Readdirnames(int(portsPerBlock))
 			f.Close()
-			if errr != nil {
+			if errr != nil && errr != io.EOF {
 				log.Printf("ports: failed to read %s: %v", parent, errr)
 				if p.fail() {
 					goto finished
