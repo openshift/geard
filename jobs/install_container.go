@@ -61,9 +61,6 @@ type InstallContainerRequest struct {
 	// Should this container be run in an isolated fashion
 	// (separate user, permission changes)
 	Isolate bool
-	// Fork the container and run isolated (requires docker fork
-	// in docker)
-	Fork bool
 	// Should this container be run in a socket activated fashion
 	// Implies Isolated (separate user, permission changes,
 	// no port forwarding, socket activated).
@@ -238,12 +235,10 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 
 	var templateName string
 	switch {
-	case req.Isolate:
-		templateName = "ISOLATED"
-	case req.Fork:
-		templateName = "FORK"
 	case req.SocketActivation:
 		templateName = "SOCKETACTIVATED"
+	case config.SystemDockerFeatures.ForegroundRun:
+		templateName = "FOREGROUND"
 	default:
 		templateName = "SIMPLE"
 	}
