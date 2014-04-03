@@ -1,11 +1,11 @@
 package jobs
 
 import (
-	"code.google.com/p/go.crypto/ssh"
 	"crypto/sha256"
 	"errors"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/git"
+	ssh "github.com/openshift/geard/pkg/ssh-public-key"
 	"github.com/openshift/geard/utils"
 	"log"
 	"os"

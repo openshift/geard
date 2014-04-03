@@ -6,11 +6,11 @@ import (
 
 	"bufio"
 	"bytes"
-	"code.google.com/p/go.crypto/ssh"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	ssh "github.com/openshift/geard/pkg/ssh-public-key"
 	"io/ioutil"
 	"log"
 	"net"

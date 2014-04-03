@@ -32,9 +32,6 @@ fi
 if [ ! -d $GOPATH/src/github.com/dotcloud/docker ]; then
   go get -t -d github.com/dotcloud/docker || true
 fi
-if [ ! -d $GOPATH/src/code.google.com/p/go.crypto ]; then
-  go get -t -d code.google.com/p/go.crypto || true
-fi
 
 ORIG_GOPATH=$GOPATH
 

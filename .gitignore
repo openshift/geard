@@ -10,4 +10,5 @@ gear-auth-keys-command
 gear.mac
 /bin
 /src
-/pkg
+/vendor/pkg
+/vendor/bin
