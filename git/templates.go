@@ -45,6 +45,7 @@ Description=Git host
 
 [Service]
 Type=oneshot
+RemainAfterExit=true
 Slice=githost.slice
 ExecStart={{.ExecutablePath}} init-repo "{{.GitRepo}}" "{{.GitURL}}"`))
 

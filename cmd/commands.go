@@ -4,9 +4,9 @@ import (
 	"os"
 	"os/user"
 
-	"github.com/spf13/cobra"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/git"
+	"github.com/spf13/cobra"
 )
 
 func ExecuteSshAuthKeysCmd(args ...string) {

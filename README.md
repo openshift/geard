@@ -75,7 +75,7 @@ Here are the initial set of supported container actions - these should map clean
 
         # create a mongo db replica set (some assembly required)
         $ gear deploy deployment/fixtures/mongo_deploy.json localhost
-        $ sudo switchns db-1 /bin/bash
+        $ sudo switchns --container=db-1 -- /bin/bash
         > mongo 192.168.1.1
         MongoDB shell version: 2.4.9
         > rs.initiate({_id: "replica0", version: 1, members:[{_id: 0, host:"192.168.1.1:27017"}]})

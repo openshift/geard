@@ -9,12 +9,12 @@ It allows two use-cases:
 Usage:
 
 Usage:
-	switchns <container name> [--env="key=value"]... [--] <command>...
+	switchns --container=<container name> [--env="key=value"]... [--] <command>...
 	
 Examples:
-	switchns gear-0001 /bin/echo 1
-	switchns gear-0001 -- /bin/bash -c "echo \$PATH"
-	switchns gear-0001 --env FOO=BAR --env BAZ=ZAB -- /bin/bash -c "echo \$FOO \$BAZ"
+	switchns --container=gear-0001 -- /bin/echo 1
+	switchns --container=gear-0001 -- /bin/bash -c "echo \$PATH"
+	switchns --container=gear-0001 --env="FOO=BAR" --env="BAZ=ZAB" -- /bin/bash -c "echo \$FOO \$BAZ"
         
 Allows a user with CAP_SYS_ADMIN capability to switch into a specified docker container and execute a command.
 Typical use for this would be to run admin commands within a container.
