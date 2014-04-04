@@ -48,7 +48,7 @@ func newIdler(d *docker.DockerClient, hostIp string, idleTimeout int) *Idler {
 	idler.hostIp = hostIp
 	idler.eventListener, err = containers.NewEventListener()
 	if err != nil {
-		fmt.Printf("Unable to create SystemD event listener: %v\n", err)
+		fmt.Printf("Unable to create Systemd event listener: %v\n", err)
 		return nil
 	}
 	for i := 0; i < config.NumQueues; i++ {
