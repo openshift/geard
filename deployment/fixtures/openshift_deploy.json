@@ -1,0 +1,23 @@
+{
+  "containers":[
+    {
+      "name":"origin-broker",
+      "count":1,
+      "image":"origin-server-docker",
+      "publicports":[
+        {"internal":443,"external":6060}
+      ],
+      "links":[
+        {"to":"origin-db"}
+      ]
+    },
+    {
+      "name":"origin-db",
+      "count":1,
+      "image":"mongdb",
+      "publicports":[
+        {"internal":27017}
+      ]
+    }
+  ]
+}
