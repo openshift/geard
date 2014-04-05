@@ -22,13 +22,13 @@ func InitializeData() error {
 }
 
 func initializeTargets() error {
-	return systemd.InitializeSystemdFile(systemd.TargetType, "githost", TargetGitTemplate, nil)
+	return systemd.InitializeSystemdFile(systemd.TargetType, "githost", TargetGitTemplate, nil, false)
 }
 
 func initializeSlices() error {
-	return systemd.InitializeSystemdFile(systemd.SliceType, "githost", SliceGitTemplate, nil)
+	return systemd.InitializeSystemdFile(systemd.SliceType, "githost", SliceGitTemplate, nil, false)
 }
 
 func initializeGitHost() error {
-	return systemd.InitializeSystemdFile(systemd.UnitType, "githost", UnitGitHostTemplate, nil)
+	return systemd.InitializeSystemdFile(systemd.UnitType, "githost", UnitGitHostTemplate, nil, true)
 }

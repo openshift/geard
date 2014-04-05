@@ -134,7 +134,10 @@ func (d *DockerClient) ChildProcessForContainer(container *docker.Container) (in
 			}
 		}
 	} else {
-		return container.State.Pid, nil
+		if container.State.Pid != 0 {
+			return container.State.Pid, nil
+		}
+		return 0, fmt.Errorf("Container not found")
 	}
 	return 0, errors.New(fmt.Sprintf("Unable to find child process for container", container.ID))
 }

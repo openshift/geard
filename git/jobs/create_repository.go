@@ -95,9 +95,11 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 	if err != nil {
 		log.Printf("job_create_repository: Could not start unit: %s", systemd.SprintSystemdError(err))
 		resp.Failure(ErrRepositoryCreateFailed)
+		return
 	} else if status != "done" {
 		log.Printf("job_create_repository: Unit did not return 'done'")
 		resp.Failure(ErrRepositoryCreateFailed)
+		return
 	}
 
 	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
@@ -180,5 +182,5 @@ func createUser(repositoryId git.RepoIdentifier) error {
 	}
 
 	sliceName := fmt.Sprintf("user-%v", u.Uid)
-	return systemd.InitializeSystemdFile(systemd.SliceType, sliceName, git.SliceGitRepoTemplate, git.GitUserUnit{ExecutablePath: "", GitRepo: repositoryId, GitURL: ""})
+	return systemd.InitializeSystemdFile(systemd.SliceType, sliceName, git.SliceGitRepoTemplate, git.GitUserUnit{ExecutablePath: "", GitRepo: repositoryId, GitURL: ""}, false)
 }

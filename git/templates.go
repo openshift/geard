@@ -25,12 +25,14 @@ WantedBy=user.service`))
 var UnitGitHostTemplate = template.Must(template.New("githost.service").Parse(`[Unit]
 Description=Git host
 
+[Install]
+WantedBy=githost.target
+
 [Service]
 Type=simple
 Slice=githost.slice
-ExecStart=/bin/sh -c '/usr/bin/docker inspect -format="Removing old geard-githost" "geard-githost" 2>/dev/null && \
-                      exec /usr/bin/docker rm "geard-githost" ; \
-                      exec /usr/bin/docker run -name "geard-githost" -v /var/lib/containers/git:/var/lib/containers/git:rw -v /etc:/host_etc:ro -a stdout -a stderr -rm "ccoleman/geard-githost"'
+ExecStartPre=- /bin/sh -c '/usr/bin/docker inspect -format="Removing old geard-githost" "geard-githost" 2>/dev/null && /usr/bin/docker rm "geard-githost"'
+ExecStart=/usr/bin/docker run --name "geard-githost" -v /var/lib/containers/git:/var/lib/containers/git:rw -v /etc:/host_etc:ro -a stdout -a stderr --rm "ccoleman/geard-githost"
 ExecStop=/usr/bin/docker stop "geard-githost"
 Restart=on-failure`))
 
