@@ -1,0 +1,23 @@
+{
+  "Containers":[
+    {
+      "Name":"webapp",
+      "Count":1,
+      "Image":"mrunalp/redis-todo",
+      "PublicPorts":[
+        {"Internal":3000,"External":50000}
+      ],
+      "Links":[
+        {"To":"db"}
+      ]
+    },
+    {
+      "Name":"db",
+      "Count":1,
+      "Image":"mrunalp/fedora-redis",
+      "PublicPorts":[
+        {"Internal":6379}
+      ]
+    }
+  ]
+}
