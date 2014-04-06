@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/utils"
 	"log"
@@ -27,11 +28,13 @@ import (
 //
 // * Is the container isolated from the rest of the system?
 //   Some use cases involve the container having access to the host disk or sockets
-//   to perform system roles.  Other use cases wish to make multi-tenancy safe.
+//   to perform system roles.  Otherwise, where possible containers should be
+//   fully isolated from the host via SELinux, user namespaces, and capability
+//   dropping.
 //
 // * Is the container hooked up to other containers?
 //   The defined unit should allow regular docker linking (name based pairing),
-//   the iptable based SDN implemented here, and the propagation to the container
+//   the iptable-based SDN implemented here, and the propagation to the container
 //   environment of that configuration (whether as ENV vars or a file).
 //
 // Isolated containers:
@@ -69,7 +72,7 @@ type InstallContainerRequest struct {
 	SocketActivation bool
 	SkipSocketProxy  bool
 
-	Ports        containers.PortPairs
+	Ports        port.PortPairs
 	Environment  *containers.EnvironmentDescription
 	NetworkLinks containers.NetworkLinks
 
@@ -101,12 +104,12 @@ func (req *InstallContainerRequest) Check() error {
 		}
 	}
 	if req.Ports == nil {
-		req.Ports = make([]containers.PortPair, 0)
+		req.Ports = make([]port.PortPair, 0)
 	}
 	return nil
 }
 
-func dockerPortSpec(p containers.PortPairs) string {
+func dockerPortSpec(p port.PortPairs) string {
 	var portSpec bytes.Buffer
 	for i := range p {
 		portSpec.WriteString(fmt.Sprintf("-p %d:%d ", p[i].External, p[i].Internal))
@@ -160,7 +163,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	defer unit.Close()
 
 	// if this is an existing container, read the currently reserved ports
-	existingPorts := containers.PortPairs{}
+	existingPorts := port.PortPairs{}
 	if exists {
 		existingPorts, err = containers.GetExistingPorts(id)
 		if err != nil {
@@ -173,7 +176,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	}
 
 	// allocate and reserve ports for this container
-	reserved, erra := containers.AtomicReserveExternalPorts(unitVersionPath, req.Ports, existingPorts)
+	reserved, erra := port.AtomicReserveExternalPorts(unitVersionPath, req.Ports, existingPorts)
 	if erra != nil {
 		log.Printf("install_container: Unable to reserve external ports: %+v", erra)
 		resp.Failure(ErrContainerCreateFailed)

@@ -1,16 +1,16 @@
 package main
 
 import (
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-
 	"bufio"
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
 	ssh "github.com/openshift/geard/pkg/ssh-public-key"
+	"github.com/openshift/geard/port"
 	"io/ioutil"
 	"log"
 	"net"
@@ -28,12 +28,12 @@ func GenerateId() string {
 }
 
 type PortPairs struct {
-	*containers.PortPairs
+	*port.PortPairs
 }
 
 func (p *PortPairs) Get() interface{} {
 	if p.PortPairs == nil {
-		return &containers.PortPairs{}
+		return &port.PortPairs{}
 	}
 	return p.PortPairs
 }
@@ -46,7 +46,7 @@ func (p *PortPairs) String() string {
 }
 
 func (p *PortPairs) Set(s string) error {
-	ports, err := containers.FromPortPairHeader(s)
+	ports, err := port.FromPortPairHeader(s)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return err

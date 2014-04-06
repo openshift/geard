@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 	"log"
 	"sort"
 )
@@ -18,7 +19,7 @@ type Link struct {
 	UsePrimary bool `json:"UsePrimary,omitempty"`
 	Combine    bool `json:"Combine,omitempty"`
 
-	Ports []containers.Port `json:"Ports,omitempty"`
+	Ports []port.Port `json:"Ports,omitempty"`
 
 	container *Container
 }
@@ -29,7 +30,7 @@ type InstanceLink struct {
 	containers.NetworkLink
 
 	from     string
-	fromPort containers.Port
+	fromPort port.Port
 	matched  bool
 }
 type InstanceLinks []InstanceLink
@@ -69,7 +70,7 @@ func (sources Containers) OrderLinks() (ordered containerLinks, err error) {
 			// by default, use all target ports if non-specified
 			linkedPorts := link.Ports
 			if len(linkedPorts) == 0 {
-				linkedPorts = make([]containers.Port, len(target.PublicPorts))
+				linkedPorts = make([]port.Port, len(target.PublicPorts))
 				for k := range target.PublicPorts {
 					linkedPorts[k] = target.PublicPorts[k].Internal
 				}
@@ -125,21 +126,21 @@ func (link containerLink) String() string {
 func (link containerLink) exposePorts() error {
 	instances := link.Target.Instances()
 	for i := range link.Ports {
-		port := link.Ports[i]
+		p := link.Ports[i]
 		for j := range instances {
 			target := instances[j]
 
-			_, found := target.Ports.Find(port)
+			_, found := target.Ports.Find(p)
 			if !found {
-				if _, has := link.Target.PublicPorts.Find(port); !has {
-					return errors.New(fmt.Sprintf("deployment: target port %d on %s is not found, cannot link from %s", port, link.Target.Name, link.Source.Name))
+				if _, has := link.Target.PublicPorts.Find(p); !has {
+					return errors.New(fmt.Sprintf("deployment: target port %d on %s is not found, cannot link from %s", p, link.Target.Name, link.Source.Name))
 				}
-				log.Printf("Exposing port %d from target %s so it can be linked", port, target.Id)
+				log.Printf("Exposing port %d from target %s so it can be linked", p, target.Id)
 				target.Ports = append(
 					target.Ports,
 					PortMapping{
-						containers.PortPair{port, containers.InvalidPort},
-						containers.HostPort{"", containers.InvalidPort},
+						port.PortPair{p, port.InvalidPort},
+						port.HostPort{"", port.InvalidPort},
 					},
 				)
 			}

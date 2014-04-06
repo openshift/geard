@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/port"
 	"io"
 	"net/http"
 	"net/url"
@@ -40,7 +40,7 @@ func (h *HttpInstallContainerRequest) UnmarshalHttpResponse(headers http.Header,
 	if r == nil {
 		pending := make(map[string]interface{})
 		if s := headers.Get("X-PortMapping"); s != "" {
-			ports, err := containers.FromPortPairHeader(s)
+			ports, err := port.FromPortPairHeader(s)
 			if err != nil {
 				return nil, err
 			}

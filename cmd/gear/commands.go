@@ -30,6 +30,7 @@ import (
 	idlercmd "github.com/openshift/geard/idler/cmd"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/pkg/go-sti"
+	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 	"github.com/spf13/cobra"
 )
@@ -325,7 +326,7 @@ func daemon(cmd *cobra.Command, args []string) {
 
 	systemd.Start()
 	containers.InitializeData()
-	containers.StartPortAllocator(4000, 60000)
+	port.StartPortAllocator(4000, 60000)
 	git.InitializeData()
 	conf.Dispatcher.Start()
 
@@ -414,7 +415,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		},
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
 			instance, _ := changes.Instances.Find(job.(*http.HttpInstallContainerRequest).InstallContainerRequest.Id)
-			if pairs, ok := r.Pending["Ports"].(containers.PortPairs); ok {
+			if pairs, ok := r.Pending["Ports"].(port.PortPairs); ok {
 				if !instance.Ports.Update(pairs) {
 					fmt.Fprintf(os.Stderr, "Not all ports listed %+v were returned by the server %+v", instance.Ports, pairs)
 				}
@@ -513,7 +514,7 @@ func installImage(cmd *cobra.Command, args []string) {
 					Isolate:          isolate,
 					SocketActivation: sockAct,
 
-					Ports:        *portPairs.Get().(*containers.PortPairs),
+					Ports:        *portPairs.Get().(*port.PortPairs),
 					Environment:  &environment.Description,
 					NetworkLinks: *networkLinks.NetworkLinks,
 				},

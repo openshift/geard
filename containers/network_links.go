@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/openshift/geard/port"
 	"log"
 	"os"
 	"strconv"
@@ -12,9 +13,9 @@ import (
 
 type NetworkLink struct {
 	FromHost string
-	FromPort Port
-	ToPort   Port   `json:"ToPort,omitempty"`
-	ToHost   string `json:"ToHost,omitempty"`
+	FromPort port.Port
+	ToPort   port.Port `json:"ToPort,omitempty"`
+	ToHost   string    `json:"ToHost,omitempty"`
 }
 
 type NetworkLinks []NetworkLink
@@ -122,7 +123,7 @@ func NewNetworkLinkFromString(s string) (*NetworkLink, error) {
 	if err != nil {
 		return nil, err
 	}
-	link.FromPort = Port(from_port)
+	link.FromPort = port.Port(from_port)
 	if err := link.FromPort.Check(); err != nil {
 		return nil, errors.New("From port value must be between 0 and 65535")
 	}
@@ -132,7 +133,7 @@ func NewNetworkLinkFromString(s string) (*NetworkLink, error) {
 		if err != nil {
 			return nil, err
 		}
-		link.ToPort = Port(to)
+		link.ToPort = port.Port(to)
 		if err := link.ToPort.Check(); err != nil {
 			return nil, errors.New("To port value must be between 0 and 65535")
 		}
