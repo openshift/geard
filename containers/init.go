@@ -166,7 +166,7 @@ func disableAllUnits() {
 }
 
 func checkBinaries() error {
-	expectedBinaries := []string{"/usr/bin/gear", "/usr/bin/switchns", "/usr/sbin/gear-auth-keys-command"}
+	expectedBinaries := []string{"/usr/bin/gear", "/usr/bin/switchns", "/usr/sbin/gear-auth-keys-command", "/usr/sbin/geard-container-init"}
 
 	for _, b := range expectedBinaries {
 		if _, err := os.Stat(b); err != nil {
