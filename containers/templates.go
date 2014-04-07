@@ -55,50 +55,46 @@ X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 {{end}}
 {{end}}
 
-{{/* A unit that uses Docker with the 'foreground' flag to run an image under the current context */}}
-{{define "FORK"}}
-{{template "COMMON_UNIT" .}}
-{{template "COMMON_SERVICE" .}}
-ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}" || exec docker run --name "{{.Id}}" --volumes-from "{{.Id}}" busybox'
-ExecStart=/usr/bin/docker run --foreground \
-          {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
-          {{.PortSpec}} {{.RunSpec}} \
-          --volumes-from "{{.Id}}" \
-          "{{.Image}}"
-ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
-{{template "COMMON_CONTAINER" .}}
-{{end}}
-
-{{/* A unit that isolates the container process to a user by chowning and runs as a user */}}
-{{define "ISOLATED"}}
-{{template "COMMON_UNIT" .}}
-{{template "COMMON_SERVICE" .}}
-ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"
-ExecStart=/usr/bin/docker run \
-            --name "{{.Id}}" --rm \
-            --volumes-from "{{.Id}}" \
-            {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
-            -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
-            -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro \
-            -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root \
-            "{{.Image}}" /.container.init
-ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
-{{template "COMMON_CONTAINER" .}}
-{{end}}
-
 {{/* A unit that lets docker own the container processes and only integrates via API */}}
 {{define "SIMPLE"}}
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
+# Create data container
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint true "{{.Image}}"'
+ExecStartPre=-/usr/bin/docker rm "{{.Id}}"
+{{ if .Isolate }}# Initialize user and volumes
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"{{ end }}
 ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" \
+          --volumes-from "{{.Id}}-data" \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
           -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
-          "{{.Image}}"
+          {{ if .Isolate }} -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
+          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
+# Set links (requires container have a name)
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 ExecReload=-/usr/bin/docker stop "{{.Id}}"
 ExecReload=-/usr/bin/docker rm "{{.Id}}"
 ExecStop=-/usr/bin/docker stop "{{.Id}}"
+{{template "COMMON_CONTAINER" .}}
+{{end}}
 
+{{/* A unit that uses Docker with the 'foreground' flag to run an image under the current context */}}
+{{define "FOREGROUND"}}
+{{template "COMMON_UNIT" .}}
+{{template "COMMON_SERVICE" .}}
+# Create data container
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint true "{{.Image}}"'
+ExecStartPre=-/usr/bin/docker rm "{{.Id}}"
+{{ if .Isolate }}# Initialize user and volumes
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"{{ end }}
+ExecStart=/usr/bin/docker run --rm --foreground \
+          {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
+          {{.PortSpec}} {{.RunSpec}} \
+          --name "{{.Id}}" --volumes-from "{{.Id}}-data" \
+          {{ if .Isolate }} -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
+          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
+# Set links (requires container have a name)
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{template "COMMON_CONTAINER" .}}
 {{end}}
 
@@ -121,13 +117,12 @@ ExecStart=/usr/bin/docker run \
             -u root -f --rm \
             "{{.Image}}" /.container.init
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
-
 {{template "COMMON_CONTAINER" .}}
 X-SocketActivated={{.SocketActivationType}}
 {{end}}
 
 {{/* Run DEFAULT */}}
-{{template "ISOLATED" .}}
+{{template "SIMPLE" .}}
 `))
 
 var ContainerSocketTemplate = template.Must(template.New("unit.socket").Parse(`

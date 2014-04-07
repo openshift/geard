@@ -14,6 +14,7 @@ type DockerConfiguration struct {
 
 type DockerFeatures struct {
 	EnvironmentFile bool
+	ForegroundRun   bool
 }
 
 var SystemDockerFeatures = DockerFeatures{}
