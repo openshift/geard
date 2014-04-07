@@ -53,7 +53,7 @@ type Systemd interface {
 	Reload() error
 }
 
-func InitializeSystemdFile(fType SystemdFileType, name string, template *template.Template, values interface{}) error {
+func InitializeSystemdFile(fType SystemdFileType, name string, template *template.Template, values interface{}, start bool) error {
 	var partPath string
 	var ext string
 
@@ -86,8 +86,11 @@ func InitializeSystemdFile(fType SystemdFileType, name string, template *templat
 		return nil
 	}
 
-	if _, _, errs := Connection().EnableUnitFiles([]string{path}, false, true); errs != nil {
-		log.Printf("gear: Cannot enable %s %s: %v", fType, name, errs)
+	if start {
+		_, err = StartAndEnableUnit(Connection(), name+ext, path, "fail")
+		return err
+	} else {
+		return EnableAndReloadUnit(Connection(), name+ext, path)
 	}
 
 	return nil

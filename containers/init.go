@@ -82,7 +82,7 @@ func initializeTargets() error {
 		{"container-active", "multi-user.target"},
 	} {
 		name, wants := target[0], target[1]
-		if err := systemd.InitializeSystemdFile(systemd.TargetType, name, TargetUnitTemplate, TargetUnit{name, wants}); err != nil {
+		if err := systemd.InitializeSystemdFile(systemd.TargetType, name, TargetUnitTemplate, TargetUnit{name, wants}, false); err != nil {
 			return err
 		}
 	}
@@ -99,7 +99,7 @@ func initializeSlices() error {
 			parent = ""
 		}
 
-		if err := systemd.InitializeSystemdFile(systemd.SliceType, name, SliceUnitTemplate, SliceUnit{name, parent}); err != nil {
+		if err := systemd.InitializeSystemdFile(systemd.SliceType, name, SliceUnitTemplate, SliceUnit{name, parent}, false); err != nil {
 			return err
 		}
 	}

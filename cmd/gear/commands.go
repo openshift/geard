@@ -299,8 +299,10 @@ func needsSystemd() error {
 
 func needsSystemdAndData() error {
 	systemd.Require()
-	git.InitializeData()
-	return containers.InitializeData()
+	if err := containers.InitializeData(); err != nil {
+		return err
+	}
+	return git.InitializeData()
 }
 
 func needsData() error {
