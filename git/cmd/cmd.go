@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	cmd "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/git"
 	"github.com/openshift/geard/git/http"
 	gearjobs "github.com/openshift/geard/jobs"
+	"github.com/spf13/cobra"
 
 	"os"
 )

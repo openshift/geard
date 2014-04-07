@@ -91,17 +91,17 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 	}
 	defer stdout.Close()
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
-	go io.Copy(w, stdout)
-
 	status, err = systemd.StartAndEnableUnit(conn, unitName, path, "fail")
 	if err != nil {
 		log.Printf("job_create_repository: Could not start unit: %s", systemd.SprintSystemdError(err))
-		fmt.Fprintf(w, "Repository created failed\n")
+		resp.Failure(ErrRepositoryCreateFailed)
 	} else if status != "done" {
 		log.Printf("job_create_repository: Unit did not return 'done'")
-		fmt.Fprintf(w, "Repository created failed\n")
+		resp.Failure(ErrRepositoryCreateFailed)
 	}
+
+	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+	go io.Copy(w, stdout)
 
 wait:
 	for {
@@ -115,7 +115,7 @@ wait:
 			}
 		case err := <-errch:
 			fmt.Fprintf(w, "Error %+v\n", err)
-		case <-time.After(25 * time.Second):
+		case <-time.After(10 * time.Second):
 			log.Print("job_create_repository:", "timeout")
 			break wait
 		}
@@ -153,7 +153,7 @@ func InitializeRepository(repositoryId git.RepoIdentifier, repositoryURL string)
 	}
 
 	switchns := filepath.Join(config.ContainerBasePath(), "bin", "switchns")
-	cmd := exec.Command(switchns, "geard-githost", "/git/init-repo", repositoryId.RepositoryPathFor(), u.Uid, u.Gid, repositoryURL)
+	cmd := exec.Command(switchns, "--container=geard-githost", "--", "/git/init-repo", repositoryId.RepositoryPathFor(), u.Uid, u.Gid, repositoryURL)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()

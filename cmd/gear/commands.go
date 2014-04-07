@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/spf13/cobra"
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
@@ -30,8 +29,9 @@ import (
 	"github.com/openshift/geard/http"
 	idlercmd "github.com/openshift/geard/idler/cmd"
 	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/pkg/go-sti"
+	"github.com/openshift/geard/systemd"
+	"github.com/spf13/cobra"
 )
 
 var (

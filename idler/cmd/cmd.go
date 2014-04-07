@@ -3,11 +3,11 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	cmd "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/idler"
 	"github.com/openshift/geard/systemd"
+	"github.com/spf13/cobra"
 )
 
 var (

@@ -7,74 +7,114 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docopt/docopt.go"
+	"github.com/spf13/cobra"
+
 	"github.com/openshift/geard/cmd/switchns/namespace"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/git"
 )
 
-const usage = `Switch into container namespace and execute a command.
+type Environment []string
 
-If run by root user, allows you to specify the container name to enter and command to run.
-If executed by a non-root user, enters the container matching the login name.
+func (e *Environment) Set(value string) error {
+	*e = append(*e, value)
+	return nil
+}
 
-If executed by a non-root user with --git or --git-ro option, enters the git container
-and runs the git command from the SSH_ORIGINAL_COMMAND environment variable
+func (e *Environment) String() string {
+	return fmt.Sprint([]string(*e))
+}
 
-Usage:
-    switchns [--git|--git-ro]
-    switchns <container name> [--env="key=value"]... [--] <command>...
-	
-Examples:
-    switchns ctr-0001 /bin/echo 1
-    switchns ctr-0001 -- /bin/bash -c "echo \$PATH"
-    switchns ctr-0001 --env FOO=BAR --env BAZ=ZAB -- /bin/bash -c "echo \$FOO \$BAZ"
-`
+var (
+	containerName string
+	git_rw        bool
+	git_ro        bool
+	envs          Environment
+	reaminingArgs []string
+)
 
 func main() {
-	var arguments map[string]interface{}
-	var err error
-	uid := os.Getuid()
-	if arguments, err = docopt.Parse(usage, nil, true, "switchns", false); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	switchnsCmd := &cobra.Command{
+		Use:   "switchns",
+		Short: "Run commands within containers or repositories",
+		Run:   switchns,
+	}
+	switchnsCmd.Flags().VarP(&(envs), "env", "", "Specify environment variable to set in KEY=VALUE format")
+	switchnsCmd.Flags().StringVarP(&(containerName), "container", "", "", "Container name or ID")
+	switchnsCmd.Flags().BoolVar(&(git_rw), "git", false, "Enter a git container in read-write mode")
+	switchnsCmd.Flags().BoolVar(&(git_ro), "git-ro", false, "Enter a git container in read-write mode")
+
+	args := []string{}
+	for idx, arg := range os.Args[1:] {
+		if arg != "--" {
+			args = append(args, arg)
+		} else {
+			reaminingArgs = os.Args[idx+2:]
+			break
+		}
 	}
 
-	if uid == 0 {
-		containerName := (arguments["<container name>"]).(string)
-		command := (arguments["<command>"]).([]string)
-		env := []string{}
-		if arguments["--env"] != nil {
-			env = (arguments["--env"]).([]string)
-		}
+	switchnsCmd.SetArgs(args)
+	if err := switchnsCmd.Execute(); err != nil {
+		fmt.Println(err)
+	}
+}
 
-		runCommand(containerName, command, env)
+func switchns(cmd *cobra.Command, args []string) {
+	if git_ro || git_rw {
+		switchnsGit(cmd, reaminingArgs)
+	} else {
+		switchnsExec(cmd, reaminingArgs)
+	}
+}
+
+func switchnsExec(cmd *cobra.Command, args []string) {
+	var err error
+
+	uid := os.Getuid()
+
+	if uid == 0 {
+		runCommand(containerName, args, envs)
 	} else {
 		var u *user.User
-		var repoId git.RepoIdentifier
 		var containerId containers.Identifier
-		originalCommand := os.Getenv("SSH_ORIGINAL_COMMAND")
 
 		if u, err = user.LookupId(strconv.Itoa(uid)); err != nil {
 			os.Exit(2)
 		}
 
-		if arguments["--git"].(bool) || arguments["--git-ro"].(bool) {
-			if !isValidGitCommand(originalCommand, arguments["--git-ro"].(bool)) {
-				os.Exit(2)
-			}
-			if repoId, err = git.NewIdentifierFromUser(u); err != nil {
-				os.Exit(2)
-			}
-			env := []string{fmt.Sprintf("HOME=%s", repoId.RepositoryPathFor())}
-			runCommand("geard-git-host", []string{"/usr/bin/git-shell", "-c", originalCommand}, env)
-		} else {
-			if containerId, err = containers.NewIdentifierFromUser(u); err != nil {
-				os.Exit(2)
-			}
-			runCommand(containerId.ContainerFor(), []string{"/bin/bash", "-l"}, []string{})
+		if containerId, err = containers.NewIdentifierFromUser(u); err != nil {
+			os.Exit(2)
 		}
+		runCommand(containerId.ContainerFor(), []string{"/bin/bash", "-l"}, []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"})
+	}
+}
+
+func switchnsGit(cmd *cobra.Command, args []string) {
+	var u *user.User
+	var err error
+	var repoId git.RepoIdentifier
+
+	uid := os.Getuid()
+	originalCommand := os.Getenv("SSH_ORIGINAL_COMMAND")
+
+	if u, err = user.LookupId(strconv.Itoa(uid)); err != nil {
+		os.Exit(2)
+	}
+
+	if uid != 0 {
+		if !isValidGitCommand(originalCommand, !git_rw) {
+			os.Exit(2)
+		}
+		if repoId, err = git.NewIdentifierFromUser(u); err != nil {
+			os.Exit(2)
+		}
+		env := []string{fmt.Sprintf("HOME=%s", repoId.RepositoryPathFor())}
+		runCommand("geard-githost", []string{"/usr/bin/git-shell", "-c", originalCommand}, env)
+	} else {
+		fmt.Println("Cannot switch into any git repo as root user")
+		os.Exit(2)
 	}
 }
 

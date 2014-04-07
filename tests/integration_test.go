@@ -501,7 +501,7 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 	s.assertContainerState(c, id, CONTAINER_STARTED)
 	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
 
-	cmd = exec.Command("/var/lib/containers/bin/switchns", id.ContainerFor(), "--", "/sbin/iptables", "-t", "nat", "-L")
+	cmd = exec.Command("/var/lib/containers/bin/switchns", "--container="+id.ContainerFor(), "--", "/sbin/iptables", "-t", "nat", "-L")
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "tcp dpt:tproxy to:74.125.239.114"), chk.Equals, true)
