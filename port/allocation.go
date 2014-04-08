@@ -6,10 +6,27 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"sync"
 )
 
 const portsPerBlock = Port(100) // changing this breaks disk structure... don't do it!
 const maxReadFailures = 3
+
+func StartPortAllocator(min, max Port) {
+	lock.Lock()
+	defer lock.Unlock()
+	if started {
+		return
+	}
+	started = true
+	internalPortAllocator.min = min
+	internalPortAllocator.max = max
+	internalPortAllocator.block = uint(min / portsPerBlock)
+	go func() {
+		internalPortAllocator.findPorts()
+		close(internalPortAllocator.ports)
+	}()
+}
 
 //
 // Returns 0 if no port can be allocated.  Consumers
@@ -18,19 +35,10 @@ const maxReadFailures = 3
 // come open now.
 //
 func allocatePort() Port {
+	StartPortAllocator(4000, 60000)
 	p := <-internalPortAllocator.ports
 	log.Printf("ports: Reserved port %d", p)
 	return p
-}
-
-func StartPortAllocator(min, max Port) {
-	internalPortAllocator.min = min
-	internalPortAllocator.max = max
-	internalPortAllocator.block = uint(min / portsPerBlock)
-	go func() {
-		internalPortAllocator.findPorts()
-		close(internalPortAllocator.ports)
-	}()
 }
 
 //
@@ -45,7 +53,11 @@ type portAllocator struct {
 	max      Port
 }
 
-var internalPortAllocator = portAllocator{make(chan Port), make(chan bool), 1, 0, 0, 0}
+var (
+	internalPortAllocator = portAllocator{make(chan Port), make(chan bool), 1, 0, 0, 0}
+	started               = false
+	lock                  = sync.Mutex{}
+)
 
 func (p *portAllocator) findPorts() {
 	for {

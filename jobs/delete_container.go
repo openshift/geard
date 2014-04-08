@@ -43,7 +43,7 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 		ports = port.PortPairs{}
 	}
 
-	if err := port.ReleaseExternalPorts(filepath.Dir(unitPath), ports); err != nil {
+	if err := port.ReleaseExternalPorts(ports); err != nil {
 		log.Printf("delete_container: Unable to release ports: %v", err)
 	}
 

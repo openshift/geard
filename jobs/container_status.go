@@ -21,6 +21,6 @@ func (j *ContainerStatusRequest) Execute(resp JobResponse) {
 	w := resp.SuccessWithWrite(JobResponseOk, true, false)
 	err := systemd.WriteStatusTo(w, j.Id.UnitNameFor())
 	if err != nil {
-		log.Printf("job_container_status: Unable to fetch container status logs: %s\n", err.Error())
+		log.Printf("container_status: Unable to fetch container status logs: %s\n", err.Error())
 	}
 }

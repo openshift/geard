@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 )
 
+var ErrContainerCreateFailedPortsReserved = SimpleJobError{JobResponseError, "Unable to create container: some ports could not be reserved."}
+
 // Installing a Container
 //
 // This job will install a given container definition as a systemd service unit,
@@ -50,7 +52,6 @@ import (
 // relative immaturity of that function in the kernel at the present time it is not
 // considered sufficiently secure for production use.
 //
-
 type InstallContainerRequest struct {
 	RequestIdentifier `json:"-"`
 
@@ -179,7 +180,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	reserved, erra := port.AtomicReserveExternalPorts(unitVersionPath, req.Ports, existingPorts)
 	if erra != nil {
 		log.Printf("install_container: Unable to reserve external ports: %+v", erra)
-		resp.Failure(ErrContainerCreateFailed)
+		resp.Failure(ErrContainerCreateFailedPortsReserved)
 		return
 	}
 	if len(reserved) > 0 {
