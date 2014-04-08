@@ -1,7 +1,8 @@
-package containers
+// TODO: Needs to be folded into an execution driver or a 'gear run'
+// command.
+package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	dc "github.com/fsouza/go-dockerclient"
@@ -12,27 +13,27 @@ import (
 	"os/exec"
 	"os/user"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/selinux"
+	"github.com/openshift/geard/ssh"
 	"github.com/openshift/geard/utils"
 )
 
 var resolver addressResolver = addressResolver{}
 
-func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
+func InitPreStart(dockerSocket string, id containers.Identifier, imageName string) error {
 	var (
 		err     error
 		imgInfo *dc.Image
 		d       *docker.DockerClient
 	)
 
-	_, socketActivationType, err := GetSocketActivation(id)
+	_, socketActivationType, err := containers.GetSocketActivation(id)
 	if err != nil {
 		fmt.Printf("init_pre_start: Error while parsing unit file: %v\n", err)
 		return err
@@ -70,13 +71,13 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 		user = "container"
 	}
 
-	ports, err := GetExistingPorts(id)
+	ports, err := containers.GetExistingPorts(id)
 	if err != nil {
 		fmt.Printf("container init pre-start: Unable to retrieve port mapping\n")
 		return err
 	}
 
-	containerData := ContainerInitScript{
+	containerData := containers.ContainerInitScript{
 		imgInfo.Config.User == "",
 		user,
 		u.Uid,
@@ -95,7 +96,7 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 	}
 	defer file.Close()
 
-	if erre := ContainerInitTemplate.Execute(file, containerData); erre != nil {
+	if erre := containers.ContainerInitTemplate.Execute(file, containerData); erre != nil {
 		fmt.Printf("container init pre-start: Unable to output template: ", erre)
 		return erre
 	}
@@ -110,7 +111,7 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 	}
 	defer file.Close()
 
-	if erre := ContainerCmdTemplate.Execute(file, containerData); erre != nil {
+	if erre := containers.ContainerCmdTemplate.Execute(file, containerData); erre != nil {
 		fmt.Printf("container init pre-start: Unable to output cmd template: ", erre)
 		return erre
 	}
@@ -121,7 +122,7 @@ func InitPreStart(dockerSocket string, id Identifier, imageName string) error {
 	return nil
 }
 
-func createUser(id Identifier) error {
+func createUser(id containers.Identifier) error {
 	cmd := exec.Command("/usr/sbin/useradd", id.LoginFor(), "-m", "-d", id.HomePath(), "-c", "Container user")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.Println(out)
@@ -131,7 +132,7 @@ func createUser(id Identifier) error {
 	return nil
 }
 
-func InitPostStart(dockerSocket string, id Identifier) error {
+func InitPostStart(dockerSocket string, id containers.Identifier) error {
 	var (
 		u         *user.User
 		container *dc.Container
@@ -140,7 +141,7 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 	)
 
 	if u, err = user.Lookup(id.LoginFor()); err == nil {
-		if err := GenerateAuthorizedKeys(id, u, true, false); err != nil {
+		if err := ssh.GenerateAuthorizedKeysFor(u, true, false); err != nil {
 			log.Print(err.Error())
 		}
 	} else {
@@ -184,103 +185,18 @@ func InitPostStart(dockerSocket string, id Identifier) error {
 	return nil
 }
 
-func GenerateAuthorizedKeys(id Identifier, u *user.User, forceCreate bool, printToStdOut bool) error {
-	var (
-		err      error
-		sshKeys  []string
-		destFile *os.File
-		srcFile  *os.File
-		w        *bufio.Writer
-	)
-
-	var authorizedKeysPortSpec string
-	ports, err := GetExistingPorts(id)
-	if err != nil {
-		fmt.Errorf("container init pre-start: Unable to retrieve port mapping")
-		return err
-	}
-
-	for _, port := range ports {
-		authorizedKeysPortSpec += fmt.Sprintf("permitopen=\"127.0.0.1:%v\",", port.External)
-	}
-
-	sshKeys, err = filepath.Glob(path.Join(id.SshAccessBasePath(), "*"))
-
-	if !printToStdOut {
-		os.MkdirAll(id.HomePath(), 0700)
-		os.Mkdir(path.Join(id.HomePath(), ".ssh"), 0700)
-		authKeysPath := id.AuthKeysPathFor()
-		if _, err = os.Stat(authKeysPath); err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
-		} else {
-			if forceCreate {
-				os.Remove(authKeysPath)
-			} else {
-				return nil
-			}
-		}
-
-		if destFile, err = os.Create(authKeysPath); err != nil {
-			return err
-		}
-		defer destFile.Close()
-		w = bufio.NewWriter(destFile)
-	} else {
-		w = bufio.NewWriter(os.Stdout)
-	}
-
-	for _, keyFile := range sshKeys {
-		s, err := os.Stat(keyFile)
-		if err != nil {
-			continue
-		}
-		if s.IsDir() {
-			continue
-		}
-
-		srcFile, err = os.Open(keyFile)
-		defer srcFile.Close()
-		w.WriteString(fmt.Sprintf("command=\"%v/bin/switchns\",%vno-agent-forwarding,no-X11-forwarding ", config.ContainerBasePath(), authorizedKeysPortSpec))
-		io.Copy(w, srcFile)
-		w.WriteString("\n")
-	}
-	w.Flush()
-
-	if !printToStdOut {
-		uid, _ := strconv.Atoi(u.Uid)
-		gid, _ := strconv.Atoi(u.Gid)
-
-		for _, path := range []string{
-			id.HomePath(),
-			filepath.Join(id.HomePath(), ".ssh"),
-			filepath.Join(id.HomePath(), ".ssh", "authorized_keys"),
-		} {
-			if err := os.Chown(path, uid, gid); err != nil {
-				return err
-			}
-		}
-
-		if err := selinux.RestoreCon(id.BaseHomePath(), true); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func getHostIPFromNamespace(name string) (*net.IPAddr, error) {
 	// Resolve the containers local IP
 	cmd := exec.Command("ip", "netns", "exec", name, "hostname", "-I")
 	cmd.Stderr = os.Stderr
 	source, erro := cmd.Output()
 	if erro != nil {
-		log.Printf("network_links: Could not read IP for container: %v", erro)
+		log.Printf("gear: Could not read IP for container: %v", erro)
 		return nil, erro
 	}
 	sourceAddr, errr := net.ResolveIPAddr("ip", strings.TrimSpace(string(source)))
 	if errr != nil {
-		log.Printf("network_links: Host source IP %s does not resolve %v", sourceAddr, errr)
+		log.Printf("gear: Host source IP %s does not resolve %v", sourceAddr, errr)
 		return nil, errr
 	}
 	return sourceAddr, nil
@@ -348,16 +264,16 @@ func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
 	// Enable routing in the namespace
 	output, err := exec.Command("ip", "netns", "exec", name, "sysctl", "-w", "net.ipv4.conf.all.route_localnet=1").Output()
 	if err != nil {
-		log.Printf("network_links: Failed to enable localnet routing: %v", err)
-		log.Printf("network_links: error output: %v", output)
+		log.Printf("gear: Failed to enable localnet routing: %v", err)
+		log.Printf("gear: error output: %v", output)
 		return err
 	}
 
 	// Enable ip forwarding
 	output, err = exec.Command("ip", "netns", "exec", name, "sysctl", "-w", "net.ipv4.ip_forward=1").Output()
 	if err != nil {
-		log.Printf("network_links: Failed to enable ipv4 forwarding: %v", err)
-		log.Printf("network_links: error output: %v", output)
+		log.Printf("gear: Failed to enable ipv4 forwarding: %v", err)
+		log.Printf("gear: error output: %v", output)
 		return err
 	}
 
@@ -365,47 +281,47 @@ func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
 	cmd := exec.Command("ip", "netns", "exec", name, "iptables-restore")
 	stdin, errp := cmd.StdinPipe()
 	if errp != nil {
-		log.Printf("network_links: Could not open pipe to iptables-restore: %v", errp)
+		log.Printf("gear: Could not open pipe to iptables-restore: %v", errp)
 		return errp
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	defer stdin.Close()
 	if err := cmd.Start(); err != nil {
-		log.Printf("network_links: Could not start iptables-restore: %v", errp)
+		log.Printf("gear: Could not start iptables-restore: %v", errp)
 		return err
 	}
 
 	fmt.Fprintf(stdin, "*nat\n")
 	for {
-		link := NetworkLink{}
+		link := containers.NetworkLink{}
 		if _, err := fmt.Fscanf(ports, "%s\t%v\t%v\t%s\n", &link.FromHost, &link.FromPort, &link.ToPort, &link.ToHost); err != nil {
 			if err == io.EOF {
 				break
 			}
-			log.Printf("network_links: Could not read from network links file: %v", err)
+			log.Printf("gear: Could not read from network links file: %v", err)
 			continue
 		}
 		if err := link.Check(); err != nil {
-			log.Printf("network_links: Link in file is not valid: %v", err)
+			log.Printf("gear: Link in file is not valid: %v", err)
 			continue
 		}
 		if link.Complete() {
 			srcIP, err := net.ResolveIPAddr("ip", link.FromHost)
 			if err != nil {
-				log.Printf("network_links: Link source host does not resolve %v", err)
+				log.Printf("gear: Link source host does not resolve %v", err)
 				continue
 			}
 
 			destIP, err := resolver.ResolveIP(link.ToHost)
 			if err != nil {
-				log.Printf("network_links: Link destination host does not resolve %v", err)
+				log.Printf("gear: Link destination host does not resolve %v", err)
 				continue
 			}
 
-			data := OutboundNetworkIptables{sourceAddr.String(), srcIP.IP.String(), link.FromPort, destIP.String(), link.ToPort}
-			if err := OutboundNetworkIptablesTemplate.Execute(stdin, &data); err != nil {
-				log.Printf("network_links: Unable to write network link rules: %v", err)
+			data := containers.OutboundNetworkIptables{sourceAddr.String(), srcIP.IP.String(), link.FromPort, destIP.String(), link.ToPort}
+			if err := containers.OutboundNetworkIptablesTemplate.Execute(stdin, &data); err != nil {
+				log.Printf("gear: Unable to write network link rules: %v", err)
 				return err
 			}
 		}
@@ -414,18 +330,8 @@ func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
 
 	stdin.Close()
 	if err := cmd.Wait(); err != nil {
-		log.Printf("network_links: iptables-restore did not successfully complete: %v", err)
+		log.Printf("gear: iptables-restore did not successfully complete: %v", err)
 		return err
 	}
 	return nil
-}
-
-func GetContainerIPs(d *docker.DockerClient, ids []Identifier) (map[string]Identifier, error) {
-	ips := make(map[string]Identifier)
-	for _, id := range ids {
-		if cInfo, err := d.GetContainer(id.ContainerFor(), false); err == nil {
-			ips[cInfo.NetworkSettings.IPAddress] = id
-		}
-	}
-	return ips, nil
 }

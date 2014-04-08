@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "$GOPATH" == "" ]; then
+	echo "Must set GOPATH"
+	exit 1
+fi
+
 ORIG_GOPATH=$GOPATH
 export GOPATH=$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
 
@@ -52,7 +57,7 @@ else
 	echo "Building.."
 	go install -tags "$tags" github.com/openshift/geard/cmd/gear
 	go install -tags "$tags" github.com/openshift/geard/cmd/switchns
-	go install -tags "$tags" github.com/openshift/geard/cmd/gear-auth-keys-command
+	go install -tags "$tags" github.com/openshift/geard/ssh/cmd/gear-auth-keys-command
 
 	/usr/bin/cp -f $ORIG_GOPATH/bin/gear-auth-keys-command .
 	/usr/bin/cp -f $ORIG_GOPATH/bin/switchns .

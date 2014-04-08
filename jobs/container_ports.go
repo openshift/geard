@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 	"log"
 )
 
@@ -10,7 +11,7 @@ type ContainerPortsRequest struct {
 }
 
 type containerPortsResponse struct {
-	Ports containers.PortPairs
+	Ports port.PortPairs
 }
 
 func (j *ContainerPortsRequest) Execute(resp JobResponse) {

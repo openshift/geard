@@ -1,3 +1,5 @@
+// Serve jobs over the http protocol, and provide a marshalling interface
+// for the default geard jobs.
 package http
 
 import (
@@ -22,7 +24,6 @@ var ErrHandledResponse = errors.New("Request handled")
 type HttpConfiguration struct {
 	Docker     config.DockerConfiguration
 	Dispatcher *dispatcher.Dispatcher
-	Extensions []HttpExtension
 }
 
 type JobHandler func(*jobs.JobContext, *rest.Request) (jobs.Job, error)
@@ -35,8 +36,6 @@ type HttpJobHandler interface {
 type HttpStreamable interface {
 	Streamable() bool
 }
-
-type HttpExtension func() []HttpJobHandler
 
 func (conf *HttpConfiguration) Handler() http.Handler {
 	handler := rest.ResourceHandler{
@@ -69,17 +68,13 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 		&HttpPatchEnvironmentRequest{},
 		&HttpPutEnvironmentRequest{},
 
-		&HttpCreateKeysRequest{},
-
 		&HttpContentRequest{},
 		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Subpath: "*"}},
 		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Type: jobs.ContentTypeEnvironment}},
-
-		//&HttpEncryptedRequest{},
 	}
 
-	for i := range conf.Extensions {
-		routes := conf.Extensions[i]()
+	for i := range extensions {
+		routes := extensions[i]()
 		for j := range routes {
 			handlers = append(handlers, routes[j])
 		}

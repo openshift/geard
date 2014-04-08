@@ -3,18 +3,18 @@ package deployment
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 	"net"
 )
 
 // A port on a container instance that is linked elsewhere
 type PortMapping struct {
-	containers.PortPair
-	Target containers.HostPort
+	port.PortPair
+	Target port.HostPort
 }
 type PortMappings []PortMapping
 
-func newPortMappings(ports containers.PortPairs) PortMappings {
+func newPortMappings(ports port.PortPairs) PortMappings {
 	assignments := make(PortMappings, len(ports))
 	for i := range ports {
 		assignments[i].PortPair = ports[i]
@@ -22,7 +22,7 @@ func newPortMappings(ports containers.PortPairs) PortMappings {
 	return assignments
 }
 
-func (p PortMappings) Find(port containers.Port) (*PortMapping, bool) {
+func (p PortMappings) Find(port port.Port) (*PortMapping, bool) {
 	for i := range p {
 		if p[i].Internal == port {
 			return &p[i], true
@@ -31,7 +31,7 @@ func (p PortMappings) Find(port containers.Port) (*PortMapping, bool) {
 	return nil, false
 }
 
-func (p PortMappings) FindTarget(target containers.HostPort) (*PortMapping, bool) {
+func (p PortMappings) FindTarget(target port.HostPort) (*PortMapping, bool) {
 	for i := range p {
 		if p[i].Target == target {
 			return &p[i], true
@@ -40,7 +40,7 @@ func (p PortMappings) FindTarget(target containers.HostPort) (*PortMapping, bool
 	return nil, false
 }
 
-func (ports PortMappings) Update(changed containers.PortPairs) bool {
+func (ports PortMappings) Update(changed port.PortPairs) bool {
 	matched := true
 	for i := range ports {
 		port := &ports[i]
@@ -56,8 +56,8 @@ func (ports PortMappings) Update(changed containers.PortPairs) bool {
 	return matched
 }
 
-func (ports PortMappings) PortPairs() (dup containers.PortPairs) {
-	dup = make(containers.PortPairs, len(ports))
+func (ports PortMappings) PortPairs() (dup port.PortPairs) {
+	dup = make(port.PortPairs, len(ports))
 	for i := range ports {
 		dup[i] = ports[i].PortPair
 	}
@@ -65,15 +65,15 @@ func (ports PortMappings) PortPairs() (dup containers.PortPairs) {
 }
 
 type PortAssignmentStrategy interface {
-	Reserve(loopback, same bool, from containers.Port) containers.HostPort
+	Reserve(loopback, same bool, from port.Port) port.HostPort
 }
 
 type InstancePortTable struct {
-	reserved map[containers.HostPort]bool
+	reserved map[port.HostPort]bool
 }
 
 func NewInstancePortTable(sources Containers) (*InstancePortTable, error) {
-	table := &InstancePortTable{make(map[containers.HostPort]bool)}
+	table := &InstancePortTable{make(map[port.HostPort]bool)}
 
 	// make existing reservations
 	for i := range sources {
@@ -96,7 +96,7 @@ func NewInstancePortTable(sources Containers) (*InstancePortTable, error) {
 	return table, nil
 }
 
-func (p *InstancePortTable) Reserve(loopback, same bool, from containers.Port) containers.HostPort {
+func (p *InstancePortTable) Reserve(loopback, same bool, from port.Port) port.HostPort {
 	switch {
 	case same && loopback:
 		return p.nextHost(net.IPv4(127, 0, 0, 1), from)
@@ -109,8 +109,8 @@ func (p *InstancePortTable) Reserve(loopback, same bool, from containers.Port) c
 	}
 }
 
-func (p *InstancePortTable) nextHost(host net.IP, port containers.Port) containers.HostPort {
-	key := containers.HostPort{host.String(), port}
+func (p *InstancePortTable) nextHost(host net.IP, from port.Port) port.HostPort {
+	key := port.HostPort{host.String(), from}
 	for {
 		if _, ok := p.reserved[key]; !ok {
 			p.reserved[key] = true
@@ -127,8 +127,8 @@ func (p *InstancePortTable) nextHost(host net.IP, port containers.Port) containe
 	panic("Unable to locate a valid host")
 }
 
-func (p *InstancePortTable) nextPort(host net.IP, from containers.Port) containers.HostPort {
-	key := containers.HostPort{host.String(), 0}
+func (p *InstancePortTable) nextPort(host net.IP, from port.Port) port.HostPort {
+	key := port.HostPort{host.String(), 0}
 	for port := from; ; port++ {
 		key.Port = port
 		if _, ok := p.reserved[key]; !ok {

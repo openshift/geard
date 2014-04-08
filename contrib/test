@@ -3,10 +3,24 @@
 ORIG_GOPATH=$GOPATH
 export GOPATH=$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
 
+test_integration=false
+
+while getopts "a" o; do
+  case "${o}" in
+    a) test_integration=true;;
+    *) usage;;
+  esac
+done
+
 echo "Downloading test dependencies"
 go get -d -t github.com/gorilla/context github.com/gorilla/mux launchpad.net/gocheck
 echo "..done"
 
 rm -f tests.test
-go test -tags integration -c github.com/openshift/geard/tests
-sudo ./tests.test -gocheck.v $@
+
+go test $(find . -name *_test.go -printf "%h\n" | grep -v /vendor/ | grep -v /tests | xargs echo)
+
+if $test_integration; then
+  go test -tags integration -c github.com/openshift/geard/tests
+  sudo ./tests.test -gocheck.v $@
+fi

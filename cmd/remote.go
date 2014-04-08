@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 	"log"
 	"net"
 	"net/url"
@@ -12,9 +13,8 @@ import (
 )
 
 const (
-	LocalHostName                       = "local"
-	ResourceTypeContainer  ResourceType = "ctr"
-	ResourceTypeRepository ResourceType = "repo"
+	LocalHostName                      = "local"
+	ResourceTypeContainer ResourceType = "ctr"
 )
 
 type ResourceType string
@@ -68,7 +68,7 @@ func (locators Locators) Group() (local Locators, remote []Locators) {
 
 type HostLocator struct {
 	Host string
-	Port containers.Port
+	Port port.Port
 }
 
 type ContainerLocator struct {
@@ -109,11 +109,11 @@ func NewHostLocator(value string) (*HostLocator, error) {
 			return nil, err
 		}
 		if portString != "" {
-			port, err := strconv.Atoi(portString)
+			p, err := strconv.Atoi(portString)
 			if err != nil {
 				return nil, err
 			}
-			id.Port = containers.Port(port)
+			id.Port = port.Port(p)
 			if err := id.Port.Check(); err != nil {
 				return nil, err
 			}
@@ -237,7 +237,7 @@ func (r *HostLocator) ResolvedHostname() string {
 }
 func (h *HostLocator) NewURI() (*url.URL, error) {
 	port := "43273"
-	if h.Port != containers.Port(0) {
+	if !h.Port.Default() {
 		port = strconv.Itoa(int(h.Port))
 	}
 	return &url.URL{

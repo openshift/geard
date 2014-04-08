@@ -109,6 +109,16 @@ func (d *DockerClient) GetImage(imageName string) (*docker.Image, error) {
 	}
 }
 
+func (d *DockerClient) GetContainerIPs(ids []string) (map[string]string, error) {
+	ips := make(map[string]string)
+	for _, id := range ids {
+		if cInfo, err := d.GetContainer(id, false); err == nil {
+			ips[cInfo.NetworkSettings.IPAddress] = id
+		}
+	}
+	return ips, nil
+}
+
 func (d *DockerClient) ChildProcessForContainer(container *docker.Container) (int, error) {
 	log.Printf("docker: execution driver %s", d.executionDriver)
 	if d.executionDriver == "" || strings.HasPrefix(d.executionDriver, "lxc") {

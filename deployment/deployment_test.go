@@ -3,7 +3,7 @@ package deployment
 import (
 	"encoding/json"
 	"github.com/openshift/geard/cmd"
-	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 	"io/ioutil"
 	"regexp"
 	"strings"
@@ -32,14 +32,14 @@ func createDeployment(body string) *Deployment {
 }
 
 func assignPorts(dep *Deployment) {
-	port := 10000
+	p := 10000
 	for i := range dep.Instances {
 		instance := &dep.Instances[i]
 		for j := range instance.Ports {
 			mapping := &instance.Ports[j]
 			if mapping.External.Default() {
-				mapping.External = containers.Port(port)
-				port++
+				mapping.External = port.Port(p)
+				p++
 			}
 		}
 	}
@@ -176,7 +176,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 		t.Fatal("Should not have received an error", err.Error())
 	}
 
-	dep.Containers[0].Links[0].Ports = []containers.Port{containers.Port(8081)}
+	dep.Containers[0].Links[0].Ports = []port.Port{port.Port(8081)}
 	if _, _, err := dep.Describe(oneHost); err == nil {
 		t.Fatal("Should have received an error")
 	} else {
@@ -186,7 +186,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 	}
 
 	link := &dep.Containers[0].Links[0]
-	link.Ports = []containers.Port{}
+	link.Ports = []port.Port{}
 	link.To = "db"
 	if _, _, err := dep.Describe(oneHost); err == nil {
 		t.Fatal("Should have received an error")
@@ -196,7 +196,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 		}
 	}
 
-	dep.Containers[1].PublicPorts = containers.PortPairs{containers.PortPair{containers.Port(27017), 0}}
+	dep.Containers[1].PublicPorts = port.PortPairs{port.PortPair{port.Port(27017), 0}}
 	next, removed, err := dep.Describe(oneHost)
 	if err != nil {
 		t.Fatal("Should not have received an error", err.Error())
@@ -212,7 +212,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 	}
 
 	dep.RandomizeIds = true
-	dep.Containers[1].PublicPorts = containers.PortPairs{containers.PortPair{containers.Port(27017), 0}}
+	dep.Containers[1].PublicPorts = port.PortPairs{port.PortPair{port.Port(27017), 0}}
 	dep.Containers[0].Links = append(dep.Containers[0].Links, Link{
 		To: "web",
 	})

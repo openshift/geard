@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 	"log"
 	"os"
@@ -39,10 +40,10 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 		if !os.IsNotExist(err) {
 			log.Printf("delete_container: Unable to read existing port definitions: %v", err)
 		}
-		ports = containers.PortPairs{}
+		ports = port.PortPairs{}
 	}
 
-	if err := containers.ReleaseExternalPorts(filepath.Dir(unitPath), ports); err != nil {
+	if err := port.ReleaseExternalPorts(filepath.Dir(unitPath), ports); err != nil {
 		log.Printf("delete_container: Unable to release ports: %v", err)
 	}
 

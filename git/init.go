@@ -6,10 +6,6 @@ import (
 )
 
 func InitializeData() error {
-	if err := initializeTargets(); err != nil {
-		log.Fatal(err)
-		return err
-	}
 	if err := initializeSlices(); err != nil {
 		log.Fatal(err)
 		return err
@@ -21,14 +17,10 @@ func InitializeData() error {
 	return nil
 }
 
-func initializeTargets() error {
-	return systemd.InitializeSystemdFile(systemd.TargetType, "githost", TargetGitTemplate, nil, false)
-}
-
 func initializeSlices() error {
-	return systemd.InitializeSystemdFile(systemd.SliceType, "githost", SliceGitTemplate, nil, false)
+	return systemd.InitializeSystemdFile(systemd.SliceType, "geard-githost", SliceGitTemplate, nil, false)
 }
 
 func initializeGitHost() error {
-	return systemd.InitializeSystemdFile(systemd.UnitType, "githost", UnitGitHostTemplate, nil, true)
+	return systemd.InitializeSystemdFile(systemd.UnitType, "geard-githost", UnitGitHostTemplate, nil, true)
 }

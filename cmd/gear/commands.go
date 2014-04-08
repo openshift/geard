@@ -4,16 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/cobra"
 	"io"
 	"io/ioutil"
 	"log"
-	nethttp "net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"strconv"
 	"time"
 
 	. "github.com/openshift/geard/cmd"
@@ -22,21 +20,14 @@ import (
 	"github.com/openshift/geard/deployment"
 	"github.com/openshift/geard/dispatcher"
 	"github.com/openshift/geard/encrypted"
-	"github.com/openshift/geard/git"
-	gitcmd "github.com/openshift/geard/git/cmd"
-	githttp "github.com/openshift/geard/git/http"
-	gitjobs "github.com/openshift/geard/git/jobs"
 	"github.com/openshift/geard/http"
-	idlercmd "github.com/openshift/geard/idler/cmd"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/pkg/go-sti"
+	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
-	"github.com/spf13/cobra"
 )
 
 var (
-	listenAddr string
-
 	pre    bool
 	post   bool
 	follow bool
@@ -64,6 +55,8 @@ var (
 	keyFile     string
 	writeAccess bool
 	hostIp      string
+
+	listenAddr string
 )
 
 var conf = http.HttpConfiguration{
@@ -73,10 +66,13 @@ var conf = http.HttpConfiguration{
 		Concurrent:        2,
 		TrackDuplicateIds: 1000,
 	},
-	Extensions: []http.HttpExtension{
-		githttp.Routes,
-	},
 }
+
+var (
+	needsSystemd        = LocalInitializers(systemd.Start)
+	needsSystemdAndData = LocalInitializers(systemd.Start, containers.InitializeData)
+	needsData           = LocalInitializers(containers.InitializeData)
+)
 
 // Parse the command line arguments and invoke one of the support subcommands.
 func Execute() {
@@ -90,7 +86,6 @@ func Execute() {
 	gearCmd.PersistentFlags().StringVarP(&(conf.Docker.Socket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
 	gearCmd.PersistentFlags().BoolVar(&(config.SystemDockerFeatures.EnvironmentFile), "has-env-file", false, "(experimental) Use --env-file with Docker, requires master from Apr 1st")
 	gearCmd.PersistentFlags().BoolVar(&(config.SystemDockerFeatures.ForegroundRun), "has-foreground", false, "(experimental) Use --foreground with Docker, requires alexlarsson/forking-run")
-	gearCmd.PersistentFlags().StringVarP(&hostIp, "host-ip", "H", GuessHostIp(), "IP address to listen for traffic")
 	gearCmd.PersistentFlags().StringVar(&deploymentPath, "with", "", "Provide a deployment descriptor to operate on")
 
 	deployCmd := &cobra.Command{
@@ -100,7 +95,7 @@ func Execute() {
 		Run:   deployContainers,
 	}
 	deployCmd.Flags().BoolVar(&isolate, "isolate", false, "Use an isolated container running as a user")
-	gearCmd.AddCommand(deployCmd)
+	AddCommand(gearCmd, deployCmd, false)
 
 	installImageCmd := &cobra.Command{
 		Use:   "install <image> <name>... [<env>]",
@@ -116,7 +111,7 @@ func Execute() {
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
-	gearCmd.AddCommand(installImageCmd)
+	AddCommand(gearCmd, installImageCmd, false)
 
 	deleteCmd := &cobra.Command{
 		Use:   "delete <name>...",
@@ -124,7 +119,7 @@ func Execute() {
 		Long:  "Deletes one or more installed containers from the system.  Will not clean up unused images.",
 		Run:   deleteContainer,
 	}
-	gearCmd.AddCommand(deleteCmd)
+	AddCommand(gearCmd, deleteCmd, false)
 
 	buildCmd := &cobra.Command{
 		Use:   "build <source> <image> <tag> [<env>]",
@@ -139,7 +134,7 @@ func Execute() {
 	buildCmd.Flags().BoolVar(&(buildReq.Debug), "debug", false, "Enable debugging output")
 	buildCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	buildCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
-	gearCmd.AddCommand(buildCmd)
+	AddCommand(gearCmd, buildCmd, false)
 
 	setEnvCmd := &cobra.Command{
 		Use:   "set-env <name>... [<env>]",
@@ -149,7 +144,7 @@ func Execute() {
 	}
 	setEnvCmd.Flags().BoolVar(&resetEnv, "reset", false, "Remove any existing values")
 	setEnvCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
-	gearCmd.AddCommand(setEnvCmd)
+	AddCommand(gearCmd, setEnvCmd, false)
 
 	envCmd := &cobra.Command{
 		Use:   "env <name>...",
@@ -157,7 +152,7 @@ func Execute() {
 		Long:  "Return the environment variables matching the provided ids",
 		Run:   showEnvironment,
 	}
-	gearCmd.AddCommand(envCmd)
+	AddCommand(gearCmd, envCmd, false)
 
 	linkCmd := &cobra.Command{
 		Use:   "link <name>...",
@@ -175,7 +170,7 @@ func Execute() {
 		Run:   startContainer,
 	}
 	//startCmd.Flags().BoolVarP(&follow, "follow", "f", false, "Attach to the logs after startup")
-	gearCmd.AddCommand(startCmd)
+	AddCommand(gearCmd, startCmd, false)
 
 	stopCmd := &cobra.Command{
 		Use:   "stop <name>...",
@@ -183,7 +178,7 @@ func Execute() {
 		Long:  ``,
 		Run:   stopContainer,
 	}
-	gearCmd.AddCommand(stopCmd)
+	AddCommand(gearCmd, stopCmd, false)
 
 	restartCmd := &cobra.Command{
 		Use:   "restart <name>...",
@@ -192,7 +187,7 @@ func Execute() {
 		Run:   restartContainer,
 	}
 	//startCmd.Flags().BoolVarP(&follow, "follow", "f", false, "Attach to the logs after startup")
-	gearCmd.AddCommand(restartCmd)
+	AddCommand(gearCmd, restartCmd, false)
 
 	statusCmd := &cobra.Command{
 		Use:   "status <name>...",
@@ -200,7 +195,7 @@ func Execute() {
 		Long:  "Shows the equivalent of 'systemctl status ctr-<name>' for each listed unit",
 		Run:   containerStatus,
 	}
-	gearCmd.AddCommand(statusCmd)
+	AddCommand(gearCmd, statusCmd, false)
 
 	listUnitsCmd := &cobra.Command{
 		Use:   "list-units <host>...",
@@ -208,34 +203,26 @@ func Execute() {
 		Long:  "Shows the equivalent of 'systemctl list-units ctr-<name>' for each installed container",
 		Run:   listUnits,
 	}
-	gearCmd.AddCommand(listUnitsCmd)
+	AddCommand(gearCmd, listUnitsCmd, false)
 
-	sshKeysCmd := &cobra.Command{
-		Use:   "add-keys <name_or_repo>...",
-		Short: "Set public keys for SSH access to a container",
-		Long:  "Upload the provided public keys and enable SSH access to the specified repositories and/or containers.",
-		Run:   sshKeysAdd,
-	}
-	sshKeysCmd.Flags().BoolVar(&writeAccess, "write", false, "Enable write access for the selected keys and repositories")
-	sshKeysCmd.Flags().StringVar(&keyFile, "key-file", "", "read input from file specified matching sshd AuthorizedKeysFile format")
-	gearCmd.AddCommand(sshKeysCmd)
+	ExtendCommands(gearCmd, false)
 
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
-		Short: "(Local) Start the gear server",
-		Long:  "Launch the gear HTTP API server as a daemon. Will not send itself to the background.",
+		Short: "(Local) Start the gear agent",
+		Long:  "Launch the gear agent. Will not send itself to the background.",
 		Run:   daemon,
 	}
 	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":43273", "Set the address for the http endpoint to listen on")
-	gearCmd.AddCommand(daemonCmd)
+	AddCommand(gearCmd, daemonCmd, true)
 
 	cleanCmd := &cobra.Command{
 		Use:   "clean",
-		Short: "(Local) Disable all containers, slices, and targets in systemd",
+		Short: "(Local) Stop and disable systemd gear units",
 		Long:  "Disable all registered resources from systemd to allow them to be removed from the system.  Will reload the systemd daemon config.",
 		Run:   clean,
 	}
-	gearCmd.AddCommand(cleanCmd)
+	AddCommand(gearCmd, cleanCmd, true)
 
 	initGearCmd := &cobra.Command{
 		Use:   "init <name> <image>",
@@ -245,32 +232,7 @@ func Execute() {
 	}
 	initGearCmd.Flags().BoolVarP(&pre, "pre", "", false, "Perform pre-start initialization")
 	initGearCmd.Flags().BoolVarP(&post, "post", "", false, "Perform post-start initialization")
-	gearCmd.AddCommand(initGearCmd)
-
-	initRepoCmd := &cobra.Command{
-		Use:   "init-repo",
-		Short: `(Local) Setup the environment for a git repository`,
-		Long:  ``,
-		Run:   initRepository,
-	}
-	gearCmd.AddCommand(initRepoCmd)
-
-	genAuthKeysCmd := &cobra.Command{
-		Use:   "gen-auth-keys [<name>]",
-		Short: "(Local) Create the authorized_keys file for a container or repository",
-		Long:  "Generate .ssh/authorized_keys file for the specified container id or (if container id is ommitted) for the current user",
-		Run:   genAuthKeys,
-	}
-	genAuthKeysCmd.Flags().BoolVar(&gitKeys, "git", false, "Create keys for a git repository")
-	gearCmd.AddCommand(genAuthKeysCmd)
-
-	sshAuthKeysCmd := &cobra.Command{
-		Use:   "auth-keys-command <user name>",
-		Short: "(Local) Generate authorized_keys output for sshd.",
-		Long:  "Generate authorized keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
-		Run:   SshAuthKeysCommand,
-	}
-	gearCmd.AddCommand(sshAuthKeysCmd)
+	AddCommand(gearCmd, initGearCmd, true)
 
 	createTokenCmd := &cobra.Command{
 		Use:   "create-token <type> <content_id>",
@@ -281,56 +243,15 @@ func Execute() {
 	createTokenCmd.Flags().Int64Var(&expiresAt, "expires-at", time.Now().Unix()+3600, "Specify the content request token expiration time in seconds after the Unix epoch")
 	gearCmd.AddCommand(createTokenCmd)
 
-	idlercmd.LoadCommand(gearCmd, &conf.Docker.Socket, &hostIp)
-	gitcmd.LoadCommand(gearCmd)
+	ExtendCommands(gearCmd, true)
 
 	if err := gearCmd.Execute(); err != nil {
 		Fail(1, err.Error())
 	}
 }
 
-// Initializers for local command execution.
-func needsSystemd() error {
-	systemd.Require()
-	return nil
-}
-
-func needsSystemdAndData() error {
-	systemd.Require()
-	if err := containers.InitializeData(); err != nil {
-		return err
-	}
-	return git.InitializeData()
-}
-
-func needsData() error {
-	return containers.InitializeData()
-}
-
 func gear(cmd *cobra.Command, args []string) {
 	cmd.Help()
-}
-
-func daemon(cmd *cobra.Command, args []string) {
-	api := conf.Handler()
-	nethttp.Handle("/", api)
-
-	if keyPath != "" {
-		config, err := encrypted.NewTokenConfiguration(filepath.Join(keyPath, "server"), filepath.Join(keyPath, "client.pub"))
-		if err != nil {
-			Fail(1, "Unable to load token configuration: %s", err.Error())
-		}
-		nethttp.Handle("/token/", nethttp.StripPrefix("/token", config.Handler(api)))
-	}
-
-	systemd.Start()
-	containers.InitializeData()
-	containers.StartPortAllocator(4000, 60000)
-	git.InitializeData()
-	conf.Dispatcher.Start()
-
-	log.Printf("Listening for HTTP on %s ...", listenAddr)
-	log.Fatal(nethttp.ListenAndServe(listenAddr, nil))
 }
 
 func clean(cmd *cobra.Command, args []string) {
@@ -414,7 +335,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		},
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
 			instance, _ := changes.Instances.Find(job.(*http.HttpInstallContainerRequest).InstallContainerRequest.Id)
-			if pairs, ok := r.Pending["Ports"].(containers.PortPairs); ok {
+			if pairs, ok := r.Pending["Ports"].(port.PortPairs); ok {
 				if !instance.Ports.Update(pairs) {
 					fmt.Fprintf(os.Stderr, "Not all ports listed %+v were returned by the server %+v", instance.Ports, pairs)
 				}
@@ -513,7 +434,7 @@ func installImage(cmd *cobra.Command, args []string) {
 					Isolate:          isolate,
 					SocketActivation: sockAct,
 
-					Ports:        *portPairs.Get().(*containers.PortPairs),
+					Ports:        *portPairs.Get().(*port.PortPairs),
 					Environment:  &environment.Description,
 					NetworkLinks: *networkLinks.NetworkLinks,
 				},
@@ -873,61 +794,6 @@ func listUnits(cmd *cobra.Command, args []string) {
 	os.Exit(0)
 }
 
-func sshKeysAdd(cmd *cobra.Command, args []string) {
-	// validate that arguments for locators are passsed
-	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...")
-	}
-	// args... are locators for repositories or containers
-	ids, err := NewGenericLocators(ResourceTypeContainer, args...)
-	if err != nil {
-		Fail(1, "You must pass 1 or more valid names: %s", err.Error())
-	}
-	for i := range ids {
-		switch ids[i].ResourceType() {
-		case ResourceTypeContainer, ResourceTypeRepository:
-		default:
-			Fail(1, "Only repositories or containers may be specified")
-		}
-	}
-
-	keys, err := ReadAuthorizedKeysFile(keyFile)
-	if err != nil {
-		Fail(1, "Unable to read authorized keys file: %s", err.Error())
-	}
-
-	Executor{
-		On: ids,
-		Group: func(on ...Locator) jobs.Job {
-			var (
-				r []jobs.RepositoryPermission
-				c []jobs.ContainerPermission
-			)
-			for i := range on {
-				id := on[i].(ResourceLocator).Identifier()
-				switch on[i].ResourceType() {
-				case ResourceTypeContainer:
-					c = append(c, jobs.ContainerPermission{id})
-				case ResourceTypeRepository:
-					r = append(r, jobs.RepositoryPermission{id, writeAccess})
-				}
-			}
-
-			return &http.HttpCreateKeysRequest{
-				CreateKeysRequest: jobs.CreateKeysRequest{
-					&jobs.ExtendedCreateKeysData{
-						Keys:         keys,
-						Repositories: r,
-						Containers:   c,
-					},
-				},
-			}
-		},
-		Output:    os.Stdout,
-		LocalInit: needsData,
-	}.StreamAndExit()
-}
-
 func createToken(cmd *cobra.Command, args []string) {
 	if len(args) != 2 {
 		Fail(1, "Valid arguments: <type> <content_id>")
@@ -961,91 +827,12 @@ func initGear(cmd *cobra.Command, args []string) {
 
 	switch {
 	case pre:
-		if err := containers.InitPreStart(conf.Docker.Socket, containerId, args[1]); err != nil {
+		if err := InitPreStart(conf.Docker.Socket, containerId, args[1]); err != nil {
 			Fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	case post:
-		if err := containers.InitPostStart(conf.Docker.Socket, containerId); err != nil {
+		if err := InitPostStart(conf.Docker.Socket, containerId); err != nil {
 			Fail(2, "Unable to initialize container %s\n", err.Error())
-		}
-	}
-}
-
-func initRepository(cmd *cobra.Command, args []string) {
-	if len(args) < 1 || len(args) > 2 {
-		Fail(1, "Valid arguments: <repo_id> [<repo_url>]\n")
-	}
-
-	repoId, err := containers.NewIdentifier(args[0])
-	if err != nil {
-		Fail(1, "Argument 1 must be a valid repository identifier: %s\n", err.Error())
-	}
-
-	repoUrl := ""
-	if len(args) == 2 {
-		repoUrl = args[1]
-	}
-
-	needsSystemd()
-	if err := gitjobs.InitializeRepository(git.RepoIdentifier(repoId), repoUrl); err != nil {
-		Fail(2, "Unable to initialize repository %s\n", err.Error())
-	}
-}
-
-func genAuthKeys(cmd *cobra.Command, args []string) {
-	if len(args) > 1 {
-		Fail(1, "Valid arguments: [<id>]\n")
-	}
-
-	var (
-		u           *user.User
-		err         error
-		containerId containers.Identifier
-		repoId      git.RepoIdentifier
-		isRepo      bool
-	)
-
-	if len(args) == 1 {
-		containerId, err = containers.NewIdentifier(args[0])
-		if err != nil {
-			Fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
-		}
-		if gitKeys {
-			repoId = git.RepoIdentifier(containerId)
-			u, err = user.Lookup(repoId.LoginFor())
-		} else {
-			u, err = user.Lookup(containerId.LoginFor())
-		}
-
-		if err != nil {
-			Fail(2, "Unable to lookup user: %s", err.Error())
-		}
-		isRepo = gitKeys
-	} else {
-		if u, err = user.LookupId(strconv.Itoa(os.Getuid())); err != nil {
-			Fail(2, "Unable to lookup user")
-		}
-		isRepo = u.Name == "Repository user"
-		if isRepo {
-			repoId, err = git.NewIdentifierFromUser(u)
-			if err != nil {
-				Fail(1, "Not a repo user: %s\n", err.Error())
-			}
-		} else {
-			containerId, err = containers.NewIdentifierFromUser(u)
-			if err != nil {
-				Fail(1, "Not a gear user: %s\n", err.Error())
-			}
-		}
-	}
-
-	if isRepo {
-		if err := git.GenerateAuthorizedKeys(repoId, u, false, false); err != nil {
-			Fail(2, "Unable to generate authorized_keys file: %s\n", err.Error())
-		}
-	} else {
-		if err := containers.GenerateAuthorizedKeys(containerId, u, false, false); err != nil {
-			Fail(2, "Unable to generate authorized_keys file: %s", err.Error())
 		}
 	}
 }

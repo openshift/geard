@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/selinux"
+	"github.com/openshift/geard/ssh"
 	"io"
 	"os"
 	"os/user"
@@ -14,7 +15,26 @@ import (
 	"strings"
 )
 
-func GenerateAuthorizedKeys(repoId RepoIdentifier, u *user.User, forceCreate bool, printToStdOut bool) error {
+func init() {
+	ssh.AddAuthorizedKeyGenerationType(&repositoryAuthorizedKeys{})
+}
+
+type repositoryAuthorizedKeys struct{}
+
+func (c *repositoryAuthorizedKeys) MatchesUser(user *user.User) bool {
+	return user.Name == "Repository user"
+}
+
+func (c *repositoryAuthorizedKeys) GenerateAuthorizedKeysFile(user *user.User, forceCreate, printToStdOut bool) error {
+	id, err := NewIdentifierFromUser(user)
+	if err != nil {
+		return err
+	}
+	return generateAuthorizedKeys(id, user, false, false)
+}
+
+// FIXME: I do 99% of the same thing as ssh/generate_authorized_keys
+func generateAuthorizedKeys(repoId RepoIdentifier, u *user.User, forceCreate, printToStdOut bool) error {
 	var err error
 	var sshKeys []string
 	var destFile *os.File

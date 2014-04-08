@@ -2,6 +2,7 @@ package containers
 
 import (
 	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/port"
 	"text/template"
 )
 
@@ -20,7 +21,7 @@ type ContainerUnit struct {
 	ExecutablePath  string
 	IncludePath     string
 
-	PortPairs            PortPairs
+	PortPairs            port.PortPairs
 	SocketUnitName       string
 	SocketActivationType string
 
@@ -145,7 +146,7 @@ type ContainerInitScript struct {
 	Command        string
 	HasVolumes     bool
 	Volumes        string
-	PortPairs      PortPairs
+	PortPairs      port.PortPairs
 	UseSocketProxy bool
 }
 
@@ -179,10 +180,10 @@ type OutboundNetworkIptables struct {
 	SourceAddr string
 	// The local IP and port to connect to
 	LocalAddr string
-	LocalPort Port
+	LocalPort port.Port
 	// The remote IP and port to connect to
 	DestAddr string
-	DestPort Port
+	DestPort port.Port
 }
 
 var OutboundNetworkIptablesTemplate = template.Must(template.New("outbound_network.iptables").Parse(`

@@ -4,7 +4,7 @@ go:
  - release
 
 install:
- - go get -t ./...
+ - contrib/build
 
 script:
- - go test -v ./...
+ - contrib/test

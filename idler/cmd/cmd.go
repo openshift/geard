@@ -11,33 +11,62 @@ import (
 )
 
 var (
-	hostIp       string
-	idleTimeout  int
-	dockerSocket string
+	hostIp      string
+	idleTimeout int
 )
 
-func LoadCommand(gearCmd *cobra.Command, pDockerSocket *string, pHostIp *string) {
+func registerLocal(parent *cobra.Command) {
 	idlerCmd := &cobra.Command{
 		Use:   "idler-daemon",
-		Short: "Idler is a daemon process for monitoring container traffic and idling/un-idling them",
-		Run:   geardIdler,
+		Short: "(local) A daemon that monitors container traffic and makes idle/unidle decisions",
+		Run:   startIdler,
 	}
+	idlerCmd.PersistentFlags().StringVarP(&hostIp, "host-ip", "H", guessHostIp(), "IP address to listen for traffic on")
 	idlerCmd.PersistentFlags().IntVarP(&idleTimeout, "idle-timeout", "T", 60, "Set the number of minutes of inactivity before an application is idled")
-	dockerSocket = *pDockerSocket
-	hostIp = *pHostIp
-
-	gearCmd.AddCommand(idlerCmd)
+	if parent.Flags().Lookup("docker-socket") == nil {
+		panic("Flag docker-socket is not defined")
+	}
+	parent.AddCommand(idlerCmd)
 }
 
-func geardIdler(c *cobra.Command, args []string) {
+func startIdler(c *cobra.Command, args []string) {
 	systemd.Require()
+	dockerSocket := c.Flags().Lookup("docker-socket").Value.String()
 
 	dockerClient, err := docker.GetConnection(dockerSocket)
 	if err != nil {
-		cmd.Fail(1, "Unable to connect to docker on URI %v", dockerSocket)
+		cmd.Fail(1, "Unable to connect to docker on URI %s", dockerSocket)
 	}
 
 	if err := idler.StartIdler(dockerClient, hostIp, idleTimeout); err != nil {
 		cmd.Fail(2, err.Error())
 	}
+}
+
+func guessHostIp() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+
+	for _, iface := range ifaces {
+		if strings.HasPrefix(iface.Name, "veth") || strings.HasPrefix(iface.Name, "lo") ||
+			strings.HasPrefix(iface.Name, "docker") {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return ""
+		}
+
+		if len(addrs) == 0 {
+			continue
+		}
+
+		ip, _, _ := net.ParseCIDR(addrs[0].String())
+		return ip.String()
+	}
+
+	return ""
 }

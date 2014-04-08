@@ -7,6 +7,7 @@ import (
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/idler/config"
+	"github.com/openshift/geard/port"
 
 	"bufio"
 	"bytes"
@@ -241,7 +242,7 @@ func ResetPacketCount() error {
 	return exec.Command("/sbin/iptables", "-t", "raw", "-Z").Run()
 }
 
-func CleanupRulesForPort(p containers.Port) {
+func CleanupRulesForPort(p port.Port) {
 	fmt.Printf("Cleaning stale rules for port %v\n", p)
 	port := p.String()
 	cmd := exec.Command("/sbin/iptables-save", "-c")

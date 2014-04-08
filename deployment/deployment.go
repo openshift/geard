@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 	"os"
 	"strconv"
 )
@@ -178,7 +179,7 @@ func (d *Deployment) UpdateLinks() {
 			for k := range d.Instances {
 				ref := &d.Instances[k]
 				if ref.From == link.from {
-					if assignment, ok := ref.Ports.FindTarget(containers.HostPort{link.FromHost, link.FromPort}); ok {
+					if assignment, ok := ref.Ports.FindTarget(port.HostPort{link.FromHost, link.FromPort}); ok {
 						if assignment.External != 0 {
 							link.ToPort = assignment.External
 							break Found
@@ -211,8 +212,8 @@ func ExtractContainerLocatorsFromDeployment(path string, args *[]string) error {
 type Container struct {
 	Name        string
 	Image       string
-	PublicPorts containers.PortPairs `json:"PublicPorts,omitempty"`
-	Links       Links                `json:"Links,omitempty"`
+	PublicPorts port.PortPairs `json:"PublicPorts,omitempty"`
+	Links       Links          `json:"Links,omitempty"`
 
 	Count    int
 	Affinity string `json:"Affinity,omitempty"`
