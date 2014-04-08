@@ -1,8 +1,27 @@
-#!/bin/bash -x
+#!/bin/bash
 
 ORIG_GOPATH=$GOPATH
 export GOPATH=$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
 
+test_integration=false
+test_opts=""
+
+usage() {
+	echo "Usage: "
+	echo "    $0 -a -o <test options>"
+	echo " "
+	echo "-a                Run integration tests"
+	echo "-o <options>      Pass additional flags to integration tests"
+	exit
+}
+
+while getopts "ao:" o; do
+  case "${o}" in
+    (a) test_integration=true;;
+    (o) test_opts=$OPTARG;;
+    (?) usage; break;;
+  esac
+done
 
 echo "Downloading test dependencies"
 go get -d -t github.com/gorilla/context github.com/gorilla/mux launchpad.net/gocheck
@@ -12,7 +31,8 @@ rm -f tests.test
 
 go test $(find . -name *_test.go -printf "%h\n" | grep -v /vendor/ | grep -v /tests | xargs echo)
 
-if [ -n "$TEST_INTEGRATION" ]; then
+if $test_integration; then
+  echo -e "\nRunning integration tests\n"
   go test -tags integration -c github.com/openshift/geard/tests
-  sudo ./tests.test -gocheck.v $@
+  sudo ./tests.test -gocheck.v $test_opts
 fi

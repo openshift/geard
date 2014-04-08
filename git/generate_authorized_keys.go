@@ -30,7 +30,7 @@ func (c *repositoryAuthorizedKeys) GenerateAuthorizedKeysFile(user *user.User, f
 	if err != nil {
 		return err
 	}
-	return generateAuthorizedKeys(id, user, false, false)
+	return generateAuthorizedKeys(id, user, false, printToStdOut)
 }
 
 // FIXME: I do 99% of the same thing as ssh/generate_authorized_keys

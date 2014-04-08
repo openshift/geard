@@ -7,6 +7,9 @@ import (
 
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/ssh"
+
+	//Extentions
+	_ "github.com/openshift/geard/git/cmd"
 )
 
 func main() {

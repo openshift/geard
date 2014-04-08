@@ -143,6 +143,11 @@ func InitializeRepository(repositoryId git.RepoIdentifier, repositoryURL string)
 
 	uid, _ := strconv.Atoi(u.Uid)
 	gid, _ := strconv.Atoi(u.Gid)
+	
+	if err = os.Chown(repositoryId.HomePath(), uid, gid); err != nil {
+		return err
+	}
+
 	if err = os.Chown(repositoryId.RepositoryPathFor(), uid, gid); err != nil {
 		return err
 	}
