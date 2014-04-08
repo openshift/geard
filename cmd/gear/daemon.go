@@ -4,7 +4,6 @@ import (
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/encrypted"
-	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 
 	"github.com/spf13/cobra"
@@ -35,7 +34,6 @@ func daemon(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	port.StartPortAllocator(4000, 60000)
 	conf.Dispatcher.Start()
 
 	log.Printf("Listening for HTTP on %s ...", listenAddr)

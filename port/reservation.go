@@ -41,12 +41,12 @@ func AtomicReserveExternalPorts(path string, ports, existing PortPairs) (PortPai
 	if len(unreserve) > 0 {
 		log.Printf("ports: Releasing %v", unreserve)
 	}
-	ReleaseExternalPorts(filepath.Dir(path), unreserve) // Ignore errors
+	ReleaseExternalPorts(unreserve) // Ignore errors
 
 	return reserved, nil
 }
 
-func ReleaseExternalPorts(directory string, ports PortPairs) error {
+func ReleaseExternalPorts(ports PortPairs) error {
 	var err error
 	log.Printf("ports: Releasing %v", ports)
 	for i := range ports {
@@ -54,19 +54,22 @@ func ReleaseExternalPorts(directory string, ports PortPairs) error {
 		path, errl := os.Readlink(direct)
 		if errl != nil {
 			if !os.IsNotExist(errl) {
+				// REPAIR: link can't be checked, may be broken
 				log.Printf("ports: Path cannot be checked: %v", errl)
 				err = errl
 			}
+			// the port is no longer reserved (link does not exist)
 			continue
 		}
 		if _, errs := os.Stat(path); errs != nil {
 			if os.IsNotExist(errs) {
+				// referenced container does not exist, remove the link
 				os.Remove(direct)
+				continue
 			}
+			// REPAIR: can't read the referenced container
+			err = errs
 			continue
-		}
-		if directory != "" && path != directory {
-			log.Printf("ports: Path %s is not under %s and will not be removed", path, directory)
 		}
 		if errr := os.Remove(direct); errr != nil {
 			log.Printf("ports: Unable to remove symlink %v", errr)
@@ -108,7 +111,7 @@ func (p portReservations) reserve(path string) error {
 		if !res.exists {
 			parent, direct := res.External.PortPathsFor()
 			os.MkdirAll(parent, 0770)
-			err := os.Symlink(path, direct)
+			err = os.Symlink(path, direct)
 			if err != nil {
 				log.Printf("ports: Failed to reserve %d, rolling back: %v", res.External, err)
 				break
