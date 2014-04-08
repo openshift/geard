@@ -111,7 +111,7 @@ func switchnsGit(cmd *cobra.Command, args []string) {
 			os.Exit(2)
 		}
 		env := []string{fmt.Sprintf("HOME=%s", repoId.RepositoryPathFor())}
-		runCommand("geard-githost", []string{"/usr/bin/git-shell", "-c", originalCommand}, env)
+		runCommand("--container=geard-githost", []string{"--", "/usr/bin/git-shell", "-c", originalCommand}, env)
 	} else {
 		fmt.Println("Cannot switch into any git repo as root user")
 		os.Exit(2)
