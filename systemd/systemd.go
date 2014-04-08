@@ -87,6 +87,7 @@ func InitializeSystemdFile(fType SystemdFileType, name string, template *templat
 	}
 
 	if start {
+		log.Printf("systemd: Starting %s", path)
 		_, err = StartAndEnableUnit(Connection(), name+ext, path, "fail")
 		return err
 	} else {
@@ -181,9 +182,10 @@ func SystemdError(err error, name string) bool {
 
 func SprintSystemdError(err error) string {
 	if errd, ok := err.(db.Error); ok {
-		return fmt.Sprintf("%s %s", reflect.TypeOf(errd), errd.Name)
+		return fmt.Sprintf("dbus %s %s", reflect.TypeOf(errd), errd.Name)
+	} else {
+		return fmt.Sprintf("%s %+v", reflect.TypeOf(err), err)
 	}
-	return err.Error()
 }
 
 var ErrNoSuchUnit = db.Error{Name: "org.freedesktop.systemd1.NoSuchUnit"}

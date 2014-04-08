@@ -26,51 +26,28 @@ var (
 )
 
 type CreateRepositoryRequest struct {
-	Id       git.RepoIdentifier
-	CloneUrl string
+	Id        git.RepoIdentifier
+	CloneUrl  string
+	RequestId jobs.RequestIdentifier
 }
 
 func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
-	path := j.Id.UnitPathFor()
-	unitName := j.Id.UnitNameFor()
-	var status string
-	var err error
-	unit, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
+	unitName := fmt.Sprintf("job-create-repo-%s.service", j.RequestId.String())
+	path := j.Id.HomePath()
 
-	if os.IsExist(err) {
+	if _, err := os.Stat(path); err == nil || !os.IsNotExist(err) {
 		resp.Failure(ErrRepositoryAlreadyExists)
-		return
-	} else if err != nil {
-		log.Printf("job_create_repository: make repository dir: %+v", err)
-		resp.Failure(ErrRepositoryCreateFailed)
-		return
-	}
-
-	args := git.GitUserUnit{
-		GitRepo:        j.Id,
-		ExecutablePath: filepath.Join(config.ContainerBasePath(), "bin", "gear"),
-		GitURL:         j.CloneUrl,
-	}
-
-	if err := git.UnitGitRepoTemplate.Execute(unit, args); err != nil {
-		log.Printf("job_create_repository: Unable to write %s %s: %v", "unit", j.Id, err)
-		resp.Failure(ErrRepositoryCreateFailed)
-		return
-	}
-	if errc := unit.Close(); errc != nil {
-		log.Printf("job_create_repository: Unable to close target %s %s: %v", "unit", j.Id, errc)
-		resp.Failure(ErrRepositoryCreateFailed)
 		return
 	}
 
 	conn, errc := systemd.NewConnection()
 	if errc != nil {
-		log.Print("job_create_repository:", errc)
+		log.Print("create_repository:", errc)
 		return
 	}
 
 	if err := conn.Subscribe(); err != nil {
-		log.Print("job_create_repository:", err)
+		log.Print("create_repository:", err)
 		return
 	}
 	defer conn.Unsubscribe()
@@ -87,17 +64,33 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 	stdout, err := systemd.ProcessLogsForUnit(unitName)
 	if err != nil {
 		stdout = utils.EmptyReader
-		log.Printf("job_create_repository: Unable to fetch build logs: %+v", err)
+		log.Printf("create_repository: Unable to fetch build logs: %+v", err)
 	}
 	defer stdout.Close()
 
-	status, err = systemd.StartAndEnableUnit(conn, unitName, path, "fail")
+	startCmd := []string{
+		filepath.Join(config.ContainerBasePath(), "bin", "gear"),
+		"init-repo",
+		string(j.Id),
+	}
+	if j.CloneUrl != "" {
+		startCmd = append(startCmd, j.CloneUrl)
+	}
+
+	status, err := conn.StartTransientUnit(
+		unitName,
+		"fail",
+		dbus.PropExecStart(startCmd, true),
+		dbus.PropDescription(fmt.Sprintf("Create repository %s", j.Id)),
+		dbus.PropRemainAfterExit(true),
+		dbus.PropSlice("githost.slice"),
+	)
 	if err != nil {
-		log.Printf("job_create_repository: Could not start unit: %s", systemd.SprintSystemdError(err))
+		log.Printf("create_repository: Could not start unit %s: %s", unitName, systemd.SprintSystemdError(err))
 		resp.Failure(ErrRepositoryCreateFailed)
 		return
 	} else if status != "done" {
-		log.Printf("job_create_repository: Unit did not return 'done'")
+		log.Printf("create_repository: Unit did not return 'done'")
 		resp.Failure(ErrRepositoryCreateFailed)
 		return
 	}
@@ -118,7 +111,7 @@ wait:
 		case err := <-errch:
 			fmt.Fprintf(w, "Error %+v\n", err)
 		case <-time.After(10 * time.Second):
-			log.Print("job_create_repository:", "timeout")
+			log.Print("create_repository:", "timeout")
 			break wait
 		}
 	}
@@ -176,11 +169,5 @@ func createUser(repositoryId git.RepoIdentifier) error {
 		return err
 	}
 	selinux.RestoreCon(repositoryId.HomePath(), true)
-	u, err := user.Lookup(repositoryId.LoginFor())
-	if err != nil {
-		return err
-	}
-
-	sliceName := fmt.Sprintf("user-%v", u.Uid)
-	return systemd.InitializeSystemdFile(systemd.SliceType, sliceName, git.SliceGitRepoTemplate, git.GitUserUnit{ExecutablePath: "", GitRepo: repositoryId, GitURL: ""}, false)
+	return nil
 }

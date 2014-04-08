@@ -92,7 +92,7 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 	var startCmd []string
 
 	if _, err := os.Stat(gearBinaryPath); err != nil {
-		log.Println("gear script is not installed on system; using sti builder image")
+		log.Println("gear executable is not installed on system; using sti builder image")
 		startCmd = []string{
 			"/usr/bin/docker", "run",
 			"-rm",
@@ -127,7 +127,7 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 		dbus.PropExecStart(startCmd, true),
 		dbus.PropDescription(unitDescription),
 		dbus.PropRemainAfterExit(true),
-		dbus.PropSlice("container.slice"),
+		dbus.PropSlice("container-small.slice"),
 	)
 
 	if err != nil {

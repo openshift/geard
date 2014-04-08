@@ -1,20 +1,25 @@
+// +build idler
+
 package idler
 
 import (
+	"bufio"
+	"fmt"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/port"
+	"os"
+	"strings"
 )
 
 type Port struct {
 	port.Port
 }
 
-func TcpPort(int port) Port {
-	return Port{port.Port(port)}
+func TcpPort(p int) Port {
+	return Port{port.Port(p)}
 }
 
 func (p Port) IdentifierFor() (containers.Identifier, error) {
-	var id containers.Identifier
 	_, portPath := p.PortPathsFor()
 
 	r, err := os.Open(portPath)
@@ -27,7 +32,8 @@ func (p Port) IdentifierFor() (containers.Identifier, error) {
 	for scan.Scan() {
 		line := scan.Text()
 		if strings.HasPrefix(line, "X-ContainerId=") {
-			if id, err = NewIdentifier(strings.TrimPrefix(line, "X-ContainerId=")); err != nil {
+			id, err := containers.NewIdentifier(strings.TrimPrefix(line, "X-ContainerId="))
+			if err != nil {
 				return "", err
 			}
 			return id, nil

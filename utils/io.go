@@ -142,3 +142,25 @@ func CreateFileExclusive(path string, mode os.FileMode) (*os.File, error) {
 	}
 	return file, nil
 }
+
+func WriteToPathExclusive(path string, source io.WriterTo, mode os.FileMode) error {
+	file, exists, err := OpenFileExclusive(path, mode)
+	if err != nil {
+		return err
+	}
+	if exists {
+		if _, err := file.Seek(0, 0); err != nil {
+			file.Close()
+			return err
+		}
+		if err := file.Truncate(0); err != nil {
+			file.Close()
+			return err
+		}
+	}
+	if _, err := source.WriteTo(file); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
+}

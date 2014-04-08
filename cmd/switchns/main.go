@@ -131,13 +131,13 @@ func isValidGitCommand(command string, isReadOnlyUser bool) bool {
 func runCommand(name string, command []string, environment []string) {
 	client, err := docker.GetConnection("unix:///var/run/docker.sock")
 	if err != nil {
-		fmt.Printf("Unable to connect to server")
+		fmt.Printf("Unable to connect to server\n")
 		os.Exit(3)
 	}
 
 	container, err := client.GetContainer(name, false)
 	if err != nil {
-		fmt.Printf("Unable to locate container named %v", name)
+		fmt.Printf("Unable to locate container named %v\n", name)
 		os.Exit(3)
 	}
 	containerNsPID, err := client.ChildProcessForContainer(container)

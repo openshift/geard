@@ -13,9 +13,8 @@ import (
 )
 
 const (
-	LocalHostName                       = "local"
-	ResourceTypeContainer  ResourceType = "ctr"
-	ResourceTypeRepository ResourceType = "repo"
+	LocalHostName                      = "local"
+	ResourceTypeContainer ResourceType = "ctr"
 )
 
 type ResourceType string

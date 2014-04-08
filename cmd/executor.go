@@ -19,7 +19,6 @@ type check interface {
 	Check() error
 }
 
-type FuncInit func() error
 type FuncBulk func(...Locator) jobs.Job
 type FuncSerial func(Locator) jobs.Job
 type FuncReact func(*CliJobResponse, io.Writer, interface{})

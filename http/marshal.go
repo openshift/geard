@@ -101,8 +101,3 @@ func (h *HttpListContainersRequest) UnmarshalHttpResponse(headers http.Header, r
 	}
 	return list, nil
 }
-
-func (h *HttpCreateKeysRequest) MarshalHttpRequestBody(w io.Writer) error {
-	encoder := json.NewEncoder(w)
-	return encoder.Encode(h)
-}

@@ -1,22 +1,13 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-	ssh "github.com/openshift/geard/pkg/ssh-public-key"
 	"github.com/openshift/geard/port"
-	"io/ioutil"
 	"log"
-	"net"
 	"os"
-	"path/filepath"
-	"strings"
 )
 
 func GenerateId() string {
@@ -107,68 +98,4 @@ func (e *EnvironmentDescription) ExtractVariablesFrom(args *[]string, generateId
 		log.Printf("Setting --env-id to %s", e.Description.Id)
 	}
 	return nil
-}
-
-func ReadAuthorizedKeysFile(keyFile string) ([]jobs.KeyData, error) {
-
-	var (
-		data []byte
-		keys []jobs.KeyData
-		err  error
-	)
-
-	// keyFile - contains the sshd AuthorizedKeysFile location
-	// Stdin - contains the AuthorizedKeysFile if keyFile is not specified
-	if len(keyFile) != 0 {
-		absPath, _ := filepath.Abs(keyFile)
-		data, err = ioutil.ReadFile(absPath)
-		if err != nil {
-			return keys, err
-		}
-	} else {
-		data, _ = ioutil.ReadAll(os.Stdin)
-	}
-
-	bytesReader := bytes.NewReader(data)
-	scanner := bufio.NewScanner(bytesReader)
-	for scanner.Scan() {
-		// Parse the AuthorizedKeys line
-		pk, _, _, _, ok := ssh.ParseAuthorizedKey(scanner.Bytes())
-		if !ok {
-			err = errors.New("Unable to parse authorized key from input source, invalid format")
-			return nil, err
-		}
-		value := ssh.MarshalAuthorizedKey(pk)
-		keys = append(keys, jobs.KeyData{"authorized_keys", string(value)})
-	}
-
-	return keys, err
-}
-
-func GuessHostIp() string {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return ""
-	}
-
-	for _, iface := range ifaces {
-		if strings.HasPrefix(iface.Name, "veth") || strings.HasPrefix(iface.Name, "lo") ||
-			strings.HasPrefix(iface.Name, "docker") {
-			continue
-		}
-
-		addrs, err := iface.Addrs()
-		if err != nil {
-			return ""
-		}
-
-		if len(addrs) == 0 {
-			continue
-		}
-
-		ip, _, _ := net.ParseCIDR(addrs[0].String())
-		return ip.String()
-	}
-
-	return ""
 }
