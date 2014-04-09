@@ -2,13 +2,6 @@ package jobs
 
 import (
 	"fmt"
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/git"
-	jobs "github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/selinux"
-	"github.com/openshift/geard/systemd"
-	"github.com/openshift/geard/utils"
-	"github.com/openshift/go-systemd/dbus"
 	"io"
 	"log"
 	"os"
@@ -17,6 +10,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/openshift/geard/git"
+	jobs "github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/selinux"
+	"github.com/openshift/geard/systemd"
+	"github.com/openshift/geard/utils"
+	"github.com/openshift/go-systemd/dbus"
 )
 
 var (
@@ -69,7 +69,7 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 	defer stdout.Close()
 
 	startCmd := []string{
-		filepath.Join(config.ContainerBasePath(), "bin", "gear"),
+		filepath.Join("/", "usr", "bin", "gear"),
 		"init-repo",
 		string(j.Id),
 	}
@@ -143,7 +143,7 @@ func InitializeRepository(repositoryId git.RepoIdentifier, repositoryURL string)
 
 	uid, _ := strconv.Atoi(u.Uid)
 	gid, _ := strconv.Atoi(u.Gid)
-	
+
 	if err = os.Chown(repositoryId.HomePath(), uid, gid); err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func InitializeRepository(repositoryId git.RepoIdentifier, repositoryURL string)
 		return err
 	}
 
-	switchns := filepath.Join(config.ContainerBasePath(), "bin", "switchns")
+	switchns := filepath.Join("/", "usr", "bin", "switchns")
 	cmd := exec.Command(switchns, "--container=geard-githost", "--", "/git/init-repo", repositoryId.RepositoryPathFor(), u.Uid, u.Gid, repositoryURL)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

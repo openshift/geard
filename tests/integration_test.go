@@ -3,6 +3,7 @@
 package tests
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -233,7 +234,7 @@ func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId)
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId)
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -251,7 +252,7 @@ func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	c.Assert(len(ports), chk.Equals, 0)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
@@ -259,21 +260,27 @@ func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
 	s.assertContainerState(c, id, CONTAINER_STOPPED)
 }
 
+var hasEnvFile = flag.Bool("env-file", false, "Test env-file feature")
+
 func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
+	if !*hasEnvFile {
+		c.Skip("-env-file not specified")
+	}
+
 	id, err := containers.NewIdentifier("IntTest008")
 	c.Assert(err, chk.IsNil)
 	s.containerIds = append(s.containerIds, id)
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", EnvImage, hostContainerId, "--env-file=deployment/fixtures/simple.env", "--start")
+	cmd := exec.Command("/usr/bin/gear", "install", EnvImage, hostContainerId, "--env-file=deployment/fixtures/simple.env", "--start")
 	data, err := cmd.CombinedOutput()
 	c.Log(cmd.Args)
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	time.Sleep(time.Second / 4) // startup time is indeterminate unfortunately because gear init --post continues to run
+	time.Sleep(time.Second * 5) // startup time is indeterminate unfortunately because gear init --post continues to run
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
@@ -288,7 +295,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4000", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4000", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -326,7 +333,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallImage(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId)
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId)
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -347,13 +354,13 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4001", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4001", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "start", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "start", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -368,7 +375,7 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	c.Assert(resp.StatusCode, chk.Equals, 200)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "stop", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "stop", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -382,7 +389,7 @@ func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4002", "--start", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4002", "--start", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -391,7 +398,7 @@ func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
 	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
 	oldPid := s.getContainerPid(id)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "restart", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "restart", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -408,37 +415,37 @@ func (s *IntegrationTestSuite) TestStatus(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId)
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId)
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest005.service; enabled)"), chk.Equals, true)
 	s.assertContainerState(c, id, CONTAINER_STOPPED)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "start", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "start", hostContainerId)
 	_, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	s.assertContainerState(c, id, CONTAINER_STARTED)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest005.service; enabled)"), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "Active: active (running)"), chk.Equals, true)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "stop", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "stop", hostContainerId)
 	_, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	s.assertContainerState(c, id, CONTAINER_STOPPED)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "status", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
@@ -452,7 +459,7 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4003", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4003", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -485,28 +492,28 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/var/lib/containers/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4004", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4004", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "link", "-n", "127.0.0.1:8081:74.125.239.114:80", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "link", "-n", "127.0.0.1:8081:74.125.239.114:80", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "start", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "start", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	s.assertContainerState(c, id, CONTAINER_STARTED)
 	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
 
-	cmd = exec.Command("/var/lib/containers/bin/switchns", "--container="+id.ContainerFor(), "--", "/sbin/iptables", "-t", "nat", "-L")
+	cmd = exec.Command("/usr/bin/switchns", "--container="+id.ContainerFor(), "--", "/sbin/iptables", "-t", "nat", "-L")
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "tcp dpt:tproxy to:74.125.239.114"), chk.Equals, true)
 
-	cmd = exec.Command("/var/lib/containers/bin/gear", "stop", hostContainerId)
+	cmd = exec.Command("/usr/bin/gear", "stop", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -520,7 +527,7 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 //
 //     hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 //
-//     cmd := exec.Command("/var/lib/containers/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4005", "--socket-activated")
+//     cmd := exec.Command("/usr/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4005", "--socket-activated")
 //     data, err := cmd.CombinedOutput()
 //     c.Log(string(data))
 //     c.Assert(err, chk.IsNil)
@@ -562,7 +569,7 @@ func (s *IntegrationTestSuite) TearDownSuite(c *chk.C) {
 	for _, id := range s.containerIds {
 		hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-		cmd := exec.Command("/var/lib/containers/bin/gear", "delete", hostContainerId)
+		cmd := exec.Command("/usr/bin/gear", "delete", hostContainerId)
 		data, err := cmd.CombinedOutput()
 		c.Log(string(data))
 		if err != nil {

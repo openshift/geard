@@ -14,7 +14,8 @@ RUN \
    go install -tags selinux github.com/openshift/geard/cmd/switchns && \
    go install -tags selinux github.com/openshift/geard/cmd/gear-auth-keys-command && \
    go test -tags integration github.com/openshift/geard/tests -c && \
-   /bin/cp -f $GOPATH/bin/{gear,switchns,gear-auth-keys-command} /bin/ && \
+   /bin/cp -f $GOPATH/bin/{gear,switchns} /bin/ && \
+   /bin/cp -f $GOPATH/bin/gear-auth-keys-command /sbin/ && \   
    /bin/cp -f tests.test /bin/ && \
    rm -rf $GOPATH
 

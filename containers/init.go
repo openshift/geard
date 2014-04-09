@@ -6,10 +6,8 @@ import (
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/selinux"
 	"github.com/openshift/geard/systemd"
-	"io"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"syscall"
 )
@@ -28,9 +26,8 @@ func InitializeData() error {
 		log.Fatal(err)
 		return err
 	}
-	if err := initializeBinaries(); err != nil {
-		log.Printf("WARNING: Unable to setup binaries - some operations may not be available: %v", err)
-		return err
+	if err := checkBinaries(); err != nil {
+		log.Printf("WARNING: Unable to find all required binaries - some operations may not be available: %v", err)
 	}
 	return nil
 }
@@ -43,7 +40,6 @@ func verifyDataPaths() error {
 	for _, path := range []string{
 		config.ContainerBasePath(),
 		filepath.Join(config.ContainerBasePath(), "home"),
-		filepath.Join(config.ContainerBasePath(), "bin"),
 		filepath.Join(config.ContainerBasePath(), "git"),
 		filepath.Join(config.ContainerBasePath(), "units"),
 		filepath.Join(config.ContainerBasePath(), "access", "git"),
@@ -169,82 +165,13 @@ func disableAllUnits() {
 	}
 }
 
-func copyBinary(src string, dest string, setUid bool) error {
-	var err error
-	var sourceInfo os.FileInfo
-	if sourceInfo, err = os.Stat(src); err != nil {
-		return err
-	}
-	if !sourceInfo.Mode().IsRegular() {
-		return fmt.Errorf("Cannot copy source %s", src)
-	}
+func checkBinaries() error {
+	expectedBinaries := []string{"/usr/bin/gear", "/usr/bin/switchns", "/usr/sbin/gear-auth-keys-command"}
 
-	if _, err = os.Stat(dest); err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-	} else {
-		if err = os.Remove(dest); err != nil {
-			return err
-		}
-	}
-
-	var mode os.FileMode
-	if setUid {
-		mode = 0555 | os.ModeSetuid
-	} else {
-		mode = 0555
-	}
-
-	var destFile *os.File
-	if destFile, err = os.Create(dest); err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	var sourceFile *os.File
-	if sourceFile, err = os.Open(src); err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	if _, err = io.Copy(destFile, sourceFile); err != nil {
-		return err
-	}
-	destFile.Sync()
-
-	if err = destFile.Chmod(mode); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func HasBinaries() bool {
-	for _, b := range []string{
-		path.Join(config.ContainerBasePath(), "bin", "switchns"),
-		path.Join(config.ContainerBasePath(), "bin", "gear"),
-	} {
+	for _, b := range expectedBinaries {
 		if _, err := os.Stat(b); err != nil {
-			return false
+			return fmt.Errorf("Unable to find %v", b)
 		}
-	}
-	return true
-}
-
-func initializeBinaries() error {
-	srcDir := path.Dir(os.Args[0])
-	destDir := path.Join(config.ContainerBasePath(), "bin")
-	if err := copyBinary(path.Join(srcDir, "switchns"), path.Join(destDir, "switchns"), true); err != nil {
-		return err
-	}
-
-	if err := copyBinary(path.Join(srcDir, "gear"), path.Join(destDir, "gear"), false); err != nil {
-		return err
-	}
-
-	if err := copyBinary(path.Join(srcDir, "gear-auth-keys-command"), path.Join(destDir, "gear-auth-keys-command"), false); err != nil {
-		return err
 	}
 	return nil
 }
