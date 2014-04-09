@@ -227,7 +227,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 
 		HomeDir:         id.HomePath(),
 		EnvironmentPath: environmentPath,
-		ExecutablePath:  filepath.Join(config.ContainerBasePath(), "bin", "gear"),
+		ExecutablePath:  filepath.Join("/", "usr", "bin", "gear"),
 		IncludePath:     "",
 
 		PortPairs:            reserved,

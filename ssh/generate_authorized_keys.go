@@ -4,15 +4,15 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/selinux"
 	"io"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
 	"strconv"
+
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/selinux"
 )
 
 func GenerateAuthorizedKeysFor(user *user.User, forceCreate, printToStdOut bool) error {
@@ -104,7 +104,7 @@ func generateAuthorizedKeys(id containers.Identifier, u *user.User, forceCreate,
 
 		srcFile, err = os.Open(keyFile)
 		defer srcFile.Close()
-		w.WriteString(fmt.Sprintf("command=\"%v/bin/switchns\",%vno-agent-forwarding,no-X11-forwarding ", config.ContainerBasePath(), authorizedKeysPortSpec))
+		w.WriteString(fmt.Sprintf("command=\"/usr/bin/switchns\",%vno-agent-forwarding,no-X11-forwarding ", authorizedKeysPortSpec))
 		io.Copy(w, srcFile)
 		w.WriteString("\n")
 	}

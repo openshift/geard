@@ -2,10 +2,6 @@ package git
 
 import (
 	"bufio"
-	"fmt"
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/selinux"
-	"github.com/openshift/geard/ssh"
 	"io"
 	"os"
 	"os/user"
@@ -13,6 +9,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/openshift/geard/selinux"
+	"github.com/openshift/geard/ssh"
 )
 
 func init() {
@@ -86,9 +85,9 @@ func generateAuthorizedKeys(repoId RepoIdentifier, u *user.User, forceCreate, pr
 
 		readwriteRepo := strings.HasSuffix(keyFile, ".write")
 		if readwriteRepo {
-			w.WriteString(fmt.Sprintf("command=\"%v/bin/switchns --git\",no-agent-forwarding,no-X11-forwarding,no-port-forwarding ", config.ContainerBasePath()))
+			w.WriteString("command=\"/usr/bin/switchns --git\",no-agent-forwarding,no-X11-forwarding,no-port-forwarding ")
 		} else {
-			w.WriteString(fmt.Sprintf("command=\"%v/bin/switchns --git-ro\",no-agent-forwarding,no-X11-forwarding,no-port-forwarding ", config.ContainerBasePath()))
+			w.WriteString("command=\"/usr/bin/switchns --git-ro\",no-agent-forwarding,no-X11-forwarding,no-port-forwarding ")
 		}
 
 		io.Copy(w, srcFile)
