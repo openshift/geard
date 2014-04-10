@@ -232,6 +232,16 @@ This will build the Docker image and start the geard-image.service systemd unit 
 
 See [contrib/example.sh](contrib/example.sh) and [contrib/stress.sh](contrib/stress.sh) for more examples of API calls.
 
+### Building and running as a service
+
+To build a geard and run the systemd unit:
+
+    contrib/build
+
+This will build and install the geard files into /usr/bin and /usr/sbin. Enable and start the systemd service file:
+
+    sudo systemctl enable contrib/geard.service
+  sudo systemctl start contrib/geard.service
 
 Concepts
 --------
