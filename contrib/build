@@ -46,7 +46,7 @@ if $build_idler; then
 fi
 
 if $handle_systemd; then
-	docker build -rm -t ccoleman/geard $ORIG_GOPATH && sudo systemctl restart geard.service	
+	docker build -rm -t ccoleman/geard $ORIG_GOPATH && sudo systemctl restart geard-image.service	
 else
 	if ! $skip_go_get; then
 		echo "Downloading build dependencies"  

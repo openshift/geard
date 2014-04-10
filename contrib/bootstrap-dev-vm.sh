@@ -13,8 +13,8 @@ GEARD_PATH=/vagrant/src/github.com/openshift/geard
 chown -R vagrant:vagrant /vagrant
 
 # Install / enable systemd unit
-cp -f $GEARD_PATH/contrib/geard.service /usr/lib/systemd/system/geard.service
-systemctl enable /usr/lib/systemd/system/geard.service
+cp -f $GEARD_PATH/contrib/geard-image.service /usr/lib/systemd/system/geard-image.service
+systemctl enable /usr/lib/systemd/system/geard-image.service
 
 echo 'export GOPATH=/vagrant' >> ~vagrant/.bash_profile
 echo 'export PATH=$GOPATH/bin:$PATH' >> ~vagrant/.bash_profile
