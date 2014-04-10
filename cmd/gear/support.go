@@ -156,7 +156,7 @@ func InitPostStart(dockerSocket string, id containers.Identifier) error {
 		defer file.Close()
 
 		const ContainerInterval = time.Second / 3
-		const ContainerWait = time.Second * 3
+		const ContainerWait = time.Second * 12
 		for i := 0; i < int(ContainerWait/ContainerInterval); i++ {
 			if container, err = d.GetContainer(id.ContainerFor(), true); err != nil {
 				return err
