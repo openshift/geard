@@ -4,13 +4,8 @@ Documentation=https://github.com/openshift/geard
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/docker run \
-          -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
-          -v /var/lib/containers:/var/lib/containers \
-          -v /etc/systemd/systemd/container-active.target.wants:/etc/systemd/systemd/container-active.target.wants \
-          -p 43273:43273 \
-          -a stderr -a stdout \
-          ccoleman/geard:latest
+EnvironmentFile=-/etc/default/gear
+ExecStart=/usr/bin/gear daemon $GEARD_OPTS
 
 [Install]
 WantedBy=multi-user.target
