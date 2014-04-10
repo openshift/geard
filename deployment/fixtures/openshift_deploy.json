@@ -3,7 +3,7 @@
     {
       "name":"origin-broker",
       "count":1,
-      "image":"origin-server-docker",
+      "image":"ccoleman/origin-server-docker",
       "publicports":[
         {"internal":443,"external":6060}
       ],
@@ -14,7 +14,7 @@
     {
       "name":"origin-db",
       "count":1,
-      "image":"mongdb",
+      "image":"dockerfile/mongodb",
       "publicports":[
         {"internal":27017}
       ]
