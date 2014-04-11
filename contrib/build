@@ -61,13 +61,15 @@ else
 	go install -tags "$tags" github.com/openshift/geard/cmd/gear
 	go install -tags "$tags" github.com/openshift/geard/cmd/switchns
 	go install -tags "$tags" github.com/openshift/geard/ssh/cmd/gear-auth-keys-command
+	echo "..done"
 
 	if $copy_binaries; then
+		echo "Copying binaries.."
 		sudo /usr/bin/cp -f $ORIG_GOPATH/bin/gear-auth-keys-command /usr/sbin/
 		sudo /usr/bin/cp -f $ORIG_GOPATH/bin/switchns /usr/bin
 		sudo /usr/bin/cp -f $ORIG_GOPATH/bin/gear /usr/bin
 		sudo chmod +s /usr/bin/switchns
 		sudo restorecon -v /usr/sbin/gear-auth-keys-command /usr/bin/gear /usr/bin/switchns
+  	echo "..done"
 	fi
-	echo "..done"  
 fi
