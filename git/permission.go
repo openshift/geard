@@ -5,7 +5,6 @@ import (
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/ssh"
 	"github.com/openshift/geard/utils"
-	"log"
 	"os"
 )
 
@@ -30,7 +29,6 @@ func (r repositoryPermission) CreatePermission(locator ssh.KeyLocator, value *ut
 		}
 	}
 
-	log.Printf("debug: Id %s", p.Id)
 	id, err := containers.NewIdentifier(p.Id)
 	if err != nil {
 		return err
