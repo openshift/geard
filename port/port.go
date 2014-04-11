@@ -65,7 +65,7 @@ func NewHostPort(hostport string) (HostPort, error) {
 }
 
 func (hostport HostPort) String() string {
-	return net.JoinHostPort(hostport.Host, string(hostport.Port))
+	return net.JoinHostPort(hostport.Host, hostport.Port.String())
 }
 
 func (hostport HostPort) Empty() bool {
