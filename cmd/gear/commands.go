@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"time"
 
 	. "github.com/openshift/geard/cmd"
@@ -419,6 +420,13 @@ func installImage(cmd *cobra.Command, args []string) {
 	ids, err := NewContainerLocators(args[1:]...)
 	if err != nil {
 		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+	}
+
+	suffix := "/" + imageId
+	for _, locator := range ids {
+		if strings.HasSuffix(locator.Identity(), suffix) {
+			Fail(1, "Image name and container id must not be the same: %s\n", imageId)
+		}
 	}
 
 	Executor{
