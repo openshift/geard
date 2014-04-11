@@ -2,27 +2,18 @@ FROM fedora
 MAINTAINER Clayton Coleman <ccoleman@redhat.com>
 
 ENV GOPATH /go
-RUN yum install -y golang git hg bzr gcc libselinux-devel && yum clean all
+RUN yum install -y golang git hg bzr libselinux-devel glibc-static btrfs-progs-devel device-mapper-devel sqlite-devel libnetfilter_queue-devel gcc gcc-c++ && yum clean all
 RUN mkdir -p $GOPATH && echo $GOPATH >> ~/.bash_profile
 
 ADD     . /go/src/github.com/openshift/geard
 WORKDIR   /go/src/github.com/openshift/geard
 RUN \
-   go get -tags selinux ./... && \
-   go get launchpad.net/gocheck && \
-   go install -tags selinux github.com/openshift/geard/cmd/gear && \
-   go install -tags selinux github.com/openshift/geard/cmd/switchns && \
-   go install -tags selinux github.com/openshift/geard/cmd/gear-auth-keys-command && \
-   go test -tags integration github.com/openshift/geard/tests -c && \
-   /bin/cp -f $GOPATH/bin/{gear,switchns} /bin/ && \
-   /bin/cp -f $GOPATH/bin/gear-auth-keys-command /sbin/ && \   
-   /bin/cp -f tests.test /bin/ && \
+   ./contrib/build -s -n && \
+   ./contrib/test && \
+   /bin/cp -f $GOPATH/bin/gear-auth-keys-command /usr/sbin/ && \
+   /bin/cp -f $GOPATH/bin/switchns /usr/bin && \
+   /bin/cp -f $GOPATH/bin/gear /usr/bin && \
    rm -rf $GOPATH
-
-# Create an environment for Git execution
-ADD contrib/githost/default-hooks/ /home/git/default-hooks
-ADD contrib/githost/init           /home/git/init
-RUN useradd git --uid 1001 -U && mkdir -p /home/git && chown -R git /home/git
 
 CMD ["/bin/gear", "daemon"]
 EXPOSE 43273
