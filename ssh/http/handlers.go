@@ -5,14 +5,26 @@ import (
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
 	sshjobs "github.com/openshift/geard/ssh/jobs"
+	"github.com/openshift/geard/transport"
+
 	"github.com/openshift/go-json-rest"
 	"io"
 )
 
-func Routes() []http.HttpJobHandler {
+type HttpExtension struct{}
+
+func (h *HttpExtension) Routes() []http.HttpJobHandler {
 	return []http.HttpJobHandler{
 		&HttpCreateKeysRequest{},
 	}
+}
+
+func (h *HttpExtension) RequestFor(job jobs.Job) transport.TransportRequest {
+	switch j := job.(type) {
+	case *sshjobs.CreateKeysRequest:
+		return &HttpCreateKeysRequest{CreateKeysRequest: *j}
+	}
+	return nil
 }
 
 type HttpCreateKeysRequest struct {

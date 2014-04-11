@@ -7,16 +7,29 @@ import (
 	gitjobs "github.com/openshift/geard/git/jobs"
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/transport"
 	"github.com/openshift/go-json-rest"
 )
 
-func Routes() []http.HttpJobHandler {
+type HttpExtension struct{}
+
+func (h *HttpExtension) Routes() []http.HttpJobHandler {
 	return []http.HttpJobHandler{
 		&HttpCreateRepositoryRequest{},
 		&httpGitArchiveContentRequest{
 			GitArchiveContentRequest: gitjobs.GitArchiveContentRequest{Ref: "*"},
 		},
 	}
+}
+
+func (h *HttpExtension) RequestFor(job jobs.Job) transport.TransportRequest {
+	switch j := job.(type) {
+	case *gitjobs.CreateRepositoryRequest:
+		return &HttpCreateRepositoryRequest{CreateRepositoryRequest: *j}
+	case *gitjobs.GitArchiveContentRequest:
+		return &httpGitArchiveContentRequest{GitArchiveContentRequest: *j}
+	}
+	return nil
 }
 
 type HttpCreateRepositoryRequest struct {

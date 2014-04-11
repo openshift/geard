@@ -73,8 +73,8 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Type: jobs.ContentTypeEnvironment}},
 	}
 
-	for i := range extensions {
-		routes := extensions[i]()
+	for _, ext := range extensions {
+		routes := ext.Routes()
 		for j := range routes {
 			handlers = append(handlers, routes[j])
 		}

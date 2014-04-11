@@ -6,6 +6,7 @@ import (
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/pkg/logstreamer"
+	"github.com/openshift/geard/transport"
 	"io"
 	"io/ioutil"
 	"log"
@@ -42,6 +43,8 @@ type Executor struct {
 	OnSuccess FuncReact
 	// Optional: respond to errors when they occur
 	OnFailure FuncReact
+
+	Transport transport.Transport
 }
 
 // Invoke the appropriate job on each server and return the set of data
@@ -169,9 +172,17 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 			defer w.Close()
 			defer tasks.Done()
 
-			dispatcher := http.NewHttpDispatcher(locator, logger)
 			for _, job := range allJobs {
 				response := &CliJobResponse{Output: w, Gather: gather}
+				dispatcher, err := e.Transport.NewDispatcher(locator, logger)
+				if err != nil {
+					response = &CliJobResponse{
+						Error: jobs.SimpleJobError{jobs.JobResponseError, fmt.Sprintf("Unable to create transport: %s", err.Error())},
+					}
+					respch <- e.react(response, w, job)
+					continue
+				}
+
 				if err := dispatcher.Dispatch(job, response); err != nil {
 					// set an explicit error
 					response = &CliJobResponse{
@@ -226,7 +237,7 @@ func (e *Executor) jobs(on []Locator) jobSet {
 }
 
 type jobSet []jobs.Job
-type remoteJobSet []http.RemoteExecutable
+type remoteJobSet []transport.RemoteExecutable
 
 func (jobs jobSet) check() error {
 	for i := range jobs {
@@ -244,7 +255,7 @@ func (jobs jobSet) remotes() (remotes remoteJobSet, err error) {
 	remotes = make(remoteJobSet, 0, len(remotes))
 	for i := range jobs {
 		job := jobs[i]
-		remotable, ok := job.(http.RemoteExecutable)
+		remotable, ok := job.(transport.RemoteExecutable)
 		if !ok {
 			err = errors.New(fmt.Sprintf("Unable to run this action (%+v) against a remote server", reflect.TypeOf(job)))
 			return

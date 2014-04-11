@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/jobs"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
+
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/transport"
 )
 
 type Locator interface {
@@ -18,6 +21,7 @@ type Locator interface {
 }
 
 type RemoteLocator interface {
+	transport.ResourceLocator
 	BaseURL() *url.URL
 }
 
@@ -39,18 +43,68 @@ type HttpDispatcher struct {
 	log     *log.Logger
 }
 
-func NewHttpDispatcher(l RemoteLocator, logger *log.Logger) *HttpDispatcher {
+type HttpTransport struct{}
+
+func (h *HttpTransport) NewDispatcher(locator transport.ResourceLocator, logger *log.Logger) (dispatcher transport.Dispatcher, err error) {
+	log.Printf("NewDispatcher(%v)", locator)
 	if logger == nil {
 		logger = log.New(os.Stdout, "", 0)
 	}
-	return &HttpDispatcher{
+	l, ok := locator.(RemoteLocator)
+	if !ok {
+		err = fmt.Errorf("Invalid locator")
+		return
+	}
+
+	dispatcher = transport.Dispatcher(&HttpDispatcher{
 		client:  &http.Client{},
 		locator: l,
 		log:     logger,
-	}
+	})
+	return
 }
 
-func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) error {
+func (h *HttpTransport) RequestFor(job jobs.Job) transport.TransportRequest {
+	switch j := job.(type) {
+	case *jobs.InstallContainerRequest:
+		return &HttpInstallContainerRequest{InstallContainerRequest: *j}
+	case *jobs.StartedContainerStateRequest:
+		return &HttpStartContainerRequest{StartedContainerStateRequest: *j}
+	case *jobs.StoppedContainerStateRequest:
+		return &HttpStopContainerRequest{StoppedContainerStateRequest: *j}
+	case *jobs.RestartContainerRequest:
+		return &HttpRestartContainerRequest{RestartContainerRequest: *j}
+	case *jobs.PutEnvironmentRequest:
+		return &HttpPutEnvironmentRequest{PutEnvironmentRequest: *j}
+	case *jobs.PatchEnvironmentRequest:
+		return &HttpPatchEnvironmentRequest{PatchEnvironmentRequest: *j}
+	case *jobs.ContainerStatusRequest:
+		return &HttpContainerStatusRequest{ContainerStatusRequest: *j}
+	case *jobs.ContentRequest:
+		return &HttpContentRequest{ContentRequest: *j}
+	case *jobs.DeleteContainerRequest:
+		return &HttpDeleteContainerRequest{DeleteContainerRequest: *j}
+	case *jobs.LinkContainersRequest:
+		return &HttpLinkContainersRequest{LinkContainersRequest: *j}
+	case *jobs.ListContainersRequest:
+		return &HttpListContainersRequest{ListContainersRequest: *j}
+	default:
+		for _, ext := range extensions {
+			if req := ext.RequestFor(job); req != nil {
+				return req
+			}
+		}
+		log.Printf("Unable to process job type %v", reflect.TypeOf(j))
+	}
+	return nil
+}
+
+func (h *HttpDispatcher) Dispatch(j transport.RemoteExecutable, res jobs.JobResponse) error {
+	job, ok := j.(RemoteExecutable)
+	if !ok {
+		return fmt.Errorf("Invalid job")
+	}
+
 	reader, writer := io.Pipe()
 	httpreq, errn := http.NewRequest(job.HttpMethod(), h.locator.BaseURL().String(), reader)
 	if errn != nil {
