@@ -16,6 +16,8 @@ import (
 
 var ErrContainerCreateFailedPortsReserved = SimpleJobError{JobResponseError, "Unable to create container: some ports could not be reserved."}
 
+const PendingPortMappingName = "PortMapping"
+
 // Installing a Container
 //
 // This job will install a given container definition as a systemd service unit,
@@ -184,7 +186,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 		return
 	}
 	if len(reserved) > 0 {
-		resp.WritePendingSuccess("PortMapping", reserved)
+		resp.WritePendingSuccess(PendingPortMappingName, reserved)
 	}
 
 	var portSpec string
@@ -358,4 +360,9 @@ func (j *InstallContainerRequest) Join(job Job, complete <-chan bool) (joined bo
 	}()
 	joined = true
 	return
+}
+
+func (j *InstallContainerRequest) PortMappingsFrom(pending map[string]interface{}) (port.PortPairs, bool) {
+	p, ok := pending[PendingPortMappingName].(port.PortPairs)
+	return p, ok
 }

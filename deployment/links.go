@@ -189,6 +189,7 @@ func (link containerLink) appendLinks() error {
 				if !found {
 					return errors.New(fmt.Sprintf("deployment: instance does not expose %d for link %s", port, link.String()))
 				}
+				log.Printf("appending %d on %s: %+v %+v", port, instance.Id, mapping, instance)
 
 				instance.links = append(instance.links, InstanceLink{
 					NetworkLink: containers.NetworkLink{

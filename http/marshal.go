@@ -39,12 +39,12 @@ func (h *HttpInstallContainerRequest) MarshalHttpRequestBody(w io.Writer) error 
 func (h *HttpInstallContainerRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
 	if r == nil {
 		pending := make(map[string]interface{})
-		if s := headers.Get("X-PortMapping"); s != "" {
+		if s := headers.Get("X-" + jobs.PendingPortMappingName); s != "" {
 			ports, err := port.FromPortPairHeader(s)
 			if err != nil {
 				return nil, err
 			}
-			pending["Ports"] = ports
+			pending[jobs.PendingPortMappingName] = ports
 		}
 		return pending, nil
 	}

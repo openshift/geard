@@ -334,8 +334,9 @@ func deployContainers(cmd *cobra.Command, args []string) {
 			}
 		},
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			instance, _ := changes.Instances.Find(job.(*http.HttpInstallContainerRequest).InstallContainerRequest.Id)
-			if pairs, ok := r.Pending["Ports"].(port.PortPairs); ok {
+			installJob := job.(*http.HttpInstallContainerRequest)
+			instance, _ := changes.Instances.Find(installJob.Id)
+			if pairs, ok := installJob.PortMappingsFrom(r.Pending); ok {
 				if !instance.Ports.Update(pairs) {
 					fmt.Fprintf(os.Stderr, "Not all ports listed %+v were returned by the server %+v", instance.Ports, pairs)
 				}
