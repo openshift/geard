@@ -1,0 +1,23 @@
+{
+  "containers":[
+    {
+      "name":"rockmongo",
+      "count":1,
+      "image":"ccoleman/rockmongo",
+      "publicports":[
+        {"internal":80,"external":6060}
+      ],
+      "links":[
+        {"to":"mongodb"}
+      ]
+    },
+    {
+      "name":"mongodb",
+      "count":1,
+      "image":"ccoleman/ubuntu-mongodb",
+      "publicports":[
+        {"internal":27017}
+      ]
+    }
+  ]
+}
