@@ -33,6 +33,7 @@ func Test(t *testing.T) {
 }
 
 var _ = chk.Suite(&IntegrationTestSuite{})
+var hasEnvFile = flag.Bool("env-file", false, "Test env-file feature")
 
 type IntegrationTestSuite struct {
 	dockerClient  *docker.DockerClient
@@ -191,7 +192,7 @@ func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 
 	s.daemonURI = os.Getenv("GEARD_URI")
 	if s.daemonURI == "" {
-		s.daemonURI = "localhost:43273"
+		s.daemonURI = "127.0.0.1:43273"
 	}
 
 	dockerURI := os.Getenv("DOCKER_URI")
@@ -246,7 +247,10 @@ func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
 	for _, p := range paths {
 		s.assertFilePresent(c, p, 0664, true)
 	}
-	s.assertFileAbsent(c, filepath.Join(id.HomePath(), "container-init.sh"))
+
+	if !*hasEnvFile {
+		s.assertFileAbsent(c, filepath.Join(id.HomePath(), "container-init.sh"))
+	}
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
@@ -259,8 +263,6 @@ func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest000.service; enabled)"), chk.Equals, true)
 	s.assertContainerState(c, id, CONTAINER_STOPPED)
 }
-
-var hasEnvFile = flag.Bool("env-file", false, "Test env-file feature")
 
 func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
 	if !*hasEnvFile {
@@ -307,7 +309,10 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 	for _, p := range paths {
 		s.assertFilePresent(c, p, 0664, true)
 	}
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	if !*hasEnvFile {
+		s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	}
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
@@ -333,7 +338,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallImage(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId)
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -365,13 +370,19 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 	s.assertContainerState(c, id, CONTAINER_STARTED)
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	if !*hasEnvFile {
+		s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	}
+	
+	//Wait for app to come up so we can curl from it
+	time.Sleep(time.Second)
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
 	c.Assert(len(ports), chk.Equals, 1)
 
-	resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%v", ports[0].External))
 	c.Assert(err, chk.IsNil)
 	c.Assert(resp.StatusCode, chk.Equals, 200)
 
@@ -395,7 +406,11 @@ func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
 	s.assertContainerState(c, id, CONTAINER_STARTED)
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	if !*hasEnvFile {
+		s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	}
+
 	oldPid := s.getContainerPid(id)
 
 	cmd = exec.Command("/usr/bin/gear", "restart", hostContainerId)
@@ -466,7 +481,10 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 	s.assertContainerState(c, id, CONTAINER_STARTED)
 
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	if !*hasEnvFile {
+		s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	}
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
@@ -506,7 +524,10 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 	cmd = exec.Command("/usr/bin/gear", "start", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	s.assertContainerState(c, id, CONTAINER_STARTED)
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+
+	if !*hasEnvFile {
+		s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	}
 
 	cmd = exec.Command("/usr/bin/switchns", "--container="+id.ContainerFor(), "--", "/sbin/iptables", "-t", "nat", "-L")
 	data, err = cmd.CombinedOutput()

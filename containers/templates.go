@@ -7,16 +7,18 @@ import (
 )
 
 type ContainerUnit struct {
-	Id       Identifier
-	Image    string
-	PortSpec string
-	RunSpec  string
-	Slice    string
-	Isolate  bool
-	User     string
-	ReqId    string
+	Id             Identifier
+	Image          string
+	PortSpec       string
+	RunSpec        string
+	Slice          string
+	Isolate        bool
+	User           string
+	ReqId          string
+	SupportEnvFile bool
 
 	HomeDir         string
+	RunDir          string
 	EnvironmentPath string
 	ExecutablePath  string
 	IncludePath     string
@@ -64,15 +66,16 @@ X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint true "{{.Image}}"'
 ExecStartPre=-/usr/bin/docker rm "{{.Id}}"
 {{ if .Isolate }}# Initialize user and volumes
-ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"{{ end }}
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}" {{ if .DockerFeatures.EnvironmentFile }} --has-env-file {{end}} {{end}}
 ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" \
           --volumes-from "{{.Id}}-data" \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
+		  {{ if and .Isolate .DockerFeatures.EnvironmentFile }} --env-file {{.RunDir}}/container-init.env {{end}} \
           -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
-          {{ if .Isolate }} -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
+          {{ if .Isolate }}{{ if .DockerFeatures.EnvironmentFile }} -v /usr/sbin/geard-container-init:/.container.init:ro -u root --privileged {{else}} -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root {{end}} {{end}} \
           "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
 # Set links (requires container have a name)
-ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
+{{ if not .DockerFeatures.EnvironmentFile }}ExecStartPost=- {{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}" {{end}}
 ExecReload=-/usr/bin/docker stop "{{.Id}}"
 ExecReload=-/usr/bin/docker rm "{{.Id}}"
 ExecStop=-/usr/bin/docker stop "{{.Id}}"
@@ -92,8 +95,7 @@ ExecStart=/usr/bin/docker run --rm --foreground \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
           {{.PortSpec}} {{.RunSpec}} \
           --name "{{.Id}}" --volumes-from "{{.Id}}-data" \
-          {{ if .Isolate }} -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
-          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
+          {{ if .Isolate }}{{ if .DockerFeatures.EnvironmentFile }} -v /usr/sbin/geard-container-init:/.container.init:ro -u root --privileged {{else}} -v {{.HomeDir}}/container-cmd.sh:/.container.cmd:ro -v {{.HomeDir}}/container-init.sh:/.container.init:ro -u root {{end}} {{end}} \          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
 # Set links (requires container have a name)
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{template "COMMON_CONTAINER" .}}

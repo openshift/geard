@@ -5,131 +5,31 @@ package main
 import (
 	"errors"
 	"fmt"
-	dc "github.com/fsouza/go-dockerclient"
 	"io"
 	"log"
 	"net"
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
-	"github.com/openshift/geard/selinux"
 	"github.com/openshift/geard/ssh"
 	"github.com/openshift/geard/utils"
+
+	dc "github.com/fsouza/go-dockerclient"
 )
 
-var resolver addressResolver = addressResolver{}
-
 func InitPreStart(dockerSocket string, id containers.Identifier, imageName string) error {
-	var (
-		err     error
-		imgInfo *dc.Image
-		d       *docker.DockerClient
-	)
-
-	_, socketActivationType, err := containers.GetSocketActivation(id)
-	if err != nil {
-		fmt.Printf("init_pre_start: Error while parsing unit file: %v\n", err)
-		return err
+	if config.SystemDockerFeatures.EnvironmentFile {
+		return containers.UpdateInitEnvironment(dockerSocket, id, imageName)
+	} else {
+		return containers.CreateContainerInitScripts(dockerSocket, id, imageName)
 	}
-
-	if _, err = user.Lookup(id.LoginFor()); err != nil {
-		if _, ok := err.(user.UnknownUserError); !ok {
-			return err
-		}
-		if err = createUser(id); err != nil {
-			return err
-		}
-	}
-
-	if d, err = docker.GetConnection(dockerSocket); err != nil {
-		return err
-	}
-
-	if imgInfo, err = d.GetImage(imageName); err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(id.HomePath(), 0700); err != nil {
-		return err
-	}
-
-	u, _ := user.Lookup(id.LoginFor())
-	volumes := make([]string, 0, 10)
-	for volPath := range imgInfo.Config.Volumes {
-		volumes = append(volumes, volPath)
-	}
-
-	user := imgInfo.Config.User
-	if user == "" {
-		user = "container"
-	}
-
-	ports, err := containers.GetExistingPorts(id)
-	if err != nil {
-		fmt.Printf("container init pre-start: Unable to retrieve port mapping\n")
-		return err
-	}
-
-	containerData := containers.ContainerInitScript{
-		imgInfo.Config.User == "",
-		user,
-		u.Uid,
-		u.Gid,
-		strings.Join(imgInfo.Config.Cmd, " "),
-		len(volumes) > 0,
-		strings.Join(volumes, " "),
-		ports,
-		socketActivationType == "proxied",
-	}
-
-	file, _, err := utils.OpenFileExclusive(path.Join(id.HomePath(), "container-init.sh"), 0700)
-	if err != nil {
-		fmt.Printf("container init pre-start: Unable to open script file: %v\n", err)
-		return err
-	}
-	defer file.Close()
-
-	if erre := containers.ContainerInitTemplate.Execute(file, containerData); erre != nil {
-		fmt.Printf("container init pre-start: Unable to output template: ", erre)
-		return erre
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-
-	file, _, err = utils.OpenFileExclusive(path.Join(id.HomePath(), "container-cmd.sh"), 0705)
-	if err != nil {
-		fmt.Printf("container init pre-start: Unable to open cmd script file: %v\n", err)
-		return err
-	}
-	defer file.Close()
-
-	if erre := containers.ContainerCmdTemplate.Execute(file, containerData); erre != nil {
-		fmt.Printf("container init pre-start: Unable to output cmd template: ", erre)
-		return erre
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func createUser(id containers.Identifier) error {
-	cmd := exec.Command("/usr/sbin/useradd", id.LoginFor(), "-m", "-d", id.HomePath(), "-c", "Container user")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		log.Println(out)
-		return err
-	}
-	selinux.RestoreCon(id.HomePath(), true)
-	return nil
 }
 
 func InitPostStart(dockerSocket string, id containers.Identifier) error {
@@ -200,46 +100,6 @@ func getHostIPFromNamespace(name string) (*net.IPAddr, error) {
 		return nil, errr
 	}
 	return sourceAddr, nil
-}
-
-type addressResolver struct {
-	local   net.IP
-	checked bool
-}
-
-func (resolver *addressResolver) ResolveIP(host string) (net.IP, error) {
-	if host == "localhost" || host == "127.0.0.1" {
-		if resolver.local != nil {
-			return resolver.local, nil
-		}
-		if !resolver.checked {
-			resolver.checked = true
-			devices, err := net.Interfaces()
-			if err != nil {
-				return nil, err
-			}
-			for _, dev := range devices {
-				if (dev.Flags&net.FlagUp != 0) && (dev.Flags&net.FlagLoopback == 0) {
-					addrs, err := dev.Addrs()
-					if err != nil {
-						continue
-					}
-					for i := range addrs {
-						if ip, ok := addrs[i].(*net.IPNet); ok {
-							log.Printf("Using %v for %s", ip, host)
-							resolver.local = ip.IP
-							return resolver.local, nil
-						}
-					}
-				}
-			}
-		}
-	}
-	addr, err := net.ResolveIPAddr("ip", host)
-	if err != nil {
-		return nil, err
-	}
-	return addr.IP, nil
 }
 
 func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
@@ -313,7 +173,7 @@ func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
 				continue
 			}
 
-			destIP, err := resolver.ResolveIP(link.ToHost)
+			destIP, err := utils.Resolver.ResolveIP(link.ToHost)
 			if err != nil {
 				log.Printf("gear: Link destination host does not resolve %v", err)
 				continue
