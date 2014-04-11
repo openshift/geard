@@ -8,6 +8,9 @@ import (
 	"github.com/openshift/geard/idler"
 	"github.com/openshift/geard/systemd"
 	"github.com/spf13/cobra"
+	
+	"net"
+	"strings"
 )
 
 var (
@@ -24,9 +27,6 @@ func init() {
 		}
 		idlerCmd.PersistentFlags().StringVarP(&hostIp, "host-ip", "H", guessHostIp(), "IP address to listen for traffic on")
 		idlerCmd.PersistentFlags().IntVarP(&idleTimeout, "idle-timeout", "T", 60, "Set the number of minutes of inactivity before an application is idled")
-		if parent.Flags().Lookup("docker-socket") == nil {
-			panic("Flag docker-socket is not defined")
-		}
 		parent.AddCommand(idlerCmd)
 	}, true)
 }

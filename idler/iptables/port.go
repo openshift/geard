@@ -1,6 +1,6 @@
 // +build idler
 
-package idler
+package iptables
 
 import (
 	"bufio"

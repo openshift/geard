@@ -267,12 +267,12 @@ func waitStart(pChan <-chan netfilter.NFPacket, chanId uint16, waitChan chan<- u
 	}
 }
 
-func portForPacket(p netfilter.NFPacket) (Port, error) {
+func portForPacket(p netfilter.NFPacket) (iptables.Port, error) {
 	tcpLayer := p.Packet.TransportLayer()
 	tcp, ok := tcpLayer.(*layers.TCP)
 	if !ok {
-		return 0, fmt.Errorf("Unknown packet of type %v\n", tcpLayer.LayerType())
+		return iptables.TcpPort(0), fmt.Errorf("Unknown packet of type %v\n", tcpLayer.LayerType())
 	}
 
-	return TcpPort(tcp.DstPort), nil
+	return iptables.TcpPort(int(tcp.DstPort)), nil
 }
