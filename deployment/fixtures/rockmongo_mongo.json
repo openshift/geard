@@ -3,7 +3,7 @@
     {
       "name":"rockmongo",
       "count":1,
-      "image":"ccoleman/rockmongo",
+      "image":"derekwaynecarr/rockmongo",
       "publicports":[
         {"internal":80,"external":6060}
       ],
