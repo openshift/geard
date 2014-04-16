@@ -20,6 +20,7 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 	idleFlagPath := j.Id.IdleUnitPathFor()
 	socketUnitPath := j.Id.SocketUnitPathFor()
 	homeDirPath := j.Id.BaseHomePath()
+	networkLinksPath := j.Id.NetworkLinksPathFor()
 
 	_, err := systemd.Connection().GetUnitProperties(unitName)
 	switch {
@@ -63,6 +64,10 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 
 	if err := os.Remove(socketUnitPath); err != nil && !os.IsNotExist(err) {
 		log.Printf("delete_container: Unable to remove socket unit path: %v", err)
+	}
+
+	if err := os.Remove(networkLinksPath); err != nil {
+		log.Printf("delete_container: Unable to remove network links file: %v", err)
 	}
 
 	if err := os.RemoveAll(unitDefinitionsPath); err != nil {
