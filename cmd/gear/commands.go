@@ -25,6 +25,7 @@ import (
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 	"github.com/spf13/cobra"
+	"github.com/openshift/geard/cleanup"
 )
 
 var (
@@ -57,6 +58,9 @@ var (
 	hostIp      string
 
 	listenAddr string
+
+	dryRun bool
+	repair bool
 )
 
 var conf = http.HttpConfiguration{
@@ -217,12 +221,22 @@ func Execute() {
 	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":43273", "Set the address for the http endpoint to listen on")
 	AddCommand(gearCmd, daemonCmd, true)
 
-	cleanCmd := &cobra.Command{
-		Use:   "clean",
+	purgeCmd := &cobra.Command{
+		Use:   "purge",
 		Short: "(Local) Stop and disable systemd gear units",
 		Long:  "Disable all registered resources from systemd to allow them to be removed from the system.  Will reload the systemd daemon config.",
-		Run:   clean,
+		Run:   purge,
 	}
+	AddCommand(gearCmd, purgeCmd, true)
+
+	cleanCmd := &cobra.Command{
+		Use:	"clean",
+		Short:	"List/fix various issues with geard state.",
+		Long:	"Perform various tasks to clean up the state, images, directories and other resources.",
+		Run:	clean,
+	}
+	cleanCmd.Flags().BoolVarP(&dryRun, "dry-run", "", false, "List the cleanups, but do not execute.")
+	cleanCmd.Flags().BoolVarP(&repair, "repair", "", false, "Perform potentially irrecoverable cleanups.")
 	AddCommand(gearCmd, cleanCmd, true)
 
 	initGearCmd := &cobra.Command{
@@ -255,7 +269,7 @@ func gear(cmd *cobra.Command, args []string) {
 	cmd.Help()
 }
 
-func clean(cmd *cobra.Command, args []string) {
+func purge(cmd *cobra.Command, args []string) {
 	needsSystemd()
 	containers.Clean()
 }
@@ -844,4 +858,11 @@ func initGear(cmd *cobra.Command, args []string) {
 			Fail(2, "Unable to initialize container %s\n", err.Error())
 		}
 	}
+}
+
+func clean(cmd *cobra.Command, args[]string) {
+	logInfo  := log.New(os.Stdout, "INFO: ", log.Ldate | log.Ltime)
+	logError := log.New(os.Stderr, "ERROR: ", log.Ldate | log.Ltime)
+
+	cleanup.Clean(&cleanup.CleanerContext{DryRun: dryRun, Repair: repair, LogInfo: logInfo, LogError: logError})
 }
