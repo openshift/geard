@@ -1,10 +1,14 @@
 package jobs
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"reflect"
 	"time"
@@ -27,6 +31,7 @@ type ExtendedBuildImageData struct {
 	RuntimeImage string
 	Clean        bool
 	Verbose      bool
+	CallbackUrl  string
 }
 
 func (e *ExtendedBuildImageData) Check() error {
@@ -48,7 +53,75 @@ const (
 )
 
 func (j *BuildImageRequest) Execute(resp JobResponse) {
-	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
+	log.Println("BuildImageRequest: Execute start")
+
+	if j.CallbackUrl == "" {
+		// if no callback is specified, we tail the log in the response
+		j.ExecuteInternal(resp)
+	} else {
+		// if callback is specified, we return immediately and schedule thread to complete task
+		resp.Success(JobResponseAccepted)
+		// process the build in another thread
+		go j.ExecuteInternal(resp)
+	}
+
+	log.Println("BuildImageRequest: Execute end")
+}
+
+func (j *BuildImageRequest) ExecuteCallback(buf *bytes.Buffer) {
+	log.Printf("BuildImageRequest: ExecuteCallback start")
+
+	if j.CallbackUrl != "" {
+
+		// log results to console
+		log.Printf("BuildImageRequest: ExecuteCallback received notification")
+		log.Printf("BuildImageRequest: Build Log:\n%s", buf.String())
+		log.Printf("BuildImageRequest: ExecuteCallback via POST to url: %s", j.CallbackUrl)
+
+		// callback creates a json model
+		payloadBuffer := new(bytes.Buffer)
+		bufferedWriter := bufio.NewWriter(payloadBuffer)
+		jsonWriter := json.NewEncoder(bufferedWriter)
+		d := map[string]string{"payload": buf.String()}
+		jsonWriter.Encode(d)
+		bufferedWriter.Flush()
+
+		log.Printf("BuildImageRequest: ExecuteCallback JSON:\n%s", payloadBuffer)
+
+		// send log to callback
+		resp, err := http.Post(j.CallbackUrl, "application/json", payloadBuffer)
+
+		// TODO determine any pertinent retry behavior
+		if err != nil {
+			log.Printf("BuildImageRequest: ExecuteCallback error: %s", err)
+		}
+		if resp != nil {
+			if resp.StatusCode > 400 {
+				log.Printf("BuildImageRequest: ExecuteCallback callback failed")
+			} else {
+				log.Printf("BuildImageRequest: ExecuteCallback callback completed")
+			}
+		}
+	}
+
+	log.Printf("BuildImageRequest: ExecuteCallback end")
+}
+
+func (j *BuildImageRequest) ExecuteInternal(resp JobResponse) {
+
+	log.Println("BuildImageRequest: ExecuteInternal start")
+
+	// if no callback is specified, we tail the log in the response
+	var w io.Writer
+	var buf *bytes.Buffer
+	var internalWriter *bufio.Writer
+	if j.CallbackUrl == "" {
+		w = resp.SuccessWithWrite(JobResponseAccepted, true, false)
+	} else {
+		buf = new(bytes.Buffer)
+		internalWriter = bufio.NewWriter(buf)
+		w = internalWriter
+	}
 
 	fmt.Fprintf(w, "Processing build-image request:\n")
 	// TODO: download source, add bind-mount
@@ -145,8 +218,8 @@ func (j *BuildImageRequest) Execute(resp JobResponse) {
 wait:
 	for {
 		select {
-		case c := <-changes:
-			if changed, ok := c[unitName]; ok {
+		case change := <-changes:
+			if changed, ok := change[unitName]; ok {
 				if changed.SubState != "running" {
 					fmt.Fprintf(w, "Build completed\n")
 					break wait
@@ -161,4 +234,12 @@ wait:
 	}
 
 	stdout.Close()
+
+	// send an operation complete message to any listeners on channel
+	if j.CallbackUrl != "" {
+		internalWriter.Flush()
+		j.ExecuteCallback(buf)
+	}
+
+	log.Println("BuildImageRequest: ExecuteInternal end")
 }
