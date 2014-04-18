@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"time"
 
@@ -43,7 +42,7 @@ var (
 
 	environment  EnvironmentDescription
 	portPairs    PortPairs
-	networkLinks = NetworkLinks{&containers.NetworkLinks{}}
+	networkLinks = NetworkLinks{}
 
 	gitKeys     bool
 	gitRepoName string
@@ -320,6 +319,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		On: addedIds,
 		Serial: func(on Locator) jobs.Job {
 			instance, _ := changes.Instances.Find(on.(ResourceLocator).Identifier())
+			links := instance.NetworkLinks()
 			return &http.HttpInstallContainerRequest{
 				InstallContainerRequest: jobs.InstallContainerRequest{
 					RequestIdentifier: jobs.NewRequestIdentifier(),
@@ -329,7 +329,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 					Isolate: isolate,
 
 					Ports:        instance.Ports.PortPairs(),
-					NetworkLinks: instance.NetworkLinks(),
+					NetworkLinks: &links,
 				},
 			}
 		},
@@ -436,7 +436,7 @@ func installImage(cmd *cobra.Command, args []string) {
 
 					Ports:        *portPairs.Get().(*port.PortPairs),
 					Environment:  &environment.Description,
-					NetworkLinks: *networkLinks.NetworkLinks,
+					NetworkLinks: networkLinks.NetworkLinks,
 				},
 			}
 		},
@@ -776,7 +776,6 @@ func listUnits(cmd *cobra.Command, args []string) {
 
 	combined := http.ListContainersResponse{}
 	for i := range data {
-		log.Printf("local execute %+v", reflect.TypeOf(data[i]))
 		if r, ok := data[i].(*http.ListContainersResponse); ok {
 			combined.Append(&r.ListContainersResponse)
 		} else if j, ok := data[i].(*jobs.ListContainersResponse); ok {

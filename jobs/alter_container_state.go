@@ -198,7 +198,7 @@ func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 			fmt.Fprintf(w, "No such container %s\n", j.Id)
 		}
 	case err != nil:
-		fmt.Fprintf(w, "Could not start container: %s\n", err.Error())
+		fmt.Fprintf(w, "Could not stop container: %s\n", err.Error())
 	default:
 		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
 	}
