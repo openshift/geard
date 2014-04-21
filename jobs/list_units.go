@@ -97,6 +97,9 @@ func (j *ListContainersRequest) Execute(resp JobResponse) {
 	r := &ListContainersResponse{make(ContainerUnitResponses, 0)}
 
 	if err := unitsMatching(reContainerUnits, func(name string, unit *dbus.UnitStatus) {
+		if unit.LoadState == "not-found" || unit.LoadState == "masked" {
+			return
+		}
 		r.Containers = append(r.Containers, ContainerUnitResponse{
 			unitResponse{
 				name,

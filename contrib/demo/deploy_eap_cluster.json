@@ -1,0 +1,35 @@
+{
+  "IdPrefix": "demo-",
+  "Containers":[
+    {
+      "Name":"lb",
+      "Count":1,
+      "Image":"goldmann/ews",
+      "PublicPorts":[
+        {"Internal":80,"External":14000}
+      ],
+      "Links":[
+        {"To":"backend"}
+      ]
+    },
+    {
+      "Name":"backend",
+      "Count":3,
+      "Image":"ccoleman/eap-scaling-demo",
+      "PublicPorts":[
+        {"Internal":8080,"External":0}
+      ],
+      "Links":[
+        {"To":"db"}
+      ]
+    },
+    {
+      "Name":"db",
+      "Count":1,
+      "Image":"dockerfile/mongodb",
+      "PublicPorts":[
+        {"Internal":27017,"External":0}
+      ]
+    }
+  ]
+}

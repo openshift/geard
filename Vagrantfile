@@ -23,6 +23,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.network "forwarded_port", guest: 43273, host: 43273
   config.vm.network "forwarded_port", guest: 6060, host: 2225
+  config.vm.network "forwarded_port", guest: 14000, host: 14000
+  for i in 4000..4050
+    config.vm.network :forwarded_port, guest: i, host: i
+  end
 
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
@@ -45,7 +49,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   if ENV['GOPATH'] && ENV['GOPATH'] != ""
     puts "Sharing GOPATH with VM"
-    config.vm.synced_folder ENV['GOPATH'], "/vagrant"
+    config.vm.synced_folder ENV['GOPATH'].split(/:/).last, "/vagrant"
   else
     puts "Sharing current directory with VM"
     config.vm.synced_folder '.', "/vagrant/", disabled: true
@@ -69,15 +73,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   if ENV['JUMBO'] && ENV['JUMBO'] != ""
     config.vm.provider "virtualbox" do |v|
       v.memory = 4096
-      v.cpus = 2
+      v.cpus = 4
+      v.customize ["modifyvm", :id, "--cpus", "4"]
     end
   end
 
   config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-dev-vm.sh"
-
-  if !ENV.has_key?('SKIP_DAEMON_BOOTSTRAP')
-    config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-daemon.sh"
-  end
+  config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-daemon.sh"
 
   # Enable provisioning with Puppet stand alone.  Puppet manifests
   # are contained in a directory path relative to this Vagrantfile.
