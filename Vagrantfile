@@ -49,7 +49,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   if ENV['GOPATH'] && ENV['GOPATH'] != ""
     puts "Sharing GOPATH with VM"
-    config.vm.synced_folder ENV['GOPATH'].split(/:/).last, "/vagrant"
+    gopath = File.expand_path(ENV['GOPATH'].split(/:/).last)
+    vagrantfile = File.expand_path(File.dirname(__FILE__))
+    if !vagrantfile.index(gopath)
+      puts "\nYou have GOPATH set to '#{gopath}', which geard expects to contain your geard source repository, but are running from '#{vagrantfile}' instead.\n\nSet GOPATH='' when running vagrant or move your geard repo to '#{gopath}/src/github.com/openshift/geard'."
+      exit 1
+    end
+    config.vm.synced_folder gopath, "/vagrant"
   else
     puts "Sharing current directory with VM"
     config.vm.synced_folder '.', "/vagrant/", disabled: true
