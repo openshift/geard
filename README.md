@@ -194,7 +194,7 @@ The `contrib/build` script allows you to build and run the project in two differ
 To build and run locally, run the following commands in an ssh session to your development vm:
 
     contrib/build -s
-    sudo ./gear daemon
+    sudo /vagrant/bin/gear daemon
 
 The command will run until exited and logs are printed to the console console in this case.
 
