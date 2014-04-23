@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/sh -x
 
 base=$(dirname $0)
 
@@ -21,7 +21,7 @@ if [ $ret -ne 0 ]; then
   docker tag 103bd59de294 jboss/eap # tag is in the history
 fi
 
-set +ex
+set +x
 
 $base/teardown.sh
 
