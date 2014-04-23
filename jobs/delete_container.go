@@ -66,7 +66,7 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 		log.Printf("delete_container: Unable to remove socket unit path: %v", err)
 	}
 
-	if err := os.Remove(networkLinksPath); err != nil {
+	if err := os.Remove(networkLinksPath); err != nil && !os.IsNotExist(err) {
 		log.Printf("delete_container: Unable to remove network links file: %v", err)
 	}
 
