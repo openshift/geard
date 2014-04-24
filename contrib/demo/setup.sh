@@ -6,12 +6,10 @@ id=$(docker inspect --format="{{.id}}" goldmann/mongod)
 ret=$?
 if [ $ret -ne 0 ]; then
   docker pull ccoleman/geard-githost
-  docker pull 10.10.188.116/jboss/eap
-  docker tag 10.10.188.116/jboss/eap jboss/eap
-  docker pull 10.10.188.116/ccoleman/eap-scaling-demo
-  docker tag 10.10.188.116/ccoleman/eap-scaling-demo ccoleman/eap-scaling-demo
-  docker pull 10.10.188.116/ccoleman/eap-scaling-demo-new
-  docker tag 10.10.188.116/ccoleman/eap-scaling-demo-new ccoleman/eap-scaling-demo-new
+  docker pull docker-registry1.dev.rhcloud.com/jboss/eap
+  docker tag docker-registry1.dev.rhcloud.com/jboss/eap jboss/eap
+  docker pull docker-registry1.dev.rhcloud.com/ccoleman/eap-scaling-demo
+  docker tag docker-registry1.dev.rhcloud.com/ccoleman/eap-scaling-demo ccoleman/eap-scaling-demo
   docker pull 10.64.27.125:5000/goldmann/mongod
   docker tag 10.64.27.125:5000/goldmann/mongod goldmann/mongod
   docker pull pmorie/sti-html-app
