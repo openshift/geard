@@ -16,6 +16,10 @@ chown -R vagrant:vagrant /vagrant
 cp -f $GEARD_PATH/contrib/geard-image.service /usr/lib/systemd/system/geard-image.service
 systemctl enable /usr/lib/systemd/system/geard-image.service
 
+# Modify SSHD config to use gear-auth-keys-command to support git clone from repo
+echo 'AuthorizedKeysCommand /usr/sbin/gear-auth-keys-command' >> /etc/ssh/sshd_config
+echo 'AuthorizedKeysCommandUser nobody' >> /etc/ssh/sshd_config
+
 echo 'export GOPATH=/vagrant' >> ~vagrant/.bash_profile
 echo 'export PATH=$GOPATH/bin:$PATH' >> ~vagrant/.bash_profile
 echo "cd $GEARD_PATH" >> ~vagrant/.bashrc
