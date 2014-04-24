@@ -228,6 +228,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 		ReqId: req.RequestIdentifier.String(),
 
 		HomeDir:         id.HomePath(),
+		RunDir:          id.RunPathFor(),
 		EnvironmentPath: environmentPath,
 		ExecutablePath:  filepath.Join("/", "usr", "bin", "gear"),
 		IncludePath:     "",

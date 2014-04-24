@@ -246,7 +246,7 @@ func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
 	for _, p := range paths {
 		s.assertFilePresent(c, p, 0664, true)
 	}
-	s.assertFileAbsent(c, filepath.Join(id.HomePath(), "container-init.sh"))
+	s.assertFileAbsent(c, filepath.Join(id.RunPathFor(), "container-init.sh"))
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
@@ -307,7 +307,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 	for _, p := range paths {
 		s.assertFilePresent(c, p, 0664, true)
 	}
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	s.assertFilePresent(c, filepath.Join(id.RunPathFor(), "container-init.sh"), 0700, false)
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
@@ -365,7 +365,7 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 	s.assertContainerState(c, id, CONTAINER_STARTED)
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	s.assertFilePresent(c, filepath.Join(id.RunPathFor(), "container-init.sh"), 0700, false)
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
@@ -395,7 +395,7 @@ func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
 	s.assertContainerState(c, id, CONTAINER_STARTED)
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	s.assertFilePresent(c, filepath.Join(id.RunPathFor(), "container-init.sh"), 0700, false)
 	oldPid := s.getContainerPid(id)
 
 	cmd = exec.Command("/usr/bin/gear", "restart", hostContainerId)
@@ -466,7 +466,7 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 	s.assertContainerState(c, id, CONTAINER_STARTED)
 
 	s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	s.assertFilePresent(c, filepath.Join(id.RunPathFor(), "container-init.sh"), 0700, false)
 
 	ports, err := containers.GetExistingPorts(id)
 	c.Assert(err, chk.IsNil)
@@ -506,7 +506,7 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 	cmd = exec.Command("/usr/bin/gear", "start", hostContainerId)
 	data, err = cmd.CombinedOutput()
 	s.assertContainerState(c, id, CONTAINER_STARTED)
-	s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+	s.assertFilePresent(c, filepath.Join(id.RunPathFor(), "container-init.sh"), 0700, false)
 
 	cmd = exec.Command("/usr/bin/switchns", "--container="+id.ContainerFor(), "--", "/sbin/iptables", "-t", "nat", "-L")
 	data, err = cmd.CombinedOutput()
@@ -561,7 +561,7 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 //             c.Fail()
 //         }
 //     }
-//     s.assertFilePresent(c, filepath.Join(id.HomePath(), "container-init.sh"), 0700, false)
+//     s.assertFilePresent(c, filepath.Join(id.RunPathFor(), "container-init.sh"), 0700, false)
 //     s.assertContainerState(c, id, CONTAINER_STARTED)
 // }
 

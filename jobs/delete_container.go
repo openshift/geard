@@ -20,6 +20,7 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 	idleFlagPath := j.Id.IdleUnitPathFor()
 	socketUnitPath := j.Id.SocketUnitPathFor()
 	homeDirPath := j.Id.BaseHomePath()
+	runDirPath := j.Id.RunPathFor()
 	networkLinksPath := j.Id.NetworkLinksPathFor()
 
 	_, err := systemd.Connection().GetUnitProperties(unitName)
@@ -72,6 +73,10 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 
 	if err := os.RemoveAll(unitDefinitionsPath); err != nil {
 		log.Printf("delete_container: Unable to remove definitions for container: %v", err)
+	}
+
+	if err := os.RemoveAll(filepath.Dir(runDirPath)); err != nil {
+		log.Printf("delete_container: Unable to remove run directory: %v", err)
 	}
 
 	if err := os.RemoveAll(filepath.Dir(homeDirPath)); err != nil {
