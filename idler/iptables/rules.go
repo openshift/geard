@@ -7,7 +7,6 @@ import (
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/idler/config"
-	"github.com/openshift/geard/port"
 
 	"bufio"
 	"bytes"
@@ -131,7 +130,7 @@ func GetDockerContainerPacketCounts(d *docker.DockerClient) (map[containers.Iden
 		return nil, err
 	}
 
-	ids := make([]containers.Identifier, 0)
+	ids := make([]string, 0)
 	packetCount := make(map[containers.Identifier]int)
 
 	for _, s := range serviceFiles {
@@ -139,13 +138,13 @@ func GetDockerContainerPacketCounts(d *docker.DockerClient) (map[containers.Iden
 		if strings.HasPrefix(id, containers.IdentifierPrefix) && strings.HasSuffix(id, ".service") {
 			id = id[len(containers.IdentifierPrefix):(len(id) - len(".service"))]
 			if id, err := containers.NewIdentifier(id); err == nil {
-				ids = append(ids, id)
+				ids = append(ids, string(id))
 				packetCount[id] = 0
 			}
 		}
 	}
 
-	containerIPs, err := containers.GetContainerIPs(d, ids)
+	containerIPs, err := d.GetContainerIPs(ids)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +163,7 @@ func GetDockerContainerPacketCounts(d *docker.DockerClient) (map[containers.Iden
 			items := strings.Fields(line)
 			packets, _ := strconv.Atoi(strings.Split(items[0], ":")[0][1:])
 			destIp := strings.Split(items[15], ":")[0]
-			id := containerIPs[destIp]
+			id,_ := containers.NewIdentifier(containerIPs[destIp])
 
 			packetCount[id] = packetCount[id] + packets
 		}
@@ -242,7 +241,7 @@ func ResetPacketCount() error {
 	return exec.Command("/sbin/iptables", "-t", "raw", "-Z").Run()
 }
 
-func CleanupRulesForPort(p port.Port) {
+func CleanupRulesForPort(p Port) {
 	fmt.Printf("Cleaning stale rules for port %v\n", p)
 	port := p.String()
 	cmd := exec.Command("/sbin/iptables-save", "-c")
