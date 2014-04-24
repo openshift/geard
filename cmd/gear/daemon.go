@@ -36,6 +36,6 @@ func daemon(cmd *cobra.Command, args []string) {
 
 	conf.Dispatcher.Start()
 
-	log.Printf("Listening for HTTP on %s ...", listenAddr)
+	log.Printf("Listening (HTTP) on %s ...", listenAddr)
 	log.Fatal(nethttp.ListenAndServe(listenAddr, nil))
 }
