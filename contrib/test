@@ -1,24 +1,27 @@
-#!/bin/bash
+#!/bin/bash -eu
 
-ORIG_GOPATH=$GOPATH
-export GOPATH=$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
+source "$(dirname $0)/build-support"
 
+function usage() {
+  echo "Usage: "
+  echo "    $0 -a -o <test options>"
+  echo " "
+  echo "-a                Run integration tests"
+  echo "-o <options>      Pass additional flags to integration tests"
+  exit
+}
+
+# Construct a sane build environment
+setup_geard_build_env
+
+# Options parsing
 test_integration=false
 test_opts=""
-
-usage() {
-	echo "Usage: "
-	echo "    $0 -a -o <test options>"
-	echo " "
-	echo "-a                Run integration tests"
-	echo "-o <options>      Pass additional flags to integration tests"
-	exit
-}
 
 while getopts "ao:" o; do
   case "${o}" in
     (a) test_integration=true;;
-    (o) test_opts=$OPTARG;;
+    (o) test_opts=${OPTARG:-};;
     (?) usage; break;;
   esac
 done

@@ -1,23 +1,84 @@
-#!/bin/bash
+#!/bin/bash -eu
 
-if [ "$GOPATH" == "" ]; then
-	echo "Must set GOPATH"
-	exit 1
-fi
-
-ORIG_GOPATH=$GOPATH
-export GOPATH=$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
+source "$(dirname $0)/build-support"
 
 function usage() {
-	echo "build [-s] [-d] [-i] [-n]"
-	echo "-s builds with selinux enabled"
-	echo "-d builds/deploys systemd service with docker"
-	echo "-i builds with idler daemon"
-	echo "-l builds with vendored packages only (skips go get)"
-	echo "-n do not copy binaries into /bin and /sbin location"
-	exit 1
+  echo "build [-s] [-d] [-i] [-n]"
+  echo "-s builds with selinux enabled"
+  echo "-d builds/deploys systemd service with docker"
+  echo "-i builds with idler daemon"
+  echo "-l builds with vendored packages only (skips go get)"
+  echo "-n do not copy binaries into /bin and /sbin location"
+  exit 1
 }
 
+# Builds geard in the docker container, tags the image, and
+# restarts the geard service in the host.
+function build_docker() {
+  docker build -rm -t openshift/geard . && sudo systemctl restart geard-image.service
+}
+
+# Performs a local go install of geard.
+function build_local() {
+  if ! $skip_go_get; then
+    echo "Downloading build dependencies"  
+    # these packages should not be vendored
+    echo " "
+    echo "Note: Packages downloaded by go get at this point may need to be vendored."
+    go get -v -d -tags "$tags" ./...
+    echo "..done"
+  fi
+  
+  local artifacts=(
+    cmd/gear
+    cmd/switchns
+    ssh/cmd/gear-auth-keys-command
+  )
+
+  local build_success=true
+  for artifact in ${artifacts[@]}; do
+    echo ""
+    echo "-----------------------------------"
+    echo "Building ${artifact}..."
+    echo "-----------------------------------"
+    
+    if ! go install -tags "$tags" "github.com/openshift/geard/${artifact}"; then
+      echo -e "\n===> FAILED"
+      build_success=false
+    else
+      echo -e "===> Success"
+    fi
+  done
+  
+  if ! $build_success; then
+    echo -e "\nExiting due to build failures." 1>&2
+    exit 2
+  fi
+
+  if $copy_binaries; then
+    echo ""
+    echo "Copying binaries..."
+
+    local bin_dir=../../../../bin
+    sudo cp -f ${bin_dir}/gear-auth-keys-command /usr/sbin/
+    sudo cp -f ${bin_dir}/switchns /usr/bin
+    sudo cp -f ${bin_dir}/gear /usr/bin
+    sudo chmod +s /usr/bin/switchns
+
+    if $use_selinux; then
+      sudo restorecon -v /usr/sbin/gear-auth-keys-command /usr/bin/gear /usr/bin/switchns
+    fi
+
+    echo "..done"
+  fi
+
+  echo -e "\nBuild completed successfully."
+}
+
+# Construct a sane build environment
+setup_geard_build_env
+
+# Option parsing
 use_selinux=false
 handle_systemd=false
 build_idler=false
@@ -25,51 +86,29 @@ skip_go_get=false
 copy_binaries=true
 
 while getopts "sdiln" o; do
-	case "${o}" in
-		s) use_selinux=true;;
-		d) handle_systemd=true;;
-		i) build_idler=true;;
-		l) skip_go_get=true;;
-		n) copy_binaries=false;;
-		*) usage;;
-	esac
+  case "${o}" in
+    s) use_selinux=true;;
+    d) handle_systemd=true;;
+    i) build_idler=true;;
+    l) skip_go_get=true;;
+    n) copy_binaries=false;;
+    *) usage;;
+  esac
 done
 
 tags=""
 
 if $use_selinux; then
-	tags="selinux"
+  tags="selinux"
 fi
 
 if $build_idler; then
-	tags="$tags idler"
+  tags="$tags idler"
 fi
 
+# Perform the build
 if $handle_systemd; then
-	docker build -rm -t ccoleman/geard $ORIG_GOPATH && sudo systemctl restart geard-image.service	
+  build_docker
 else
-	if ! $skip_go_get; then
-		echo "Downloading build dependencies"  
-		# these packages should not be vendored
-		echo " "
-		echo "Note: Packages downloaded by go get at this point may need to be vendored."
-		go get -v -d -tags "$tags" ./...
-		echo "..done"
-	fi
-  
-	echo "Building.."
-	go install -tags "$tags" github.com/openshift/geard/cmd/gear
-	go install -tags "$tags" github.com/openshift/geard/cmd/switchns
-	go install -tags "$tags" github.com/openshift/geard/ssh/cmd/gear-auth-keys-command
-	echo "..done"
-
-	if $copy_binaries; then
-		echo "Copying binaries.."
-		sudo /usr/bin/cp -f $ORIG_GOPATH/bin/gear-auth-keys-command /usr/sbin/
-		sudo /usr/bin/cp -f $ORIG_GOPATH/bin/switchns /usr/bin
-		sudo /usr/bin/cp -f $ORIG_GOPATH/bin/gear /usr/bin
-		sudo chmod +s /usr/bin/switchns
-		sudo restorecon -v /usr/sbin/gear-auth-keys-command /usr/bin/gear /usr/bin/switchns
-  	echo "..done"
-	fi
+  build_local
 fi
