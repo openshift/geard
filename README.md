@@ -178,36 +178,23 @@ If you don't have Go installed locally, run the following steps:
     git clone git@github.com:openshift/geard && cd geard
     vagrant up
 
-The `geard` project is set up such that `vagrant up` will download and install `geard`'s dependencies as well as installing and enabling the systemd unit to run `geard` in a docker container under systemd.
-
-Once `vagrant up` is running, you can ssh into the vm:
+`vagrant up` will install a few RPMs the first time it is started.  Once `vagrant up` is running, you can ssh into the vm:
 
     vagrant ssh
 
-The `contrib/build` script allows you to build and run the project in two different ways:
-
-1.  Build binaries locally and run the daemon interactively with `gear daemon`
-1.  Build a docker image and run the containerized daemon as a systemd unit
-
-### Building and running locally
-
-To build and run locally, run the following commands in an ssh session to your development vm:
+The `contrib/build` script checks and downloads Go dependencies, builds the `gear` binary, and then installs it to /vagrant/bin/gear and /usr/bin/gear.  It has a few flags - '-s' builds with SELinux support for SSH and Git.
 
     contrib/build -s
-    sudo /vagrant/bin/gear daemon
 
-The command will run until exited and logs are printed to the console console in this case.
+Once you've built the executables, you can run:
+
+    sudo $GOPATH/bin/gear daemon
+
+to start the gear agent.  The agent will listen on port 43273 by default and print logs to the console - hit CTRL+C to stop the agent.
 
 See [contrib/example.sh](contrib/example.sh) and [contrib/stress.sh](contrib/stress.sh) for more examples of API calls.
 
-
-### Building and running as a service
-
-To build a geard and run the systemd unit:
-
-    contrib/build
-
-This will build and install the geard files into /usr/bin and /usr/sbin. Enable and start the systemd service file:
+An example systemd unit file for geard is included in the `contrib/` directory.  After building, the following commands will install the unit file and start the agent under systemd:
 
     sudo systemctl enable contrib/geard.service
     sudo systemctl start contrib/geard.service

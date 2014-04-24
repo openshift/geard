@@ -5,6 +5,8 @@ import (
 	"log"
 )
 
+const hostServiceName = "geard-githost"
+
 func InitializeData() error {
 	if err := initializeSlices(); err != nil {
 		log.Fatal(err)
@@ -18,9 +20,23 @@ func InitializeData() error {
 }
 
 func initializeSlices() error {
-	return systemd.InitializeSystemdFile(systemd.SliceType, "geard-githost", SliceGitTemplate, nil, false)
+	return systemd.InitializeSystemdFile(systemd.SliceType, hostServiceName, SliceGitTemplate, nil, false)
 }
 
 func initializeGitHost() error {
-	return systemd.InitializeSystemdFile(systemd.UnitType, "geard-githost", UnitGitHostTemplate, nil, true)
+	if err := systemd.InitializeSystemdFile(systemd.UnitType, hostServiceName, UnitGitHostTemplate, nil, false); err != nil {
+		return err
+	}
+	systemd.IsUnitProperty(systemd.Connection(), hostServiceName+".service", func(p map[string]interface{}) bool {
+		switch p["ActiveState"] {
+		case "active":
+			break
+		case "activating":
+			log.Printf("The Git host service '" + hostServiceName + "' is starting - repository tasks will not be available until it completes")
+		default:
+			log.Printf("The Git host service '" + hostServiceName + "' is not started - Git repository operations will not be available")
+		}
+		return true
+	})
+	return nil
 }
