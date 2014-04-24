@@ -10,7 +10,12 @@ import (
 )
 
 type DeleteContainerRequest struct {
-	Id containers.Identifier
+	Id    containers.Identifier
+	Label string
+}
+
+func (j *DeleteContainerRequest) JobLabel() string {
+	return j.Label
 }
 
 func (j *DeleteContainerRequest) Execute(resp JobResponse) {

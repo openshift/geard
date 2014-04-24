@@ -4,18 +4,19 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	. "github.com/openshift/geard/cmd"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-	sshkey "github.com/openshift/geard/pkg/ssh-public-key"
-	"github.com/openshift/geard/ssh"
-	. "github.com/openshift/geard/ssh/http"
-	. "github.com/openshift/geard/ssh/jobs"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
+
+	. "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
+	sshkey "github.com/openshift/geard/pkg/ssh-public-key"
+	"github.com/openshift/geard/ssh"
+	. "github.com/openshift/geard/ssh/jobs"
+	. "github.com/openshift/geard/transport"
 )
 
 var (
@@ -84,6 +85,12 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 		Fail(1, "You must pass 1 or more valid names: %s", err.Error())
 	}
 
+	transportName := cmd.Flags().Lookup("transport").Value.String()
+	transport := GetTransport(transportName)
+	if transport == nil {
+		Fail(1, "Invalid transport: %s. Choices are: %v\n", transportName, GetTransportNames())
+	}
+
 	keys, err := readAuthorizedKeysFile(keyFile)
 	if err != nil {
 		Fail(1, "Unable to read authorized keys file: %s", err.Error())
@@ -113,18 +120,20 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 				permissions = append(permissions, *allPerms[on[i].Identity()])
 			}
 
-			return &HttpCreateKeysRequest{
-				CreateKeysRequest: CreateKeysRequest{
-					&ExtendedCreateKeysData{
-						Keys:        keys,
-						Permissions: permissions,
-					},
+			r := CreateKeysRequest{
+				&ExtendedCreateKeysData{
+					Keys:        keys,
+					Permissions: permissions,
 				},
 			}
+
+			return transport.RequestFor(&r)
+
 		},
 		Output: os.Stdout,
 		//TODO: display partial error info
 		LocalInit: containers.InitializeData,
+		Transport: transport,
 	}.StreamAndExit()
 }
 

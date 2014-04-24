@@ -13,7 +13,7 @@ import (
 func init() {
 	cmd.AddInitializer(git.InitializeData, cmd.ForDaemon)
 
-	http.AddHttpExtension(githttp.Routes)
+	http.AddHttpExtension(&githttp.HttpExtension{})
 
 	cmd.AddCommandExtension(registerRemote, false)
 	cmd.AddCommandExtension(registerLocal, true)
