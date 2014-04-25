@@ -12,10 +12,6 @@ mkdir -p /vagrant/{src/github.com/openshift/geard,pkg,bin}
 GEARD_PATH=/vagrant/src/github.com/openshift/geard
 chown -R vagrant:vagrant /vagrant
 
-# Install / enable systemd unit
-cp -f $GEARD_PATH/contrib/geard-image.service /usr/lib/systemd/system/geard-image.service
-systemctl enable /usr/lib/systemd/system/geard-image.service
-
 # Modify SSHD config to use gear-auth-keys-command to support git clone from repo
 echo 'AuthorizedKeysCommand /usr/sbin/gear-auth-keys-command' >> /etc/ssh/sshd_config
 echo 'AuthorizedKeysCommandUser nobody' >> /etc/ssh/sshd_config
