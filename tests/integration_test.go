@@ -108,6 +108,8 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 	ticker = time.NewTicker(time.Second / 10)
 	defer ticker.Stop()
 
+	timeout := time.After(CONTAINER_STATE_CHANGE_TIMEOUT)
+
 	cInfo, err := s.sdconn.GetUnitProperties(id.UnitNameFor())
 	c.Assert(err, chk.IsNil)
 	switch cInfo["SubState"] {
@@ -120,7 +122,7 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 	c.Logf("Current state: %v, interpreted as %v", cInfo["SubState"], curState)
 
 	if curState != expectedState {
-		for true {
+		for {
 			select {
 			case <-ticker.C:
 				cInfo, err := s.sdconn.GetUnitProperties(id.UnitNameFor())
@@ -136,7 +138,7 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 					curState = CONTAINER_STOPPED
 				}
 				c.Logf("Current state: %v, interpreted as %v", cInfo["SubState"], curState)
-			case <-time.After(CONTAINER_STATE_CHANGE_TIMEOUT):
+			case <-timeout:
 				c.Logf("%v %v", didStop, didRestart)
 				c.Log("Timed out during state change")
 				c.Assert(1, chk.Equals, 2)
@@ -149,20 +151,22 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 
 	switch {
 	case expectedState == CONTAINER_STOPPED:
-		for true {
+		timeout := time.After(CONTAINER_STATE_CHANGE_TIMEOUT)
+		for {
 			select {
 			case <-ticker.C:
 				_, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
 				if err != nil {
 					return
 				}
-			case <-time.After(DOCKER_STATE_CHANGE_TIMEOUT):
+			case <-timeout:
 				c.Log("Timed out waiting for docker container to stop")
 				c.FailNow()
 			}
 		}
 	case expectedState == CONTAINER_STARTED || expectedState == CONTAINER_RESTARTED:
-		for true {
+		timeout := time.After(CONTAINER_STATE_CHANGE_TIMEOUT)
+		for {
 			select {
 			case <-ticker.C:
 				container, err := s.dockerClient.GetContainer(id.ContainerFor(), true)
@@ -173,7 +177,7 @@ func (s *IntegrationTestSuite) assertContainerState(c *chk.C, id containers.Iden
 				if container.State.Running {
 					return
 				}
-			case <-time.After(DOCKER_STATE_CHANGE_TIMEOUT):
+			case <-timeout:
 				c.Log("Timed out waiting for docker container to start")
 				c.FailNow()
 			}
@@ -371,9 +375,17 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	c.Assert(len(ports), chk.Equals, 1)
 
-	resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
-	c.Assert(err, chk.IsNil)
-	c.Assert(resp.StatusCode, chk.Equals, 200)
+	t := time.NewTicker(time.Second / 10)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
+		if err == nil {
+			c.Assert(resp.StatusCode, chk.Equals, 200)
+		}
+	case <-time.After(time.Second * 15):
+		c.Fail()
+	}
 
 	cmd = exec.Command("/usr/bin/gear", "stop", hostContainerId)
 	data, err = cmd.CombinedOutput()
