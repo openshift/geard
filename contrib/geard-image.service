@@ -10,7 +10,7 @@ ExecStart=/usr/bin/docker run \
           -v /etc/systemd/system/container-active.target.wants:/etc/systemd/system/container-active.target.wants \
           -p 43273:43273 \
           -a stderr -a stdout \
-          ccoleman/geard:latest
+          openshift/geard:latest
 
 [Install]
 WantedBy=multi-user.target
