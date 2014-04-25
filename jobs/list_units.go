@@ -45,7 +45,13 @@ func unitsMatching(re *regexp.Regexp, found func(name string, unit *dbus.UnitSta
 }
 
 type ListContainersRequest struct {
+	Label string
 }
+
+func (l *ListContainersRequest) JobLabel() string {
+	return l.Label
+}
+
 type ContainerUnitResponse struct {
 	unitResponse
 	LoadState string

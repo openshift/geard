@@ -70,7 +70,6 @@ func (h *HttpInstallContainerRequest) Handler(conf *HttpConfiguration) JobHandle
 type HttpDeleteContainerRequest struct {
 	jobs.DeleteContainerRequest
 	DefaultRequest
-	Label string
 }
 
 func (h *HttpDeleteContainerRequest) HttpMethod() string { return "DELETE" }
@@ -81,17 +80,13 @@ func (h *HttpDeleteContainerRequest) Handler(conf *HttpConfiguration) JobHandler
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.DeleteContainerRequest{id}, nil
+		return &jobs.DeleteContainerRequest{Id: id}, nil
 	}
-}
-func (h *HttpDeleteContainerRequest) JobLabel() string {
-	return h.Label
 }
 
 type HttpListContainersRequest struct {
 	jobs.ListContainersRequest
 	DefaultRequest
-	Label string
 }
 
 func (h *HttpListContainersRequest) HttpMethod() string { return "GET" }
@@ -100,9 +95,6 @@ func (h *HttpListContainersRequest) Handler(conf *HttpConfiguration) JobHandler 
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		return &jobs.ListContainersRequest{}, nil
 	}
-}
-func (h *HttpListContainersRequest) JobLabel() string {
-	return h.Label
 }
 
 type HttpListBuildsRequest jobs.ListBuildsRequest
@@ -362,7 +354,6 @@ func (h *HttpContentRequest) Handler(conf *HttpConfiguration) JobHandler {
 }
 
 type HttpLinkContainersRequest struct {
-	Label string
 	jobs.LinkContainersRequest
 	DefaultRequest
 }
@@ -383,11 +374,8 @@ func (h *HttpLinkContainersRequest) Handler(conf *HttpConfiguration) JobHandler 
 			return nil, err
 		}
 
-		return &jobs.LinkContainersRequest{data}, nil
+		return &jobs.LinkContainersRequest{ContainerLinks: data}, nil
 	}
-}
-func (h *HttpLinkContainersRequest) JobLabel() string {
-	return h.Label
 }
 
 var reSplat = regexp.MustCompile("\\:[a-z\\*]+")

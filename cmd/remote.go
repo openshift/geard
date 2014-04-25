@@ -26,9 +26,6 @@ type Locator interface {
 	HostIdentity() string
 }
 type Locators []Locator
-type ResourceLocator interface {
-	Identifier() containers.Identifier
-}
 
 func LocatorsAreEqual(a, b Locator) bool {
 	return a.Identity() == b.Identity()
