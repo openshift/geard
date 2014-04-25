@@ -10,7 +10,7 @@ There are several approaches to link linux containers using linux bridges, openv
 Install and start the redis container on node 4:
 
     
-    $ gear install -p 6379:50000 --isolate mrunalp/fedora-redis node4:43237/redisdb --start
+    $ gear install -p 6379:50000 --isolate mrunalp/fedora-redis node4:43273/redisdb --start
     
 
 Install a sample application that uses redis on node 1:
