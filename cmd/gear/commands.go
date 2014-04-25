@@ -307,7 +307,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 			OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
 				fmt.Fprintf(w, "Deleted %s", job.(jobs.LabeledJob).JobLabel())
 			},
-			LocalInit: needsData,
+			LocalInit: needsSystemdAndData,
 		}.Stream()
 		for i := range failures {
 			fmt.Fprintf(os.Stderr, failures[i].Error())
