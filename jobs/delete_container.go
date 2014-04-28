@@ -6,6 +6,8 @@ import (
 	"github.com/openshift/geard/systemd"
 	"log"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
 )
 
@@ -22,6 +24,7 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 	homeDirPath := j.Id.BaseHomePath()
 	runDirPath := j.Id.RunPathFor()
 	networkLinksPath := j.Id.NetworkLinksPathFor()
+	userName := j.Id.LoginFor()
 
 	_, err := systemd.Connection().GetUnitProperties(unitName)
 	switch {
@@ -77,6 +80,18 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 
 	if err := os.RemoveAll(filepath.Dir(runDirPath)); err != nil {
 		log.Printf("delete_container: Unable to remove run directory: %v", err)
+	}
+
+	_, err = user.Lookup(userName)
+	if err != nil {
+		if _, ok := err.(user.UnknownUserError); !ok {
+			log.Printf("delete_container: Unable to lookup user: %v", err)
+		}
+	} else {
+		cmd := exec.Command("/usr/sbin/userdel", userName)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			log.Printf("delete_container: Failed to remove user: %v %v", err, out)
+		}
 	}
 
 	if err := os.RemoveAll(filepath.Dir(homeDirPath)); err != nil {
