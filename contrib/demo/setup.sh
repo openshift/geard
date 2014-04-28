@@ -12,6 +12,8 @@ if [ $ret -ne 0 ]; then
   docker tag docker-registry1.dev.rhcloud.com/ccoleman/eap-scaling-demo ccoleman/eap-scaling-demo
   docker pull 10.64.27.125:5000/goldmann/mongod
   docker tag 10.64.27.125:5000/goldmann/mongod goldmann/mongod
+  docker pull 10.64.27.125:5000/goldmann/ews
+  docker tag 10.64.27.125:5000/goldmann/ews goldmann/ews
   docker pull pmorie/sti-html-app
   docker pull ccoleman/ubuntu-mongodb-repl
   docker pull ccoleman/openshift-broker-docker
