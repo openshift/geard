@@ -297,13 +297,13 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 	if req.Started {
 		if req.SocketActivation {
 			// Start the socket file, not the service and ignore failures
-			if err := systemd.Connection().StartUnitJob(socketUnitName, "fail"); err != nil {
+			if err := systemd.Connection().StartUnitJob(socketUnitName, "replace"); err != nil {
 				log.Printf("install_container: Could not start container socket %s: %v", socketUnitName, err)
 				resp.Failure(ErrContainerCreateFailed)
 				return
 			}
 		} else {
-			if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
+			if err := systemd.Connection().StartUnitJob(unitName, "replace"); err != nil {
 				log.Printf("install_container: Could not start container %s: %v", unitName, err)
 				resp.Failure(ErrContainerCreateFailed)
 				return
