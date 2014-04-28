@@ -123,7 +123,7 @@ func (j *StartedContainerStateRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	if err := systemd.Connection().StartUnitJob(unitName, "fail"); err != nil {
+	if err := systemd.Connection().StartUnitJob(unitName, "replace"); err != nil {
 		log.Printf("alter_container_state: Could not start container %s: %v", unitName, err)
 		resp.Failure(ErrContainerStartFailed)
 		return
@@ -167,7 +167,7 @@ func (j *StoppedContainerStateRequest) Execute(resp JobResponse) {
 
 	joberr := make(chan error)
 	go func() {
-		status, err := systemd.Connection().StopUnit(unitName, "fail")
+		status, err := systemd.Connection().StopUnit(unitName, "replace")
 		if err == nil && status != "done" {
 			err = errors.New(fmt.Sprintf("Job status 'done' != %s", status))
 		}
@@ -239,7 +239,7 @@ func (j *RestartContainerRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	if err := systemd.Connection().RestartUnitJob(unitName, "fail"); err != nil {
+	if err := systemd.Connection().RestartUnitJob(unitName, "replace"); err != nil {
 		log.Printf("alter_container_state: Could not restart container %s: %v", unitName, err)
 		resp.Failure(ErrContainerRestartFailed)
 		return
