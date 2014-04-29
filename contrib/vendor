@@ -1,4 +1,4 @@
-#!/bin/bash -eux
+#!/bin/bash -eu
 
 function usage() {
   echo "vendor -l|-v <Package URL>"
@@ -10,6 +10,7 @@ function usage() {
 
 list=false
 vendor=false
+update=false
 
 while getopts "lvu" o; do
   case "${o}" in
