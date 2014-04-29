@@ -22,7 +22,7 @@ import (
 	"github.com/openshift/geard/encrypted"
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/pkg/go-sti"
+	"github.com/openshift/geard/pkg/docker-source-to-images/go"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 )
