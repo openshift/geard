@@ -28,10 +28,10 @@ const userAgent = "go-dockerclient"
 
 var (
 	// ErrInvalidEndpoint is returned when the endpoint is not a valid HTTP URL.
-	ErrInvalidEndpoint = errors.New("Invalid endpoint")
+	ErrInvalidEndpoint = errors.New("invalid endpoint")
 
 	// ErrConnectionRefused is returned when the client cannot connect to the given endpoint.
-	ErrConnectionRefused = errors.New("Cannot connect to Docker endpoint")
+	ErrConnectionRefused = errors.New("cannot connect to Docker endpoint")
 )
 
 // Client is the basic type of this package. It provides methods for
@@ -167,7 +167,8 @@ func (c *Client) stream(method, path string, headers map[string]string, in io.Re
 				fmt.Fprintf(out, "%s %s\r", m.Status, m.Progress)
 			} else if m.Error != "" {
 				return errors.New(m.Error)
-			} else {
+			}
+			if m.Status != "" {
 				fmt.Fprintln(out, m.Status)
 			}
 		}
@@ -230,7 +231,7 @@ func (c *Client) hijack(method, path string, success chan struct{}, in io.Reader
 }
 
 func (c *Client) getURL(path string) string {
-	urlStr := strings.TrimRight(c.endpoint, "/")
+	urlStr := strings.TrimRight(c.endpointURL.String(), "/")
 	if c.endpointURL.Scheme == "unix" {
 		urlStr = ""
 	}
@@ -314,6 +315,9 @@ func parseEndpoint(endpoint string) (*url.URL, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, ErrInvalidEndpoint
+	}
+	if u.Scheme == "tcp" {
+		u.Scheme = "http"
 	}
 	if u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "unix" {
 		return nil, ErrInvalidEndpoint

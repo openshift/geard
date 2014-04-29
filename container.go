@@ -67,13 +67,16 @@ func (c *Client) ListContainers(opts ListContainersOptions) ([]APIContainers, er
 	return containers, nil
 }
 
-// 80/tcp
+// Port represents the port number and the protocol, in the form
+// <number>/<protocol>. For example: 80/tcp.
 type Port string
 
+// Port returns the number of the port.
 func (p Port) Port() string {
 	return strings.Split(string(p), "/")[0]
 }
 
+// Proto returns the name of the protocol.
 func (p Port) Proto() string {
 	parts := strings.Split(string(p), "/")
 	if len(parts) == 1 {
@@ -82,6 +85,7 @@ func (p Port) Proto() string {
 	return parts[1]
 }
 
+// State represents the state of a container.
 type State struct {
 	sync.RWMutex
 	Running    bool
@@ -92,13 +96,13 @@ type State struct {
 	Ghost      bool
 }
 
+// String returns the string representation of a state.
 func (s *State) String() string {
 	s.RLock()
 	defer s.RUnlock()
-
 	if s.Running {
 		if s.Ghost {
-			return fmt.Sprintf("Ghost")
+			return "Ghost"
 		}
 		return fmt.Sprintf("Up %s", time.Now().UTC().Sub(s.StartedAt))
 	}
@@ -339,14 +343,25 @@ func (c *Client) RestartContainer(id string, timeout uint) error {
 	return nil
 }
 
+// KillContainerOptions represents the set of options that can be used in a
+// call to KillContainer.
+type KillContainerOptions struct {
+	// The ID of the container.
+	ID string `qs:"-"`
+
+	// The signal to send to the container. When omitted, Docker server
+	// will assume SIGKILL.
+	Signal Signal
+}
+
 // KillContainer kills a container, returning an error in case of failure.
 //
 // See http://goo.gl/DPbbBy for more details.
-func (c *Client) KillContainer(id string) error {
-	path := "/containers/" + id + "/kill"
+func (c *Client) KillContainer(opts KillContainerOptions) error {
+	path := "/containers/" + opts.ID + "/kill" + "?" + queryString(opts)
 	_, status, err := c.do("POST", path, nil)
 	if status == http.StatusNotFound {
-		return &NoSuchContainer{ID: id}
+		return &NoSuchContainer{ID: opts.ID}
 	}
 	if err != nil {
 		return err
@@ -362,6 +377,10 @@ type RemoveContainerOptions struct {
 	// A flag that indicates whether Docker should remove the volumes
 	// associated to the container.
 	RemoveVolumes bool `qs:"v"`
+
+	// A flag that indicates whether Docker should remove the container
+	// even if it is currently running.
+	Force bool
 }
 
 // RemoveContainer removes a container, returning an error in case of failure.
@@ -438,7 +457,7 @@ type CommitContainerOptions struct {
 	Tag        string
 	Message    string `qs:"m"`
 	Author     string
-	Run        *Config
+	Run        *Config `qs:"-"`
 }
 
 type Image struct {
@@ -460,7 +479,7 @@ type Image struct {
 // See http://goo.gl/628gxm for more details.
 func (c *Client) CommitContainer(opts CommitContainerOptions) (*Image, error) {
 	path := "/commit?" + queryString(opts)
-	body, status, err := c.do("POST", path, nil)
+	body, status, err := c.do("POST", path, opts.Run)
 	if status == http.StatusNotFound {
 		return nil, &NoSuchContainer{ID: opts.Container}
 	}

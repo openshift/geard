@@ -17,7 +17,7 @@ import (
 	"os"
 )
 
-// This work with api verion < v1.7 and > v1.9
+// APIImages represent an image returned in the ListImages call.
 type APIImages struct {
 	ID          string   `json:"Id"`
 	RepoTags    []string `json:",omitempty"`
@@ -29,11 +29,17 @@ type APIImages struct {
 	Tag         string `json:",omitempty"`
 }
 
-// Error returned when the image does not exist.
 var (
-	ErrNoSuchImage         = errors.New("No such image")
-	ErrMissingRepo         = errors.New("Missing remote repository e.g. 'github.com/user/repo'")
-	ErrMissingOutputStream = errors.New("Missing output stream")
+	// ErrNoSuchImage is the error returned when the image does not exist.
+	ErrNoSuchImage = errors.New("no such image")
+
+	// ErrMissingRepo is the error returned when the remote repository is
+	// missing.
+	ErrMissingRepo = errors.New("missing remote repository e.g. 'github.com/user/repo'")
+
+	// ErrMissingOutputStream is the error returned when no output stream
+	// is provided to some calls, like BuildImage.
+	ErrMissingOutputStream = errors.New("missing output stream")
 )
 
 // ListImages returns the list of available images in the server.
@@ -138,6 +144,7 @@ func (c *Client) PushImage(opts PushImageOptions, auth AuthConfiguration) error 
 type PullImageOptions struct {
 	Repository   string `qs:"fromImage"`
 	Registry     string
+	Tag          string
 	OutputStream io.Writer `qs:"-"`
 }
 
@@ -169,6 +176,7 @@ func (c *Client) createImage(qs string, headers map[string]string, in io.Reader,
 type ImportImageOptions struct {
 	Repository string `qs:"repo"`
 	Source     string `qs:"fromSrc"`
+	Tag        string `qs:"tag"`
 
 	InputStream  io.Reader `qs:"-"`
 	OutputStream io.Writer `qs:"-"`
@@ -184,7 +192,7 @@ func (c *Client) ImportImage(opts ImportImageOptions) error {
 	if opts.Source != "-" {
 		opts.InputStream = nil
 	}
-	if opts.Source != "-" && !isUrl(opts.Source) {
+	if opts.Source != "-" && !isURL(opts.Source) {
 		f, err := os.Open(opts.Source)
 		if err != nil {
 			return err
@@ -228,7 +236,7 @@ func (c *Client) BuildImage(opts BuildImageOptions) error {
 		queryString(&opts)), headers, opts.InputStream, opts.OutputStream)
 }
 
-func isUrl(u string) bool {
+func isURL(u string) bool {
 	p, err := url.Parse(u)
 	if err != nil {
 		return false
