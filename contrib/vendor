@@ -2,7 +2,7 @@
 
 function usage() {
   echo "vendor -l|-v <Package URL>"
-  echo "-l List packages that may been to be vendored"
+  echo "-l List packages that may need to be vendored"
   echo "-v vendor a package"
   exit 1
 }
