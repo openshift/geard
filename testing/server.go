@@ -18,6 +18,8 @@ import (
 	mathrand "math/rand"
 	"net"
 	"net/http"
+	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,6 +42,16 @@ type DockerServer struct {
 	listener   net.Listener
 	mux        *mux.Router
 	hook       func(*http.Request)
+	failures   map[string]FailureSpec
+}
+
+// FailureSpec is used with PrepareFailure and describes in which situations
+// the request should fail. UrlRegex is mandatory, if a container id is sent
+// on the request you can also specify the other properties.
+type FailureSpec struct {
+	UrlRegex      string
+	ContainerPath string
+	ContainerArgs []string
 }
 
 // NewServer returns a new instance of the fake server, in standalone mode. Use
@@ -52,7 +64,8 @@ func NewServer(bind string, hook func(*http.Request)) (*DockerServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	server := DockerServer{listener: listener, imgIDs: make(map[string]string), hook: hook}
+	server := DockerServer{listener: listener, imgIDs: make(map[string]string), hook: hook,
+		failures: make(map[string]FailureSpec)}
 	server.buildMuxer()
 	go http.Serve(listener, &server)
 	return &server, nil
@@ -60,21 +73,33 @@ func NewServer(bind string, hook func(*http.Request)) (*DockerServer, error) {
 
 func (s *DockerServer) buildMuxer() {
 	s.mux = mux.NewRouter()
-	s.mux.Path("/commit").Methods("POST").HandlerFunc(s.commitContainer)
-	s.mux.Path("/containers/json").Methods("GET").HandlerFunc(s.listContainers)
-	s.mux.Path("/containers/create").Methods("POST").HandlerFunc(s.createContainer)
-	s.mux.Path("/containers/{id:.*}/json").Methods("GET").HandlerFunc(s.inspectContainer)
-	s.mux.Path("/containers/{id:.*}/start").Methods("POST").HandlerFunc(s.startContainer)
-	s.mux.Path("/containers/{id:.*}/stop").Methods("POST").HandlerFunc(s.stopContainer)
-	s.mux.Path("/containers/{id:.*}/wait").Methods("POST").HandlerFunc(s.waitContainer)
-	s.mux.Path("/containers/{id:.*}/attach").Methods("POST").HandlerFunc(s.attachContainer)
-	s.mux.Path("/containers/{id:.*}").Methods("DELETE").HandlerFunc(s.removeContainer)
-	s.mux.Path("/images/create").Methods("POST").HandlerFunc(s.pullImage)
-	s.mux.Path("/build").Methods("POST").HandlerFunc(s.buildImage)
-	s.mux.Path("/images/json").Methods("GET").HandlerFunc(s.listImages)
-	s.mux.Path("/images/{id:.*}").Methods("DELETE").HandlerFunc(s.removeImage)
-	s.mux.Path("/images/{name:.*}/json").Methods("GET").HandlerFunc(s.inspectImage)
-	s.mux.Path("/images/{name:.*}/push").Methods("POST").HandlerFunc(s.pushImage)
+	s.mux.Path("/commit").Methods("POST").HandlerFunc(s.handlerWrapper(s.commitContainer))
+	s.mux.Path("/containers/json").Methods("GET").HandlerFunc(s.handlerWrapper(s.listContainers))
+	s.mux.Path("/containers/create").Methods("POST").HandlerFunc(s.handlerWrapper(s.createContainer))
+	s.mux.Path("/containers/{id:.*}/json").Methods("GET").HandlerFunc(s.handlerWrapper(s.inspectContainer))
+	s.mux.Path("/containers/{id:.*}/start").Methods("POST").HandlerFunc(s.handlerWrapper(s.startContainer))
+	s.mux.Path("/containers/{id:.*}/stop").Methods("POST").HandlerFunc(s.handlerWrapper(s.stopContainer))
+	s.mux.Path("/containers/{id:.*}/wait").Methods("POST").HandlerFunc(s.handlerWrapper(s.waitContainer))
+	s.mux.Path("/containers/{id:.*}/attach").Methods("POST").HandlerFunc(s.handlerWrapper(s.attachContainer))
+	s.mux.Path("/containers/{id:.*}").Methods("DELETE").HandlerFunc(s.handlerWrapper(s.removeContainer))
+	s.mux.Path("/images/create").Methods("POST").HandlerFunc(s.handlerWrapper(s.pullImage))
+	s.mux.Path("/build").Methods("POST").HandlerFunc(s.handlerWrapper(s.buildImage))
+	s.mux.Path("/images/json").Methods("GET").HandlerFunc(s.handlerWrapper(s.listImages))
+	s.mux.Path("/images/{id:.*}").Methods("DELETE").HandlerFunc(s.handlerWrapper(s.removeImage))
+	s.mux.Path("/images/{name:.*}/json").Methods("GET").HandlerFunc(s.handlerWrapper(s.inspectImage))
+	s.mux.Path("/images/{name:.*}/push").Methods("POST").HandlerFunc(s.handlerWrapper(s.pushImage))
+	s.mux.Path("/events").Methods("GET").HandlerFunc(s.listEvents)
+}
+
+// PrepareFailure adds a new expected failure based on a FailureSpec
+// it receives an id for the failure and the spec.
+func (s *DockerServer) PrepareFailure(id string, spec FailureSpec) {
+	s.failures[id] = spec
+}
+
+// ResetFailure removes an expected failure identified by the id
+func (s *DockerServer) ResetFailure(id string) {
+	delete(s.failures, id)
 }
 
 // Stop stops the server.
@@ -97,6 +122,38 @@ func (s *DockerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
 	if s.hook != nil {
 		s.hook(r)
+	}
+}
+
+func (s *DockerServer) handlerWrapper(f func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for errorId, spec := range s.failures {
+			matched, err := regexp.MatchString(spec.UrlRegex, r.URL.Path)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if !matched {
+				continue
+			}
+			id := mux.Vars(r)["id"]
+			if id != "" {
+				container, _, err := s.findContainer(id)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				if spec.ContainerPath != "" && container.Path != spec.ContainerPath {
+					continue
+				}
+				if spec.ContainerArgs != nil && reflect.DeepEqual(container.Args, spec.ContainerArgs) {
+					continue
+				}
+			}
+			http.Error(w, errorId, http.StatusBadRequest)
+			return
+		}
+		f(w, r)
 	}
 }
 
@@ -297,7 +354,7 @@ func (s *DockerServer) waitContainer(w http.ResponseWriter, r *http.Request) {
 	}
 	for {
 		s.cMut.RLock()
-		if container.State.Running {
+		if !container.State.Running {
 			s.cMut.RUnlock()
 			break
 		}
@@ -373,26 +430,23 @@ func (s *DockerServer) findContainer(id string) (*docker.Container, int, error) 
 }
 
 func (s *DockerServer) buildImage(w http.ResponseWriter, r *http.Request) {
-	if ct := r.Header.Get("Content-Type"); ct != "application/tar" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("The stream must be a tar archive compressed with one of the following algorithms: identity (no compression), gzip, bzip2, xz."))
-		return
-	}
-	gotDockerFile := false
-	tr := tar.NewReader(r.Body)
-	for {
-		header, err := tr.Next()
-		if err != nil {
-			break
+	if ct := r.Header.Get("Content-Type"); ct == "application/tar" {
+		gotDockerFile := false
+		tr := tar.NewReader(r.Body)
+		for {
+			header, err := tr.Next()
+			if err != nil {
+				break
+			}
+			if header.Name == "Dockerfile" {
+				gotDockerFile = true
+			}
 		}
-		if header.Name == "Dockerfile" {
-			gotDockerFile = true
+		if !gotDockerFile {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("miss Dockerfile"))
+			return
 		}
-	}
-	if !gotDockerFile {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("miss Dockerfile"))
-		return
 	}
 	//we did not use that Dockerfile to build image cause we are a fake Docker daemon
 	image := docker.Image{
@@ -408,7 +462,6 @@ func (s *DockerServer) buildImage(w http.ResponseWriter, r *http.Request) {
 	s.imgIDs[repository] = image.ID
 	s.iMut.Unlock()
 	w.Write([]byte(fmt.Sprintf("Successfully built %s", image.ID)))
-	return
 }
 
 func (s *DockerServer) pullImage(w http.ResponseWriter, r *http.Request) {
@@ -457,9 +510,7 @@ func (s *DockerServer) removeImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *DockerServer) inspectImage(w http.ResponseWriter, r *http.Request) {
-	
 	name := mux.Vars(r)["name"]
-
 	if id, ok := s.imgIDs[name]; ok {
 		s.iMut.Lock()
 		defer s.iMut.Unlock()
@@ -474,5 +525,43 @@ func (s *DockerServer) inspectImage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.Error(w, "not found", http.StatusNotFound)
-	return
+}
+
+func (s *DockerServer) listEvents(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var events [][]byte
+	count := mathrand.Intn(20)
+	for i := 0; i < count; i++ {
+		data, err := json.Marshal(s.generateEvent())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		events = append(events, data)
+	}
+	w.WriteHeader(http.StatusOK)
+	for _, d := range events {
+		fmt.Fprintln(w, d)
+		time.Sleep(time.Duration(mathrand.Intn(200)) * time.Millisecond)
+	}
+}
+
+func (s *DockerServer) generateEvent() *docker.APIEvents {
+	var eventType string
+	switch mathrand.Intn(4) {
+	case 0:
+		eventType = "create"
+	case 1:
+		eventType = "start"
+	case 2:
+		eventType = "stop"
+	case 3:
+		eventType = "destroy"
+	}
+	return &docker.APIEvents{
+		ID:     s.generateID(),
+		Status: eventType,
+		From:   "mybase:latest",
+		Time:   time.Now().Unix(),
+	}
 }
