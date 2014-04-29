@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openshift/geard/pkg/go-sti"
+	sti "github.com/openshift/docker-source-to-images/go"
 	"github.com/spf13/cobra"
 )
 
@@ -49,7 +49,7 @@ func Execute() {
 		Use:   "sti",
 		Short: "STI is a tool for building repeatable docker images",
 		Long: `A command-line interface for the sti library
-              Complete documentation is available at http://github.com/openshift/geard/pkg/go-sti`,
+              Complete documentation is available at http://github.com/pmorie/go-sti`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Usage()
 		},
@@ -96,7 +96,8 @@ func Execute() {
 	buildCmd.Flags().StringVar(&(req.WorkingDir), "dir", "tempdir", "Directory where generated Dockerfiles and other support scripts are created")
 	buildCmd.Flags().StringVarP(&(req.RuntimeImage), "runtime", "R", "", "Set the runtime image to use")
 	buildCmd.Flags().StringVarP(&envString, "env", "e", "", "Specify an environment var NAME=VALUE,NAME2=VALUE2,...")
-	buildCmd.Flags().StringVarP(&(buildReq.Method), "method", "m", "build", "Specify a method to build with. build -> 'docker build', run -> 'docker run'")
+	buildCmd.Flags().StringVarP(&(buildReq.Method), "method", "m", "run", "Specify a method to build with. build -> 'docker build', run -> 'docker run'")
+	buildCmd.Flags().StringVarP(&(buildReq.Ref), "ref", "r", "", "Specify a ref to check-out")
 	stiCmd.AddCommand(buildCmd)
 
 	validateCmd := &cobra.Command{

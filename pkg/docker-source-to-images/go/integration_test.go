@@ -153,6 +153,8 @@ func (s *IntegrationTestSuite) exerciseCleanBuild(c *C, tag string, useRun bool)
 
 	if useRun {
 		req.Method = "run"
+	} else {
+		req.Method = "build"
 	}
 
 	resp, err := Build(req)
@@ -192,6 +194,8 @@ func (s *IntegrationTestSuite) exerciseIncrementalBuild(c *C, tag string, useRun
 
 	if useRun {
 		req.Method = "run"
+	} else {
+		req.Method = "build"
 	}
 
 	resp, err := Build(req)
@@ -237,6 +241,8 @@ func (s *IntegrationTestSuite) exerciseCleanExtendedBuild(c *C, tag string, useR
 
 	if useRun {
 		req.Method = "run"
+	} else {
+		req.Method = "build"
 	}
 
 	resp, err := Build(req)
@@ -277,6 +283,8 @@ func (s *IntegrationTestSuite) exerciseIncrementalExtendedBuild(c *C, tag string
 
 	if useRun {
 		req.Method = "run"
+	} else {
+		req.Method = "build"
 	}
 
 	resp, err := Build(req)
@@ -319,7 +327,7 @@ func (s *IntegrationTestSuite) createContainer(c *C, image string) string {
 }
 
 func (s *IntegrationTestSuite) removeContainer(cId string) {
-	s.dockerClient.RemoveContainer(docker.RemoveContainerOptions{cId, true})
+	s.dockerClient.RemoveContainer(docker.RemoveContainerOptions{cId, true, true})
 }
 
 func (s *IntegrationTestSuite) checkFileExists(c *C, cId string, filePath string) {

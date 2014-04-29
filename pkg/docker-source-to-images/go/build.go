@@ -6,9 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"text/template"
 
@@ -18,6 +16,7 @@ import (
 type BuildRequest struct {
 	Request
 	Source      string
+	Ref         string
 	Tag         string
 	Clean       bool
 	Environment map[string]string
@@ -34,7 +33,7 @@ type BuildResult STIResult
 func Build(req BuildRequest) (*BuildResult, error) {
 	method := req.Method
 	if method == "" {
-		req.Method = "build"
+		req.Method = "run"
 	} else {
 		if !stringInSlice(method, []string{"run", "build"}) {
 			return nil, ErrInvalidBuildMethod
@@ -53,7 +52,7 @@ func Build(req BuildRequest) (*BuildResult, error) {
 	// build should be performed
 	tag := req.Tag
 	if req.RuntimeImage != "" {
-		tag = tag + "-build"
+		tag += "-build"
 	}
 
 	if incremental {
@@ -77,7 +76,7 @@ func Build(req BuildRequest) (*BuildResult, error) {
 		if incremental {
 			log.Printf("Existing image for tag %s detected for incremental build\n", tag)
 		} else {
-			log.Printf("Clean build will be performed")
+			log.Println("Clean build will be performed")
 		}
 	}
 
@@ -167,7 +166,7 @@ func (h requestHandler) build(req BuildRequest, incremental bool) (*BuildResult,
 	}
 
 	targetSourceDir := filepath.Join(req.WorkingDir, "src")
-	err = h.prepareSourceDir(req.Source, targetSourceDir)
+	err = h.prepareSourceDir(req.Source, targetSourceDir, req.Ref)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +203,7 @@ func (h requestHandler) extendedBuild(req BuildRequest, incremental bool) (*Buil
 		}
 	}
 
-	err := h.prepareSourceDir(req.Source, inputSourceDir)
+	err := h.prepareSourceDir(req.Source, inputSourceDir, req.Ref)
 	if err != nil {
 		return nil, err
 	}
@@ -351,19 +350,39 @@ func (h requestHandler) saveArtifacts(image string, tmpDir string, path string) 
 	return nil
 }
 
-func (h requestHandler) prepareSourceDir(source string, targetSourceDir string) error {
-	re := regexp.MustCompile("^git://")
-
-	if re.MatchString(source) {
-		if h.debug {
-			log.Printf("Fetching %s to directory %s", source, targetSourceDir)
+func (h requestHandler) prepareSourceDir(source, targetSourceDir, ref string) error {
+	// Support git:// and https:// schema for GIT repositories
+	if strings.HasPrefix(source, "git://") || strings.HasPrefix(source, "https://") {
+		if ref != "" {
+			valid := validateGitRef(ref)
+			if !valid {
+				return ErrInvalidRef
+			}
 		}
-		err := gitClone(source, targetSourceDir)
+
+		if h.debug {
+			log.Printf("Cloning %s to directory %s", source, targetSourceDir)
+		}
+
+		output, err := gitClone(source, targetSourceDir)
 		if err != nil {
 			if h.debug {
+				log.Printf("Git clone output:\n%s", output)
 				log.Printf("Git clone failed: %+v", err)
 			}
+
 			return err
+		}
+
+		if ref != "" {
+			if h.debug {
+				log.Printf("Checking out ref %s", ref)
+			}
+
+			err := gitCheckout(targetSourceDir, ref, h.debug)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		// TODO: investigate using bind-mounts instead
@@ -390,6 +409,13 @@ func (h requestHandler) buildDeployableImageWithDockerBuild(req BuildRequest, im
 	defer dockerFile.Close()
 
 	imageMetadata, err := h.dockerClient.InspectImage(image)
+
+	// If image does not exists locally, pull it from Docker registry and then
+	// retry the build
+	if err == docker.ErrNoSuchImage {
+		imageMetadata, err = h.pullImage(image)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -453,6 +479,11 @@ func (h requestHandler) buildDeployableImageWithDockerRun(req BuildRequest, imag
 	}
 
 	imageMetadata, err := h.dockerClient.InspectImage(image)
+
+	if err == docker.ErrNoSuchImage {
+		imageMetadata, err = h.pullImage(image)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -537,43 +568,19 @@ func (h requestHandler) buildDeployableImageWithDockerRun(req BuildRequest, imag
 		return nil, ErrBuildFailed
 	}
 
-	// config = docker.Config{Image: image, Cmd: []string{"/usr/bin/run"}, Env: cmdEnv}
-	// if h.debug {
-	// 	log.Printf("Commiting container with config: %+v\n", config)
-	// }
+	config = docker.Config{Image: image, Cmd: []string{"/usr/bin/run"}, Env: cmdEnv}
+	if h.debug {
+		log.Printf("Commiting container with config: %+v\n", config)
+	}
 
-	// builtImage, err := h.dockerClient.CommitContainer(docker.CommitContainerOptions{Container: container.ID, Repository: req.Tag, Run: &config})
-	// if err != nil {
-	// 	return nil, ErrBuildFailed
-	// }
-
-	// if h.debug {
-	// 	log.Printf("Built image: %+v\n", builtImage)
-	// }
-
-	// temporary hack to work around bug in go-dockerclient
-	err = h.commitContainerWithCli(container.ID, req.Tag, cmdEnv)
+	builtImage, err := h.dockerClient.CommitContainer(docker.CommitContainerOptions{Container: container.ID, Repository: req.Tag, Run: &config})
 	if err != nil {
-		return nil, err
+		return nil, ErrBuildFailed
+	}
+
+	if h.debug {
+		log.Printf("Built image: %+v\n", builtImage)
 	}
 
 	return &BuildResult{true, nil}, nil
-}
-
-func (h requestHandler) commitContainerWithCli(id, tag string, env []string) error {
-	c := exec.Command("/usr/bin/docker", "commit", `-run={"Cmd": ["/usr/bin/run"]}`, id, tag)
-	var out, stdErr bytes.Buffer
-	c.Stdout = &out
-	c.Stderr = &stdErr
-
-	err := c.Run()
-	if h.debug {
-		log.Printf("Commit output: %s\n", out.String())
-		log.Printf("Commit stderr: %s\n", stdErr.String())
-	}
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

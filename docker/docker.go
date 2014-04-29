@@ -29,10 +29,10 @@ func (d *DockerClient) ListContainers() ([]docker.APIContainers, error) {
 }
 
 func (d *DockerClient) ForceCleanContainer(ID string) error {
-	if err := d.client.KillContainer(ID); err != nil {
+	if err := d.client.KillContainer(docker.KillContainerOptions{ID: ID}); err != nil {
 		return err
 	}
-	return d.client.RemoveContainer(docker.RemoveContainerOptions{ID, true})
+	return d.client.RemoveContainer(docker.RemoveContainerOptions{ID, true, true})
 }
 
 func lookupContainer(containerName string, client *docker.Client, waitForContainer bool) containerLookupResult {
@@ -98,7 +98,7 @@ func (d *DockerClient) GetContainer(containerName string, waitForContainer bool)
 func (d *DockerClient) GetImage(imageName string) (*docker.Image, error) {
 	if img, err := d.client.InspectImage(imageName); err != nil {
 		if err == docker.ErrNoSuchImage {
-			if err := d.client.PullImage(docker.PullImageOptions{imageName, "", os.Stdout}, docker.AuthConfiguration{}); err != nil {
+			if err := d.client.PullImage(docker.PullImageOptions{imageName, "", "", os.Stdout}, docker.AuthConfiguration{}); err != nil {
 				return nil, err
 			}
 			return d.client.InspectImage(imageName)
