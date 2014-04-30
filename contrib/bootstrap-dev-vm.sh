@@ -1,8 +1,7 @@
 #!/bin/bash
 echo "Installing dependencies and setting up vm for geard development"
 yum update -y
-yum install -y docker-io golang git hg bzr libselinux-devel
-yum install -y vim tig glibc-static btrfs-progs-devel device-mapper-devel sqlite-devel libnetfilter_queue-devel gcc gcc-c++
+yum install -y docker-io golang git hg bzr libselinux-devel vim tig glibc-static btrfs-progs-devel device-mapper-devel sqlite-devel libnetfilter_queue-devel gcc gcc-c++
 usermod -a -G docker vagrant
 systemctl enable docker.service
 systemctl start docker
@@ -24,7 +23,7 @@ fi
 if [[ $(cat ~vagrant/.bash_profile | grep GOPATH) = "" ]]; then
   echo 'export GOPATH=/vagrant' >> ~vagrant/.bash_profile
   echo 'export PATH=$GOPATH/bin:$PATH' >> ~vagrant/.bash_profile
-  echo "cd $GEARD_PATH" >> ~vagrant/.bashrc  
+  echo "cd $GEARD_PATH" >> ~vagrant/.bashrc
   echo "bind '\"\e[A\":history-search-backward'" >> ~vagrant/.bashrc
   echo "bind '\"\e[B\":history-search-forward'" >> ~vagrant/.bashrc
 else
@@ -37,7 +36,7 @@ if [[ $(cat /root/.bash_profile | grep GOPATH) = "" ]]; then
   echo 'export PATH=$GOPATH/bin:$PATH' >> /root/.bash_profile
   echo "cd $GEARD_PATH" >> /root/.bashrc
   echo "bind '\"\e[A\":history-search-backward'" >> /root/.bashrc
-  echo "bind '\"\e[B\":history-search-forward'" >> /root/.bashrc  
+  echo "bind '\"\e[B\":history-search-forward'" >> /root/.bashrc
 else
   echo "root user path variables already configured"
 fi
