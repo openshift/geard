@@ -4,26 +4,29 @@ function usage() {
   echo "vendor -l|-v <Package URL>"
   echo "-l List packages that may need to be vendored"
   echo "-v vendor a package"
+  echo "-u update a vendored package"
   exit 1
 }
 
 list=false
 vendor=false
+update=false
 
-while getopts "lv" o; do
+while getopts "lvu" o; do
   case "${o}" in
     l) list=true;;
     v) vendor=true;;
+    u) update=true;;
     *) usage;;
   esac
 done
 
-if $list && $vendor; then
+if $list && [ "$vendor" -o "$update" ]; then
   usage
   exit
 fi
 
-if  ! $list && ! $vendor; then
+if  ! $list && ! $vendor && ! $update; then
   usage
   exit
 fi
@@ -68,7 +71,7 @@ if $list; then
   rm -rf /tmp/vendor_pkg_list  
 fi
 
-if $vendor; then
+if [[ $vendor || $update ]]; then
   pkg=$2
   
   if [ "x${pkg}x" == "xx" ]; then
@@ -87,7 +90,13 @@ if $vendor; then
     git remote add $remote_name http://$pkg || true
     git fetch $remote_name
     git branch -f $branch_name $remote_name/master
-    git subtree add --squash --prefix=vendor/src/$pkg $branch_name
+
+    if $vendor; then
+      git subtree add --squash --prefix=vendor/src/$pkg $branch_name
+    else
+      git subtree pull --squash --prefix=vendor/src/$pkg $remote_name master
+    fi
+
     rev=`git log $branch_name -1 | grep commit`
     
     echo -e "Push branches ${current_branch} and ${branch_name}\n"

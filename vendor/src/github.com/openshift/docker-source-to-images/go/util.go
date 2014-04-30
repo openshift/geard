@@ -104,13 +104,6 @@ func copy(sourcePath string, targetPath string) error {
 	return cmd.Run()
 }
 
-func gitClone(source string, targetPath string) error {
-	cmd := exec.Command("git", "clone", "--quiet", source, targetPath)
-	err := cmd.Run()
-
-	return err
-}
-
 func imageHasEntryPoint(image *docker.Image) bool {
 	found := (image.ContainerConfig.Entrypoint != nil)
 
