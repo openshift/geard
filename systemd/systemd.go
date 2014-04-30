@@ -15,6 +15,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"bufio"
 )
 
 type SystemdFileType string
@@ -225,4 +226,26 @@ func WriteStatusTo(w io.Writer, unit string) error {
 		return err
 	}
 	return nil
+}
+
+// Get the custom properties set in the unit file as a map.
+// TODO: Work with upstream to add an API for this.
+func GetUnitFileProperties(path string) (map[string]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	defer f.Close()
+
+	props := make(map[string]string)
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if strings.HasPrefix(line, "X-") {
+			parts := strings.Split(line, "=")
+			props[parts[0]] = parts[1]
+		}
+	}
+	return props, nil
 }
