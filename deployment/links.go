@@ -161,7 +161,7 @@ func (link containerLink) reserve(pool PortAssignmentStrategy) error {
 			}
 
 			if !mapping.Target.Empty() {
-				if link.NonLocal && !mapping.Target.Local() {
+				if link.NonLocal && mapping.Target.Local() {
 					return errors.New(fmt.Sprintf("deployment: A local host IP is already bound to non-local link %s, needs to be reset.", link.String()))
 				}
 				if link.MatchPort && mapping.Target.Port != mapping.Internal {
