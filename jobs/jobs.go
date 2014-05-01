@@ -48,9 +48,8 @@ type JobResponse interface {
 	Success(t JobResponseSuccess)
 	SuccessWithData(t JobResponseSuccess, data interface{})
 	SuccessWithWrite(t JobResponseSuccess, flush, structured bool) io.Writer
-	Failure(reason JobError)
+	Failure(reason error)
 
-	WriteClosed() <-chan bool
 	WritePendingSuccess(name string, value interface{})
 }
 

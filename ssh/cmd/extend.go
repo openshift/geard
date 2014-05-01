@@ -9,8 +9,7 @@ import (
 )
 
 func init() {
-	http.AddHttpExtension(sshhttp.Routes)
-
+	http.AddHttpExtension(&sshhttp.HttpExtension{})
 	cmd.AddCommandExtension(registerLocal, true)
 	cmd.AddCommandExtension(registerRemote, false)
 }

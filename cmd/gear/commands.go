@@ -10,10 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/openshift/docker-source-to-images/go"
+	"github.com/openshift/geard/cleanup"
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
@@ -24,8 +24,8 @@ import (
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
+	"github.com/openshift/geard/transport"
 	"github.com/spf13/cobra"
-	"github.com/openshift/geard/cleanup"
 )
 
 var (
@@ -61,6 +61,8 @@ var (
 
 	dryRun bool
 	repair bool
+
+	defaultTransport transport.TransportFlag
 )
 
 var conf = http.HttpConfiguration{
@@ -78,6 +80,10 @@ var (
 	needsData           = LocalInitializers(containers.InitializeData)
 )
 
+func init() {
+	defaultTransport.Set("http")
+}
+
 // Parse the command line arguments and invoke one of the support subcommands.
 func Execute() {
 	gearCmd := &cobra.Command{
@@ -91,6 +97,7 @@ func Execute() {
 	gearCmd.PersistentFlags().BoolVar(&(config.SystemDockerFeatures.EnvironmentFile), "has-env-file", false, "(experimental) Use --env-file with Docker, requires master from Apr 1st")
 	gearCmd.PersistentFlags().BoolVar(&(config.SystemDockerFeatures.ForegroundRun), "has-foreground", false, "(experimental) Use --foreground with Docker, requires alexlarsson/forking-run")
 	gearCmd.PersistentFlags().StringVar(&deploymentPath, "with", "", "Provide a deployment descriptor to operate on")
+	gearCmd.PersistentFlags().Var(&defaultTransport, "transport", "Specify an alternate mechanism to connect to the gear agent")
 
 	deployCmd := &cobra.Command{
 		Use:   "deploy <file> <host>...",
@@ -288,11 +295,11 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		Fail(1, "Unable to load deployment file: %s", err.Error())
 	}
 	if len(args) == 1 {
-		args = append(args, LocalHostName)
+		args = append(args, transport.Local.String())
 	}
-	servers, err := NewHostLocators(args[1:]...)
+	servers, err := transport.NewTransportLocators(defaultTransport.Get(), args[1:]...)
 	if err != nil {
-		Fail(1, "You must pass zero or more valid host names (use '%s' or pass no arguments for the current server): %s\n", LocalHostName, err.Error())
+		Fail(1, "You must pass zero or more valid host names (use '%s' or pass no arguments for the current server): %s", transport.Local.String(), err.Error())
 	}
 
 	re := regexp.MustCompile("\\.\\d{8}\\-\\d{6}\\z")
@@ -301,21 +308,24 @@ func deployContainers(cmd *cobra.Command, args []string) {
 	base = re.ReplaceAllString(base, "")
 	newPath := base + now
 
-	log.Printf("Deploying %s", newPath)
-	changes, removed, err := deploy.Describe(deployment.SimplePlacement(servers))
+	fmt.Printf("Deploying %s", newPath)
+	changes, removed, err := deploy.Describe(deployment.SimplePlacement(servers), defaultTransport.Get())
 	if err != nil {
 		Fail(1, "Deployment is not valid: %s", err.Error())
 	}
 
 	if len(removed) > 0 {
+		removedIds, err := LocatorsForDeploymentInstances(defaultTransport.Get(), removed)
+		if err != nil {
+			Fail(1, "Unable to generate deployment info: %s", err.Error())
+		}
+
 		failures := Executor{
-			On: removed.Ids(),
+			On: removedIds,
 			Serial: func(on Locator) jobs.Job {
-				return &http.HttpDeleteContainerRequest{
+				return &jobs.DeleteContainerRequest{
+					Id:    AsIdentifier(on),
 					Label: on.Identity(),
-					DeleteContainerRequest: jobs.DeleteContainerRequest{
-						Id: on.(ResourceLocator).Identifier(),
-					},
 				}
 			},
 			Output: os.Stdout,
@@ -323,34 +333,36 @@ func deployContainers(cmd *cobra.Command, args []string) {
 				fmt.Fprintf(w, "Deleted %s", job.(jobs.LabeledJob).JobLabel())
 			},
 			LocalInit: needsSystemdAndData,
+			Transport: defaultTransport.Get(),
 		}.Stream()
 		for i := range failures {
 			fmt.Fprintf(os.Stderr, failures[i].Error())
 		}
 	}
 
-	addedIds := changes.Instances.AddedIds()
+	addedIds, err := LocatorsForDeploymentInstances(defaultTransport.Get(), changes.Instances.Added())
+	if err != nil {
+		Fail(1, "Unable to generate deployment info: %s", err.Error())
+	}
 
 	errors := Executor{
 		On: addedIds,
 		Serial: func(on Locator) jobs.Job {
-			instance, _ := changes.Instances.Find(on.(ResourceLocator).Identifier())
+			instance, _ := changes.Instances.Find(AsIdentifier(on))
 			links := instance.NetworkLinks()
-			return &http.HttpInstallContainerRequest{
-				InstallContainerRequest: jobs.InstallContainerRequest{
-					RequestIdentifier: jobs.NewRequestIdentifier(),
+			return &jobs.InstallContainerRequest{
+				RequestIdentifier: jobs.NewRequestIdentifier(),
 
-					Id:      instance.Id,
-					Image:   instance.Image,
-					Isolate: isolate,
+				Id:      instance.Id,
+				Image:   instance.Image,
+				Isolate: isolate,
 
-					Ports:        instance.Ports.PortPairs(),
-					NetworkLinks: &links,
-				},
+				Ports:        instance.Ports.PortPairs(),
+				NetworkLinks: &links,
 			}
 		},
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			installJob := job.(*http.HttpInstallContainerRequest)
+			installJob := job.(*jobs.InstallContainerRequest)
 			instance, _ := changes.Instances.Find(installJob.Id)
 			if pairs, ok := installJob.PortMappingsFrom(r.Pending); ok {
 				if !instance.Ports.Update(pairs) {
@@ -360,6 +372,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemdAndData,
+		Transport: defaultTransport.Get(),
 	}.Stream()
 
 	changes.UpdateLinks()
@@ -378,38 +391,41 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Unable to write %s: %s\n", newPath, err.Error())
 	}
 
+	linkedIds, err := LocatorsForDeploymentInstances(defaultTransport.Get(), changes.Instances.Linked())
+	if err != nil {
+		Fail(1, "Unable to generate deployment info: %s", err.Error())
+	}
+
 	Executor{
-		On: changes.Instances.LinkedIds(),
+		On: linkedIds,
 		Group: func(on ...Locator) jobs.Job {
 			links := []jobs.ContainerLink{}
 			for i := range on {
-				instance, _ := changes.Instances.Find(on[i].(ResourceLocator).Identifier())
+				instance, _ := changes.Instances.Find(AsIdentifier(on[i]))
 				network := instance.NetworkLinks()
 				if len(network) > 0 {
 					links = append(links, jobs.ContainerLink{instance.Id, network})
 				}
 			}
-			return &http.HttpLinkContainersRequest{
-				Label: on[0].HostIdentity(),
-				LinkContainersRequest: jobs.LinkContainersRequest{&jobs.ContainerLinks{links}},
-			}
+
+			return &jobs.LinkContainersRequest{&jobs.ContainerLinks{links}, on[0].TransportLocator().String()}
 		},
 		Output: os.Stdout,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
 			fmt.Fprintf(w, "Links set on %s\n", job.(jobs.LabeledJob).JobLabel())
 		},
+		Transport: defaultTransport.Get(),
 	}.Stream()
 
 	Executor{
 		On: addedIds,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpStartContainerRequest{
-				StartedContainerStateRequest: jobs.StartedContainerStateRequest{
-					Id: on.(ResourceLocator).Identifier(),
-				},
+			return &jobs.StartedContainerStateRequest{
+				Id: AsIdentifier(on),
 			}
 		},
-		Output: os.Stdout,
+		Output:    os.Stdout,
+		Transport: defaultTransport.Get(),
 	}.Stream()
 
 	if len(errors) > 0 {
@@ -426,46 +442,45 @@ func installImage(cmd *cobra.Command, args []string) {
 	}
 
 	if len(args) < 2 {
-		Fail(1, "Valid arguments: <image_name> <id> ...\n")
+		Fail(1, "Valid arguments: <image_name> <id> ...")
 	}
 
 	imageId := args[0]
 	if imageId == "" {
-		Fail(1, "Argument 1 must be a Docker image to base the service on\n")
+		Fail(1, "Argument 1 must be a Docker image to base the service on")
 	}
-	ids, err := NewContainerLocators(args[1:]...)
+	ids, err := NewContainerLocators(defaultTransport.Get(), args[1:]...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s", err.Error())
 	}
 
-	suffix := "/" + imageId
 	for _, locator := range ids {
-		if strings.HasSuffix(locator.Identity(), suffix) {
-			Fail(1, "Image name and container id must not be the same: %s\n", imageId)
+		if imageId == string(AsIdentifier(locator)) {
+			Fail(1, "Image name and container id must not be the same: %s", imageId)
 		}
 	}
 
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpInstallContainerRequest{
-				InstallContainerRequest: jobs.InstallContainerRequest{
-					RequestIdentifier: jobs.NewRequestIdentifier(),
+			r := jobs.InstallContainerRequest{
+				RequestIdentifier: jobs.NewRequestIdentifier(),
 
-					Id:               on.(ResourceLocator).Identifier(),
-					Image:            imageId,
-					Started:          start,
-					Isolate:          isolate,
-					SocketActivation: sockAct,
+				Id:               AsIdentifier(on),
+				Image:            imageId,
+				Started:          start,
+				Isolate:          isolate,
+				SocketActivation: sockAct,
 
-					Ports:        *portPairs.Get().(*port.PortPairs),
-					Environment:  &environment.Description,
-					NetworkLinks: networkLinks.NetworkLinks,
-				},
+				Ports:        *portPairs.Get().(*port.PortPairs),
+				Environment:  &environment.Description,
+				NetworkLinks: networkLinks.NetworkLinks,
 			}
+			return &r
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemdAndData,
+		Transport: defaultTransport.Get(),
 	}.StreamAndExit()
 }
 
@@ -512,53 +527,50 @@ func setEnvironment(cmd *cobra.Command, args []string) {
 	}
 
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <name>... <key>=<value>...\n")
+		Fail(1, "Valid arguments: <name>... <key>=<value>...")
 	}
 
-	ids, err := NewContainerLocators(args[0:]...)
+	ids, err := NewContainerLocators(defaultTransport.Get(), args...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s", err.Error())
 	}
 
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			environment.Description.Id = on.(ResourceLocator).Identifier()
+			environment.Description.Id = AsIdentifier(on)
 			if resetEnv {
-				return &http.HttpPutEnvironmentRequest{
-					PutEnvironmentRequest: jobs.PutEnvironmentRequest{environment.Description},
-				}
+				return &jobs.PutEnvironmentRequest{environment.Description}
 			}
-			return &http.HttpPatchEnvironmentRequest{
-				PatchEnvironmentRequest: jobs.PatchEnvironmentRequest{environment.Description},
-			}
+
+			return &jobs.PatchEnvironmentRequest{environment.Description}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemdAndData,
+		Transport: defaultTransport.Get(),
 	}.StreamAndExit()
 }
 
 func showEnvironment(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...")
 	}
-	ids, err := NewContainerLocators(args...)
+	ids, err := NewContainerLocators(defaultTransport.Get(), args[0:]...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid environment ids: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid environment ids: %s", err.Error())
 	}
 
 	data, errors := Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpContentRequest{
-				ContentRequest: jobs.ContentRequest{
-					Locator: string(on.(ResourceLocator).Identifier()),
-					Type:    jobs.ContentTypeEnvironment,
-				},
+			return &jobs.ContentRequest{
+				Locator: string(AsIdentifier(on)),
+				Type:    jobs.ContentTypeEnvironment,
 			}
 		},
 		LocalInit: needsData,
 		Output:    os.Stdout,
+		Transport: defaultTransport.Get(),
 	}.Gather()
 
 	for i := range data {
@@ -576,42 +588,43 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 }
 
 func deleteContainer(cmd *cobra.Command, args []string) {
-	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := ExtractContainerLocatorsFromDeployment(defaultTransport.Get(), deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
+
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...")
 	}
-	ids, err := NewContainerLocators(args...)
+
+	ids, err := NewContainerLocators(defaultTransport.Get(), args...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s", err.Error())
 	}
 
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpDeleteContainerRequest{
+			return &jobs.DeleteContainerRequest{
+				Id:    AsIdentifier(on),
 				Label: on.Identity(),
-				DeleteContainerRequest: jobs.DeleteContainerRequest{
-					Id: on.(ResourceLocator).Identifier(),
-				},
 			}
 		},
 		Output: os.Stdout,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			fmt.Fprintf(w, "Deleted %s", job.(jobs.LabeledJob).JobLabel())
+			fmt.Fprintf(w, "Deleted %s", string(job.(*jobs.DeleteContainerRequest).Id))
 		},
 		LocalInit: needsSystemdAndData,
+		Transport: defaultTransport.Get(),
 	}.StreamAndExit()
 }
 
 func linkContainers(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...")
 	}
-	ids, err := NewContainerLocators(args...)
+	ids, err := NewContainerLocators(defaultTransport.Get(), args...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s", err.Error())
 	}
 	if networkLinks.NetworkLinks == nil {
 		networkLinks.NetworkLinks = &containers.NetworkLinks{}
@@ -623,138 +636,120 @@ func linkContainers(cmd *cobra.Command, args []string) {
 			links := &jobs.ContainerLinks{make([]jobs.ContainerLink, 0, len(on))}
 			buf := bytes.Buffer{}
 			for i := range on {
-				links.Links = append(links.Links, jobs.ContainerLink{on[i].(ResourceLocator).Identifier(), *networkLinks.NetworkLinks})
+				links.Links = append(links.Links, jobs.ContainerLink{AsIdentifier(on[i]), *networkLinks.NetworkLinks})
 				if i > 0 {
 					buf.WriteString(", ")
 				}
 				buf.WriteString(on[i].Identity())
 			}
-			return &http.HttpLinkContainersRequest{
-				Label: buf.String(),
-				LinkContainersRequest: jobs.LinkContainersRequest{links},
-			}
+			return &jobs.LinkContainersRequest{links, buf.String()}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsData,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			fmt.Fprintf(w, "Links set on %s\n", job.(*http.HttpLinkContainersRequest).Label)
+			fmt.Fprintf(w, "Links set on %s\n", job.(jobs.LabeledJob).JobLabel())
 		},
+		Transport: defaultTransport.Get(),
 	}.StreamAndExit()
 }
 
 func startContainer(cmd *cobra.Command, args []string) {
-	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := ExtractContainerLocatorsFromDeployment(defaultTransport.Get(), deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...")
 	}
-	ids, err := NewContainerLocators(args...)
+	ids, err := NewContainerLocators(defaultTransport.Get(), args...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s", err.Error())
 	}
 
-	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl start %s'\n", ids[0].(ResourceLocator).Identifier().UnitNameFor())
-	}
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpStartContainerRequest{
-				StartedContainerStateRequest: jobs.StartedContainerStateRequest{
-					Id: on.(ResourceLocator).Identifier(),
-				},
+			return &jobs.StartedContainerStateRequest{
+				Id: AsIdentifier(on),
 			}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemd,
+		Transport: defaultTransport.Get(),
 	}.StreamAndExit()
 }
 
 func stopContainer(cmd *cobra.Command, args []string) {
-	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := ExtractContainerLocatorsFromDeployment(defaultTransport.Get(), deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...")
 	}
-	ids, err := NewContainerLocators(args...)
+	ids, err := NewContainerLocators(defaultTransport.Get(), args...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s", err.Error())
 	}
 
-	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl stop %s'\n", ids[0].(ResourceLocator).Identifier().UnitNameFor())
-	}
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpStopContainerRequest{
-				StoppedContainerStateRequest: jobs.StoppedContainerStateRequest{
-					Id: on.(ResourceLocator).Identifier(),
-				},
+			return &jobs.StoppedContainerStateRequest{
+				Id: AsIdentifier(on),
 			}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemd,
+		Transport: defaultTransport.Get(),
 	}.StreamAndExit()
 }
 
 func restartContainer(cmd *cobra.Command, args []string) {
-	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := ExtractContainerLocatorsFromDeployment(defaultTransport.Get(), deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...")
 	}
-	ids, err := NewContainerLocators(args...)
+	ids, err := NewContainerLocators(defaultTransport.Get(), args...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s", err.Error())
 	}
 
-	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also control this container via 'systemctl restart %s'\n", ids[0].(ResourceLocator).Identifier().UnitNameFor())
-	}
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpRestartContainerRequest{
-				RestartContainerRequest: jobs.RestartContainerRequest{
-					Id: on.(ResourceLocator).Identifier(),
-				},
+			return &jobs.RestartContainerRequest{
+				Id: AsIdentifier(on),
 			}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemd,
+		Transport: defaultTransport.Get(),
 	}.StreamAndExit()
 }
 
 func containerStatus(cmd *cobra.Command, args []string) {
-	if err := deployment.ExtractContainerLocatorsFromDeployment(deploymentPath, &args); err != nil {
+	if err := ExtractContainerLocatorsFromDeployment(defaultTransport.Get(), deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
 	}
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...\n")
+		Fail(1, "Valid arguments: <id> ...")
 	}
-	ids, err := NewContainerLocators(args...)
+	ids, err := NewContainerLocators(defaultTransport.Get(), args...)
 	if err != nil {
-		Fail(1, "You must pass one or more valid service names: %s\n", err.Error())
+		Fail(1, "You must pass one or more valid service names: %s", err.Error())
 	}
 
-	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also display the status of this container via 'systemctl status %s'\n", ids[0].(ResourceLocator).Identifier().UnitNameFor())
-	}
 	data, errors := Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &http.HttpContainerStatusRequest{
-				ContainerStatusRequest: jobs.ContainerStatusRequest{
-					Id: on.(ResourceLocator).Identifier(),
-				},
+			return &jobs.ContainerStatusRequest{
+				Id: AsIdentifier(on),
 			}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemd,
+		Transport: defaultTransport.Get(),
 	}.Gather()
 
 	for i := range data {
@@ -776,26 +771,21 @@ func containerStatus(cmd *cobra.Command, args []string) {
 
 func listUnits(cmd *cobra.Command, args []string) {
 	if len(args) == 0 {
-		args = []string{LocalHostName}
+		args = []string{transport.Local.String()}
 	}
-	ids, err := NewHostLocators(args...)
+	servers, err := NewHostLocators(defaultTransport.Get(), args[0:]...)
 	if err != nil {
-		Fail(1, "You must pass zero or more valid host names (use '%s' or pass no arguments for the current server): %s\n", LocalHostName, err.Error())
+		Fail(1, "You must pass zero or more valid host names (use '%s' or pass no arguments for the current server): %s", transport.Local.String(), err.Error())
 	}
 
-	if len(ids) == 1 && !ids[0].IsRemote() {
-		fmt.Fprintf(os.Stderr, "You can also display the set of containers via 'systemctl list-units'\n")
-	}
 	data, errors := Executor{
-		On: ids,
+		On: servers,
 		Group: func(on ...Locator) jobs.Job {
-			return &http.HttpListContainersRequest{
-				Label: string(on[0].HostIdentity()),
-				ListContainersRequest: jobs.ListContainersRequest{},
-			}
+			return &jobs.ListContainersRequest{on[0].TransportLocator().String()}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemd,
+		Transport: defaultTransport.Get(),
 	}.Gather()
 
 	combined := http.ListContainersResponse{}

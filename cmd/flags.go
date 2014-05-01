@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"crypto/rand"
@@ -89,7 +89,7 @@ func (e *EnvironmentDescription) ExtractVariablesFrom(args *[]string, generateId
 	}
 	env, err := containers.ExtractEnvironmentVariablesFrom(args)
 	if err != nil {
-		log.Printf("Failed to extract env")
+		fmt.Fprintln(os.Stderr, "Failed to extract env: "+err.Error())
 		return err
 	}
 	e.Description.Variables = append(e.Description.Variables, env...)

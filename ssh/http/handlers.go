@@ -5,14 +5,25 @@ import (
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
 	sshjobs "github.com/openshift/geard/ssh/jobs"
+
 	"github.com/openshift/go-json-rest"
 	"io"
 )
 
-func Routes() []http.HttpJobHandler {
+type HttpExtension struct{}
+
+func (h *HttpExtension) Routes() []http.HttpJobHandler {
 	return []http.HttpJobHandler{
 		&HttpCreateKeysRequest{},
 	}
+}
+
+func (h *HttpExtension) HttpJobFor(job jobs.Job) (exc http.RemoteExecutable, err error) {
+	switch j := job.(type) {
+	case *sshjobs.CreateKeysRequest:
+		exc = &HttpCreateKeysRequest{CreateKeysRequest: *j}
+	}
+	return
 }
 
 type HttpCreateKeysRequest struct {

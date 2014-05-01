@@ -43,10 +43,6 @@ func (links InstanceLinks) NetworkLinks() (dup containers.NetworkLinks) {
 	return
 }
 
-type hostnameResolver interface {
-	ResolvedHostname() string
-}
-
 // Return the set of links that should be resolved
 func (sources Containers) OrderLinks() (ordered containerLinks, err error) {
 	links := make(containerLinks, 0)
@@ -189,7 +185,12 @@ func (link containerLink) appendLinks() error {
 				if !found {
 					return errors.New(fmt.Sprintf("deployment: instance does not expose %d for link %s", port, link.String()))
 				}
-				log.Printf("appending %d on %s: %+v %+v", port, instance.Id, mapping, instance)
+				//log.Printf("appending %d on %s: %+v %+v", port, instance.Id, mapping, instance)
+
+				name, err := target.ResolveHostname()
+				if err != nil {
+					return err
+				}
 
 				instance.links = append(instance.links, InstanceLink{
 					NetworkLink: containers.NetworkLink{
@@ -197,7 +198,7 @@ func (link containerLink) appendLinks() error {
 						FromPort: mapping.Target.Port,
 
 						ToPort: mapping.External,
-						ToHost: instance.ResolvedHostname(),
+						ToHost: name,
 					},
 					from:     link.Target.Name,
 					fromPort: port,

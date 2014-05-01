@@ -2,17 +2,30 @@ package deployment
 
 import (
 	"encoding/json"
-	"github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/port"
+	"github.com/openshift/geard/transport"
 	"io/ioutil"
+	"log"
 	"regexp"
 	"strings"
 	"testing"
 )
 
-var localhost = cmd.HostLocator{"127.0.0.1", 0}
-var noHosts PlacementStrategy = SimplePlacement(cmd.Locators{})
-var oneHost PlacementStrategy = SimplePlacement(cmd.Locators{&localhost})
+var loopbackTransport = http.NewHttpTransport()
+var localTransport = transport.Local
+var localhost transport.Locator
+var noHosts PlacementStrategy = SimplePlacement(transport.Locators{})
+var oneHost PlacementStrategy
+
+func init() {
+	host, err := transport.NewHostLocator("127.0.0.1")
+	if err != nil {
+		log.Fatal(err)
+	}
+	localhost = host
+	oneHost = SimplePlacement(transport.Locators{host})
+}
 
 func loadDeployment(path string) *Deployment {
 	body, err := ioutil.ReadFile(path)
@@ -63,10 +76,10 @@ func TestPrepareDeployment(t *testing.T) {
       }
     ]
   }`)
-	if _, _, err := dep.Describe(noHosts); err != nil {
+	if _, _, err := dep.Describe(noHosts, loopbackTransport); err != nil {
 		t.Fatal("Should not return error when describing with no hosts")
 	}
-	next, removed, err := dep.Describe(oneHost)
+	next, removed, err := dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Error when describing one host", err)
 	}
@@ -96,7 +109,7 @@ func TestPrepareDeploymentExternal(t *testing.T) {
       }
     ]
   }`)
-	next, removed, err := dep.Describe(oneHost)
+	next, removed, err := dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Error when describing one host", err)
 	}
@@ -127,7 +140,7 @@ func TestPrepareDeploymentRemoveMissing(t *testing.T) {
       }
     ]
   }`)
-	next, removed, err := dep.Describe(oneHost)
+	next, removed, err := dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Error when describing one host", err)
 	}
@@ -138,8 +151,10 @@ func TestPrepareDeploymentRemoveMissing(t *testing.T) {
 		t.Fatal("Instances without hosts should be ignored", removed)
 	}
 
-	dep.Instances[0].On = &localhost
-	next, removed, err = dep.Describe(oneHost)
+	log.Printf("Localhost %+v", localhost)
+	s := localhost.String()
+	dep.Instances[0].On = &s
+	next, removed, err = dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Error when describing one host", err)
 	}
@@ -172,12 +187,12 @@ func TestPrepareDeploymentError(t *testing.T) {
       }
     ]
   }`)
-	if _, _, err := dep.Describe(oneHost); err != nil {
+	if _, _, err := dep.Describe(oneHost, loopbackTransport); err != nil {
 		t.Fatal("Should not have received an error", err.Error())
 	}
 
 	dep.Containers[0].Links[0].Ports = []port.Port{port.Port(8081)}
-	if _, _, err := dep.Describe(oneHost); err == nil {
+	if _, _, err := dep.Describe(oneHost, loopbackTransport); err == nil {
 		t.Fatal("Should have received an error")
 	} else {
 		if !regexp.MustCompile("target port 8081 on web is not found").MatchString(err.Error()) {
@@ -188,7 +203,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 	link := &dep.Containers[0].Links[0]
 	link.Ports = []port.Port{}
 	link.To = "db"
-	if _, _, err := dep.Describe(oneHost); err == nil {
+	if _, _, err := dep.Describe(oneHost, loopbackTransport); err == nil {
 		t.Fatal("Should have received an error")
 	} else {
 		if !regexp.MustCompile("target db has no public ports to link to from web").MatchString(err.Error()) {
@@ -197,7 +212,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 	}
 
 	dep.Containers[1].PublicPorts = port.PortPairs{port.PortPair{port.Port(27017), 0}}
-	next, removed, err := dep.Describe(oneHost)
+	next, removed, err := dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Should not have received an error", err.Error())
 	}
@@ -216,7 +231,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 	dep.Containers[0].Links = append(dep.Containers[0].Links, Link{
 		To: "web",
 	})
-	next, removed, err = dep.Describe(oneHost)
+	next, removed, err = dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Should not have received an error", err.Error())
 	}
@@ -239,7 +254,7 @@ func TestPrepareDeploymentError(t *testing.T) {
 
 func TestPrepareDeploymentInterlink(t *testing.T) {
 	dep := loadDeployment("./fixtures/complex_deploy.json")
-	changes, _, err := dep.Describe(oneHost)
+	changes, _, err := dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Should not have received an error", err)
 	}
@@ -266,7 +281,7 @@ func TestPrepareDeploymentInterlink(t *testing.T) {
 
 func TestPrepareDeploymentMongo(t *testing.T) {
 	dep := loadDeployment("./fixtures/mongo_deploy.json")
-	changes, _, err := dep.Describe(oneHost)
+	changes, _, err := dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Should not have received an error", err)
 	}
@@ -300,7 +315,7 @@ func TestPrepareDeploymentMongo(t *testing.T) {
 
 func TestReloadDeploymentMongo(t *testing.T) {
 	dep := loadDeployment("./fixtures/mongo_deploy_existing.json")
-	changes, _, err := dep.Describe(oneHost)
+	changes, _, err := dep.Describe(oneHost, loopbackTransport)
 	if err != nil {
 		t.Fatal("Should not have received an error", err)
 	}
@@ -331,17 +346,17 @@ func TestReloadDeploymentMongo(t *testing.T) {
 		}
 	}
 
-	changes, removed, err := dep.Describe(noHosts)
+	changes, removed, err := dep.Describe(noHosts, loopbackTransport)
 	if err != nil {
 		t.Fatal("Should not have received an error", err)
 	}
+	b, _ := json.MarshalIndent(changes, "", "  ")
+	t.Log(string(b))
+
 	if len(changes.Instances) != 0 {
 		t.Fatalf("Expected %d instances, got %d", 0, len(changes.Instances))
 	}
 	if len(removed) != 3 {
 		t.Fatalf("Expected to remove %d instances, got %d", 3, len(removed))
 	}
-
-	// b, _ := json.MarshalIndent(changes, "", "  ")
-	// t.Log(string(b))
 }

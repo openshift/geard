@@ -1,8 +1,10 @@
 package deployment
 
 import (
-	"github.com/openshift/geard/cmd"
+	"errors"
+	"fmt"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/transport"
 )
 
 // A container that has been created on a server
@@ -13,8 +15,8 @@ type Instance struct {
 	Image string
 	// The container definition this is from
 	From string
-	// The host system this is or should be deployed on
-	On *cmd.HostLocator `json:"On,omitempty"`
+	// The deployed location - nil for not deployed
+	On *string `json:"On,omitempty"`
 	// The mapping of internal, external, and remote ports
 	Ports PortMappings `json:"Ports,omitempty"`
 
@@ -25,8 +27,12 @@ type Instance struct {
 
 	// The container this instance is associated with
 	container *Container
+	// The resolved locator of an instance
+	on transport.Locator
 	// The generated links for this instance
 	links InstanceLinks
+	// A cached hostname for this instance
+	hostname string
 }
 type Instances []Instance
 type InstanceRefs []*Instance
@@ -43,8 +49,16 @@ func (i *Instance) MarkRemoved() {
 	i.remove = true
 }
 
-func (i *Instance) ResolvedHostname() string {
-	return i.On.ResolvedHostname()
+func (i *Instance) Place(on transport.Locator) {
+	i.on = on
+	s := on.String()
+	i.On = &s
+}
+func (i *Instance) ResolveHostname() (string, error) {
+	if i.on == nil {
+		return "", errors.New(fmt.Sprintf("No locator available for this instance (can't resolve from %s)", i.On))
+	}
+	return i.on.ResolveHostname()
 }
 
 func (i *Instance) EnvironmentVariables() {
@@ -59,6 +73,14 @@ func (instances Instances) Find(id containers.Identifier) (*Instance, bool) {
 	return nil, false
 }
 
+func (instances Instances) References() InstanceRefs {
+	refs := make(InstanceRefs, 0, 5)
+	for i := range instances {
+		refs = append(refs, &instances[i])
+	}
+	return refs
+}
+
 func (instances Instances) ReferencesFor(name string) InstanceRefs {
 	refs := make(InstanceRefs, 0, 5)
 	for i := range instances {
@@ -69,40 +91,22 @@ func (instances Instances) ReferencesFor(name string) InstanceRefs {
 	return refs
 }
 
-func (refs Instances) Ids() (ids []cmd.Locator) {
-	ids = make([]cmd.Locator, 0, len(refs))
-	for i := range refs {
-		ids = append(ids, &cmd.ContainerLocator{*refs[i].On, refs[i].Id})
-	}
-	return
-}
-
-func (refs Instances) AddedIds() (ids []cmd.Locator) {
-	ids = make([]cmd.Locator, 0, len(refs))
+func (refs Instances) Added() InstanceRefs {
+	adds := make(InstanceRefs, 0, len(refs))
 	for i := range refs {
 		if refs[i].add {
-			ids = append(ids, &cmd.ContainerLocator{*refs[i].On, refs[i].Id})
+			adds = append(adds, &refs[i])
 		}
 	}
-	return
+	return adds
 }
 
-func (refs Instances) LinkedIds() (ids []cmd.Locator) {
-	ids = make([]cmd.Locator, 0, len(refs))
+func (refs Instances) Linked() InstanceRefs {
+	linked := make(InstanceRefs, 0, len(refs))
 	for i := range refs {
 		if len(refs[i].links) > 0 {
-			ids = append(ids, &cmd.ContainerLocator{*refs[i].On, refs[i].Id})
+			linked = append(linked, &refs[i])
 		}
 	}
-	return
-}
-
-func (refs InstanceRefs) Ids() (ids []cmd.Locator) {
-	ids = make([]cmd.Locator, 0, len(refs))
-	for i := range refs {
-		if refs[i] != nil {
-			ids = append(ids, &cmd.ContainerLocator{*refs[i].On, refs[i].Id})
-		}
-	}
-	return
+	return linked
 }

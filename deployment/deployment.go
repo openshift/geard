@@ -5,8 +5,10 @@ package deployment
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/port"
+	"github.com/openshift/geard/transport"
 	"os"
 	"strconv"
 )
@@ -36,27 +38,37 @@ func NewDeploymentFromFile(path string) (*Deployment, error) {
 	return deployment, nil
 }
 
-func (d Deployment) Describe(placement PlacementStrategy) (next *Deployment, removed InstanceRefs, err error) {
+func (d Deployment) Describe(placement PlacementStrategy, t transport.Transport) (next *Deployment, removed InstanceRefs, err error) {
 	// copy the container list and clear any intermediate state
 	sources := d.Containers.Copy()
 
 	// assign instances to containers or the remove list
-	for _, instance := range d.Instances {
+	for i := range d.Instances {
+		instance := &d.Instances[i]
+		copied := *instance
 		// is the instance invalid or no longer part of the cluster
 		if instance.On == nil {
 			continue
 		}
-		if placement.RemoveFromLocation(instance.On) {
-			removed = append(removed, &instance)
+		if instance.on == nil {
+			locator, errl := t.LocatorFor(*instance.On)
+			if errl != nil {
+				err = errors.New(fmt.Sprintf("The host %s for instance %s is not recognized - you may be using a different transport than originally specified: %s", *instance.On, instance.Id, errl.Error()))
+				return
+			}
+			instance.on = locator
+		}
+		if placement.RemoveFromLocation(instance.on) {
+			removed = append(removed, &copied)
 			continue
 		}
 		// locate the container
 		c, found := sources.Find(instance.From)
 		if !found {
-			removed = append(removed, &instance)
+			removed = append(removed, &copied)
 			continue
 		}
-		c.AddInstance(&instance)
+		c.AddInstance(&copied)
 	}
 
 	// create new instances for each container
@@ -189,23 +201,6 @@ func (d *Deployment) UpdateLinks() {
 			}
 		}
 	}
-}
-
-// Return a set of container locators from the specified deployment
-// descriptor.
-func ExtractContainerLocatorsFromDeployment(path string, args *[]string) error {
-	if path == "" {
-		return nil
-	}
-	deployment, err := NewDeploymentFromFile(path)
-	if err != nil {
-		return err
-	}
-	ids := deployment.Instances.Ids()
-	for i := range ids {
-		*args = append(*args, ids[i].Identity())
-	}
-	return nil
 }
 
 // A container description

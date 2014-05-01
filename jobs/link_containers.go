@@ -43,6 +43,11 @@ func (link *ContainerLinks) Check() error {
 
 type LinkContainersRequest struct {
 	*ContainerLinks
+	Label string
+}
+
+func (j *LinkContainersRequest) JobLabel() string {
+	return j.Label
 }
 
 func (j *LinkContainersRequest) Execute(resp JobResponse) {

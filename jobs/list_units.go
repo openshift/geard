@@ -35,17 +35,24 @@ func unitsMatching(re *regexp.Regexp, found func(name string, unit *dbus.UnitSta
 		return err
 	}
 
-	for _, unit := range all {
+	for i := range all {
+		unit := &all[i]
 		if matched := re.MatchString(unit.Name); matched {
 			name := re.FindStringSubmatch(unit.Name)[1]
-			found(name, &unit)
+			found(name, unit)
 		}
 	}
 	return nil
 }
 
 type ListContainersRequest struct {
+	Label string
 }
+
+func (l *ListContainersRequest) JobLabel() string {
+	return l.Label
+}
+
 type ContainerUnitResponse struct {
 	unitResponse
 	LoadState string

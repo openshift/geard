@@ -21,7 +21,7 @@ type CliJobResponse struct {
 	// Data gathered from the response
 	Data interface{}
 	// The error set on the response
-	Error jobs.JobError
+	Error error
 
 	succeeded bool
 	failed    bool
@@ -70,11 +70,6 @@ func (s *CliJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush, stru
 	return utils.NewWriteFlusher(s.Output)
 }
 
-func (s *CliJobResponse) WriteClosed() <-chan bool {
-	ch := make(chan bool)
-	return ch
-}
-
 func (s *CliJobResponse) WritePendingSuccess(name string, value interface{}) {
 	if s.Pending == nil {
 		s.Pending = make(map[string]interface{})
@@ -82,7 +77,7 @@ func (s *CliJobResponse) WritePendingSuccess(name string, value interface{}) {
 	s.Pending[name] = value
 }
 
-func (s *CliJobResponse) Failure(e jobs.JobError) {
+func (s *CliJobResponse) Failure(e error) {
 	if s.succeeded {
 		panic("May not invoke failure after Success()")
 	}
