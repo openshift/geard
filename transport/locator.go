@@ -68,7 +68,7 @@ func NewHostLocator(value string) (HostLocator, error) {
 }
 
 func ResolveLocatorHostname(value string) (string, error) {
-	if value != "" && value != Local.String() {
+	if value != "" && value != localTransport {
 		if strings.Contains(value, ":") {
 			host, _, err := net.SplitHostPort(value)
 			if err != nil {

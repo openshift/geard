@@ -61,7 +61,7 @@ type ResourceValidator interface {
 	Type() ResourceType
 }
 
-// The a resource on a server reachable via a transport.
+// The resource on a server reachable via a transport.
 type ResourceLocator struct {
 	// The type of resource being referenced
 	Type ResourceType
