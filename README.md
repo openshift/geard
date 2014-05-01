@@ -101,6 +101,10 @@ Here are the supported container actions on the agent - these should map cleanly
         $ gear list-units localhost
         $ curl "http://localhost:43273/containers"
 
+*   Perform housekeeping cleanup on the geard directories
+
+        $ gear clean
+
 *   Create a new empty Git repository
 
         $ curl -X PUT "http://localhost:43273/repository/my-sample-repo"

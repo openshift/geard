@@ -84,7 +84,6 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		h.log.Printf("Failed: %v", err)
 		return err
 	}
 	defer resp.Body.Close()

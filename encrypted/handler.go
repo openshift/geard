@@ -1,3 +1,9 @@
+// Allow a caller to create a signed and encrypted token that contains one
+// job request to a server.  The server, trusting the key that signed the token,
+// can then execute that job on the signer's behalf. This pattern allows a
+// central orchestrator to delegate job requests to individual servers that can
+// be executed asynchronously (orchestrator A allows node B to retrieve data from
+// node C)
 package encrypted
 
 import (

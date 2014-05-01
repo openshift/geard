@@ -221,6 +221,16 @@ func Execute() {
 	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":43273", "Set the address for the http endpoint to listen on")
 	AddCommand(gearCmd, daemonCmd, true)
 
+	cleanCmd := &cobra.Command{
+		Use:   "clean",
+		Short: "(local) Perform housekeeping tasks on geard directories",
+		Long:  "Perform various tasks to clean up the state, images, directories and other resources.",
+		Run:   clean,
+	}
+	cleanCmd.Flags().BoolVarP(&dryRun, "dry-run", "", false, "List the cleanups, but do not execute.")
+	cleanCmd.Flags().BoolVarP(&repair, "repair", "", false, "Perform potentially irrecoverable cleanups.")
+	AddCommand(gearCmd, cleanCmd, true)
+
 	purgeCmd := &cobra.Command{
 		Use:   "purge",
 		Short: "(Local) Stop and disable systemd gear units",
@@ -228,16 +238,6 @@ func Execute() {
 		Run:   purge,
 	}
 	AddCommand(gearCmd, purgeCmd, true)
-
-	cleanCmd := &cobra.Command{
-		Use:	"clean",
-		Short:	"List/fix various issues with geard state.",
-		Long:	"Perform various tasks to clean up the state, images, directories and other resources.",
-		Run:	clean,
-	}
-	cleanCmd.Flags().BoolVarP(&dryRun, "dry-run", "", false, "List the cleanups, but do not execute.")
-	cleanCmd.Flags().BoolVarP(&repair, "repair", "", false, "Perform potentially irrecoverable cleanups.")
-	AddCommand(gearCmd, cleanCmd, true)
 
 	initGearCmd := &cobra.Command{
 		Use:   "init <name> <image>",
@@ -276,7 +276,7 @@ func purge(cmd *cobra.Command, args []string) {
 
 func deployContainers(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <deployment_file> <host> ...\n")
+		Fail(1, "Valid arguments: <deployment_file> <host> ...")
 	}
 
 	path := args[0]
@@ -475,7 +475,7 @@ func buildImage(cmd *cobra.Command, args []string) {
 	}
 
 	if len(args) < 3 {
-		Fail(1, "Valid arguments: <source> <build image> <tag> ...\n")
+		Fail(1, "Valid arguments: <source> <build image> <tag> ...")
 	}
 
 	buildReq.Source = args[0]
@@ -841,28 +841,28 @@ func createToken(cmd *cobra.Command, args []string) {
 
 func initGear(cmd *cobra.Command, args []string) {
 	if len(args) != 2 || !(pre || post) || (pre && post) {
-		Fail(1, "Valid arguments: <id> <image_name> (--pre|--post)\n")
+		Fail(1, "Valid arguments: <id> <image_name> (--pre|--post)")
 	}
 	containerId, err := containers.NewIdentifier(args[0])
 	if err != nil {
-		Fail(1, "Argument 1 must be a valid gear identifier: %s\n", err.Error())
+		Fail(1, "Argument 1 must be a valid gear identifier: %s", err.Error())
 	}
 
 	switch {
 	case pre:
 		if err := InitPreStart(conf.Docker.Socket, containerId, args[1]); err != nil {
-			Fail(2, "Unable to initialize container %s\n", err.Error())
+			Fail(2, "Unable to initialize container %s", err.Error())
 		}
 	case post:
 		if err := InitPostStart(conf.Docker.Socket, containerId); err != nil {
-			Fail(2, "Unable to initialize container %s\n", err.Error())
+			Fail(2, "Unable to initialize container %s", err.Error())
 		}
 	}
 }
 
-func clean(cmd *cobra.Command, args[]string) {
-	logInfo  := log.New(os.Stdout, "INFO: ", log.Ldate | log.Ltime)
-	logError := log.New(os.Stderr, "ERROR: ", log.Ldate | log.Ltime)
+func clean(cmd *cobra.Command, args []string) {
+	logInfo := log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime)
+	logError := log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime)
 
 	cleanup.Clean(&cleanup.CleanerContext{DryRun: dryRun, Repair: repair, LogInfo: logInfo, LogError: logError})
 }

@@ -39,7 +39,7 @@ func init() {
 func registerLocal(parent *cobra.Command) {
 	keysForUserCmd := &cobra.Command{
 		Use:   "auth-keys-command <username>",
-		Short: "(Local) Generate authorized_keys output for sshd.",
+		Short: "(Local) Generate authorized_keys output for sshd",
 		Long:  "Generate authorized keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
 		Run:   KeysForUser,
 	}

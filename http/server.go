@@ -1,5 +1,5 @@
 // Serve jobs over the http protocol, and provide a marshalling interface
-// for the default geard jobs.
+// for the core geard jobs.
 package http
 
 import (

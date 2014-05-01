@@ -1,18 +1,19 @@
 {
+  "IdPrefix": "martini-",
   "Containers":[
     {
-      "Name":"webapp",
+      "Name":"web",
       "Count":1,
       "Image":"mrunalp/redis-todo",
       "PublicPorts":[
-        {"Internal":3000,"External":50000}
+        {"Internal":3000}
       ],
       "Links":[
-        {"To":"db"}
+        {"To":"redis"}
       ]
     },
     {
-      "Name":"db",
+      "Name":"redis",
       "Count":1,
       "Image":"mrunalp/fedora-redis",
       "PublicPorts":[

@@ -34,7 +34,7 @@ func (r *PortsCleanup) Clean(ctx *CleanerContext) {
 			return nil
 		}
 
-		if fi.Mode() & os.ModeSymlink == os.ModeSymlink {
+		if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
 			unitPath, err := os.Readlink(path)
 			if err != nil {
 				ctx.LogError.Printf("Failed to read the link: %v", err)
@@ -42,10 +42,8 @@ func (r *PortsCleanup) Clean(ctx *CleanerContext) {
 			}
 
 			if _, err := os.Stat(unitPath); os.IsNotExist(err) {
-				if ctx.DryRun {
-					ctx.LogInfo.Printf("Port %v could be recovered as it does not point to a definition file", path)
-				} else {
-					ctx.LogInfo.Printf("Recovering port %v as it does point to a definition file.", path)
+				ctx.LogInfo.Printf("Recovering port %v as it does not point to a definition file.", path)
+				if !ctx.DryRun {
 					if err = os.Remove(path); err != nil {
 						ctx.LogError.Printf("Failed to remove %s: %v", path, err)
 					}

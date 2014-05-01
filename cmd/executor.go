@@ -143,7 +143,7 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 	if len(localJobs) > 0 {
 		tasks.Add(1)
 		go func() {
-			w := logstreamer.NewLogstreamer(stdout, "local ", false)
+			w := logstreamer.NewLogstreamer(stdout, prefixUnless("local ", single), false)
 			defer w.Close()
 			defer tasks.Done()
 
