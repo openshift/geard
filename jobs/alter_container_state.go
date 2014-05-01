@@ -212,12 +212,12 @@ func (j *RestartContainerRequest) Execute(resp JobResponse) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
-	inState, tooSoon := inStateOrTooSoon(j.Id, unitName, false, true, rateLimitChanges)
-	if inState {
+	_, tooSoon := inStateOrTooSoon(j.Id, unitName, false, true, rateLimitChanges)
+	/*if inState {
 		w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s restarting\n", j.Id)
 		return
-	}
+	}*/
 	if tooSoon {
 		resp.Failure(ErrRestartRequestThrottled)
 		return
