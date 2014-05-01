@@ -122,24 +122,24 @@ Here are the supported container actions on the agent - these should map cleanly
         
         $ systemctl restart sshd.service
 
-	# Install and start a container in isolate mode which is necessary for SSH.
+        # Install and start a container in isolate mode which is necessary for SSH.
         $ gear install pmorie/sti-html-app 192.168.122.67:43273/testapp1 --isolate --start
 
-	# Add ssh keys.
+        # Add ssh keys.
         $ gear add-keys --key-file=/path/to/id_rsa.pub 192.168.122.67:43273/testapp1
 
 	# SSH into the container.
         $ ssh ctr-testapp1@192.168.122.67 
-	2014/05/01 12:48:21 docker: execution driver native-0.1
-	bash-4.2$ id
-	uid=1019(container) gid=1019(container) groups=1019(container)
-	bash-4.2$ ps -ef
-	UID        PID  PPID  C STIME TTY          TIME CMD
-	root         1     0  0 19:39 ?        00:00:00 su container -s /bin/bash -c /.container.cmd
-	contain+    16     1  0 19:39 ?        00:00:00 /usr/bin/ruby-mri /usr/mock/mock_server.rb 0.0.0.0 /usr/mock/source/
-	contain+    22     0  0 19:48 ?        00:00:00 /bin/bash -l
-	contain+    24    22  0 19:48 ?        00:00:00 ps -ef
-	bash-4.2$
+        2014/05/01 12:48:21 docker: execution driver native-0.1
+        bash-4.2$ id
+        uid=1019(container) gid=1019(container) groups=1019(container)
+        bash-4.2$ ps -ef
+        UID        PID  PPID  C STIME TTY          TIME CMD
+        root         1     0  0 19:39 ?        00:00:00 su container -s /bin/bash -c /.container.cmd
+        contain+    16     1  0 19:39 ?        00:00:00 /usr/bin/ruby-mri /usr/mock/mock_server.rb 0.0.0.0 /usr/mock/source/
+        contain+    22     0  0 19:48 ?        00:00:00 /bin/bash -l
+        contain+    24    22  0 19:48 ?        00:00:00 ps -ef
+        bash-4.2$
 
 *   Build a new image using [Docker Source-to-Images](https://github.com/openshift/docker-source-to-images) from a source URL and base image
 
