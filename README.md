@@ -111,12 +111,35 @@ Here are the supported container actions on the agent - these should map cleanly
 
 *   Set a public key as enabling SSH or Git SSH access to a container or repository (respectively)
 
-        $ gear keys --key-file=[FILE] my-sample-service
+        $ gear add-keys --key-file=[FILE] my-sample-service
         $ curl -X POST "http://localhost:43273/keys" -H "Content-Type: application/json" -d '{"Keys": [{"Type":"authorized_keys","Value":"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ=="}], "Containers": [{"Id": "my-sample-service"}]}'
 
 *   Enable SSH access to join a container for a set of authorized keys
 
-        TODO: add examples and make setup cleaner
+        # Make sure that /etc/ssh/sshd_config has the following two lines
+        AuthorizedKeysCommand /usr/sbin/gear-auth-keys-command
+        AuthorizedKeysCommandUser nobody
+        
+        $ systemctl restart sshd.service
+
+        # Install and start a container in isolate mode which is necessary for SSH.
+        $ gear install pmorie/sti-html-app 192.168.122.67:43273/testapp1 --isolate --start
+
+        # Add ssh keys.
+        $ gear add-keys --key-file=/path/to/id_rsa.pub 192.168.122.67:43273/testapp1
+
+	# SSH into the container.
+        $ ssh ctr-testapp1@192.168.122.67 
+        2014/05/01 12:48:21 docker: execution driver native-0.1
+        bash-4.2$ id
+        uid=1019(container) gid=1019(container) groups=1019(container)
+        bash-4.2$ ps -ef
+        UID        PID  PPID  C STIME TTY          TIME CMD
+        root         1     0  0 19:39 ?        00:00:00 su container -s /bin/bash -c /.container.cmd
+        contain+    16     1  0 19:39 ?        00:00:00 /usr/bin/ruby-mri /usr/mock/mock_server.rb 0.0.0.0 /usr/mock/source/
+        contain+    22     0  0 19:48 ?        00:00:00 /bin/bash -l
+        contain+    24    22  0 19:48 ?        00:00:00 ps -ef
+        bash-4.2$
 
 *   Build a new image using [Docker Source-to-Images](https://github.com/openshift/docker-source-to-images) from a source URL and base image
 
