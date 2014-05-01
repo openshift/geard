@@ -1,14 +1,14 @@
 package cleanup
 
 import (
-	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
-	"strings"
 	"os"
+	"time"
 )
 
 type FailureCleanup struct {
 	dockerSocket string
+	retentionAge string
 }
 
 func init() {
@@ -17,7 +17,7 @@ func init() {
 		dockerURI = "unix:///var/run/docker.sock"
 	}
 
-	AddCleaner(&FailureCleanup{dockerSocket: dockerURI})
+	AddCleaner(&FailureCleanup{dockerSocket: dockerURI, retentionAge: "72h"})
 }
 
 // Remove any geard managed container with a non-zero exit code from runtime
@@ -36,6 +36,7 @@ func (r *FailureCleanup) Clean(ctx *CleanerContext) {
 		return
 	}
 
+	retentionAge, err := time.ParseDuration(r.retentionAge)
 	for _, cinfo := range gears {
 		container, err := client.GetContainer(cinfo.ID, false)
 		if err != nil {
@@ -44,22 +45,24 @@ func (r *FailureCleanup) Clean(ctx *CleanerContext) {
 		}
 
 		// Happy container or not under geard control
-		if 0 == container.State.ExitCode || !strings.HasPrefix(container.Name, containers.IdentifierPrefix) {
+		if 0 == container.State.ExitCode ||
+				container.State.Running ||
+				time.Since(container.State.FinishedAt) < retentionAge {
 			continue
 		}
+
+		// Container under geard control and has a non-zero exit code, remove it from runtime
+		ctx.LogInfo.Printf("Removing container %s has exit code of %d", container.Name, container.State.ExitCode)
 
 		if ctx.DryRun {
-			ctx.LogInfo.Printf("DryRun: container %s could be removed as it has exit code of %d",
-				container.Name, container.State.ExitCode)
 			continue
 		}
 
-		// Container under geard control and has a non-zero exit code, remove it from registry
-		ctx.LogInfo.Printf("Removing container %s has exit code of %d", container.Name, container.State.ExitCode)
 		e1 := client.ForceCleanContainer(container.ID)
 		if e1 != nil {
 			ctx.LogError.Printf("Unable to remove container %s from runtime: %s", container.Name, e1.Error())
 		}
 	}
+
 }
 

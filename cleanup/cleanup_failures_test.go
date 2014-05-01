@@ -9,6 +9,7 @@ import (
 	"log"
 	"bytes"
 	"strings"
+	"time"
 )
 
 const (
@@ -123,7 +124,7 @@ const (
 		"OnBuild":null
 		},
 		"State":{
-		"Running":false,
+		"Running":true,
 		"Pid":0,
 		"ExitCode":0,
 		"StartedAt":"2014-04-30T15:19:05.546852565Z",
@@ -178,7 +179,7 @@ func TestNoop(t *testing.T) {
 	context, info, error := newContext(false, true)
 
 	os.Setenv("DOCKER_URI", server.URL)
-	plugin := &FailureCleanup{dockerSocket: server.URL}
+	plugin := &FailureCleanup{dockerSocket: server.URL, retentionAge: "0s"}
 	plugin.Clean(context)
 
 	if 0 != error.Len() {
@@ -192,12 +193,10 @@ func TestNoop(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
-	failure_payload := strings.Replace(success_payload, "\"ExitCode\":0", "\"ExitCode\":100", 1)
-
 	routes := map[string]string {
 		"/info": info_payload,
 		"/containers/json?all=1": containers_payload,
-		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": failure_payload,
+		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": failedPayload(success_payload),
 		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill": "{}",
 		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc?force=1&v=1": "{}",
 	}
@@ -207,7 +206,7 @@ func TestRemove(t *testing.T) {
 	context, info, error := newContext(false, true)
 
 	os.Setenv("DOCKER_URI", server.URL)
-	plugin := &FailureCleanup{dockerSocket: server.URL}
+	plugin := &FailureCleanup{dockerSocket: server.URL, retentionAge: "0s"}
 	plugin.Clean(context)
 
 	if !strings.Contains(info.String(), "Removing container") {
@@ -215,10 +214,43 @@ func TestRemove(t *testing.T) {
 	}
 }
 
+func TestRemoveNotAged(t *testing.T) {
+	p0 := failedPayload(success_payload)
+	payload := strings.Replace(p0,
+		"\"FinishedAt\":\"2014-05-01T00:36:11.985592023Z\"",
+		fmt.Sprintf("\"FinishedAt\":\"%s\"", time.Now().Format(time.RFC3339Nano)),
+		1)
+
+	routes := map[string]string {
+		"/info": info_payload,
+		"/containers/json?all=1": containers_payload,
+		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,
+		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill": "{}",
+		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc?force=1&v=1": "{}",
+	}
+	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
+	defer server.Close()
+
+	context, info, error := newContext(false, true)
+
+	os.Setenv("DOCKER_URI", server.URL)
+	plugin := &FailureCleanup{dockerSocket: server.URL, retentionAge: "72h"}
+	plugin.Clean(context)
+
+	if strings.Contains(info.String(), "Removing container") {
+		t.Errorf("Attempted to remove container too early: \n%s\n%s", info, error)
+	}
+
+	if 0 != error.Len() {
+		t.Log(info)
+		t.Error(error)
+	}
+}
+
 func TestBadConnection(t *testing.T) {
 	context, info, error := newContext(false, true)
 
-	plugin := &FailureCleanup{dockerSocket: "scheme://bad/connection"}
+	plugin := &FailureCleanup{dockerSocket: "scheme://bad/connection", retentionAge: "72h"}
 	plugin.Clean(context)
 
 	if !strings.Contains(error.String(), "Unable connect to docker") {
@@ -236,7 +268,7 @@ func TestNoContainers(t *testing.T) {
 
 	context, info, error := newContext(false, true)
 
-	plugin := &FailureCleanup{dockerSocket: server.URL}
+	plugin := &FailureCleanup{dockerSocket: server.URL, retentionAge: "0s"}
 	plugin.Clean(context)
 
 	if !strings.Contains(error.String(), "Unable to find any containers") {
@@ -245,12 +277,10 @@ func TestNoContainers(t *testing.T) {
 }
 
 func TestDryRun(t *testing.T) {
-	failure_payload := strings.Replace(success_payload, "\"ExitCode\":0", "\"ExitCode\":100", 1)
-
 	routes := map[string]string {
 		"/info": info_payload,
 		"/containers/json?all=1": containers_payload,
-		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": failure_payload,
+		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": failedPayload(success_payload),
 		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill": "{}",
 		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc?force=1&v=1": "{}",
 	}
@@ -259,10 +289,10 @@ func TestDryRun(t *testing.T) {
 
 	context, info, error := newContext(true, false)
 
-	plugin := &FailureCleanup{dockerSocket: server.URL}
+	plugin := &FailureCleanup{dockerSocket: server.URL, retentionAge: "0s"}
 	plugin.Clean(context)
 
-	if !strings.Contains(info.String(), "DryRun: container ") {
+	if !strings.Contains(info.String(), "Removing container ") {
 		t.Errorf("Dry run failed: \n%s\n%s", info, error)
 	}
 }
@@ -289,4 +319,9 @@ func newContext(dryrun bool, repair bool) (*CleanerContext, *bytes.Buffer, *byte
 	logError := log.New(error, "ERROR: ", log.Ldate|log.Ltime)
 
 	return &CleanerContext{DryRun: dryrun, Repair: repair, LogInfo: logInfo, LogError: logError}, info, error
+}
+
+func failedPayload(payload string) string {
+	p := strings.Replace(payload, "\"ExitCode\":0", "\"ExitCode\":100", 1)
+	return strings.Replace(p, "\"Running\":true", "\"Running\":false", 1)
 }
