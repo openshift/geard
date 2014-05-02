@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/utils"
@@ -14,7 +15,7 @@ import (
 	"path/filepath"
 )
 
-var ErrContainerCreateFailedPortsReserved = SimpleJobError{JobResponseError, "Unable to create container: some ports could not be reserved."}
+var ErrContainerCreateFailedPortsReserved = jobs.SimpleJobError{jobs.JobResponseError, "Unable to create container: some ports could not be reserved."}
 
 const PendingPortMappingName = "PortMapping"
 
@@ -55,7 +56,7 @@ const PendingPortMappingName = "PortMapping"
 // considered sufficiently secure for production use.
 //
 type InstallContainerRequest struct {
-	RequestIdentifier `json:"-"`
+	jobs.RequestIdentifier `json:"-"`
 
 	Id    containers.Identifier
 	Image string
@@ -120,7 +121,7 @@ func dockerPortSpec(p port.PortPairs) string {
 	return portSpec.String()
 }
 
-func (req *InstallContainerRequest) Execute(resp JobResponse) {
+func (req *InstallContainerRequest) Execute(resp jobs.JobResponse) {
 	id := req.Id
 	unitName := id.UnitNameFor()
 	unitPath := id.UnitPathFor()
@@ -312,7 +313,7 @@ func (req *InstallContainerRequest) Execute(resp JobResponse) {
 		}
 	}
 
-	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
 	if req.Started {
 		fmt.Fprintf(w, "Container %s is starting\n", id)
 	} else {
@@ -344,10 +345,10 @@ func writeSocketUnit(path string, args *containers.ContainerUnit) error {
 	return nil
 }
 
-func (j *InstallContainerRequest) Join(job Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
+func (j *InstallContainerRequest) Join(job jobs.Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
 	if old, ok := job.(*InstallContainerRequest); !ok {
 		if old == nil {
-			err = ErrRanToCompletion
+			err = jobs.ErrRanToCompletion
 		} else {
 			err = errors.New("Cannot join two jobs of different types.")
 		}

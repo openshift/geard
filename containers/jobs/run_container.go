@@ -3,16 +3,16 @@ package jobs
 import (
 	"errors"
 	"fmt"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/systemd"
+	"github.com/openshift/geard/utils"
+	"github.com/openshift/go-systemd/dbus"
 	"io"
 	"log"
 	"reflect"
 	"strings"
 	"time"
-
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/systemd"
-	"github.com/openshift/geard/utils"
-	"github.com/openshift/go-systemd/dbus"
 )
 
 type RunContainerRequest struct {
@@ -49,7 +49,7 @@ func (j *RunContainerRequest) UnitCommand() []string {
 	return command
 }
 
-func (j *RunContainerRequest) Execute(resp JobResponse) {
+func (j *RunContainerRequest) Execute(resp jobs.JobResponse) {
 	command := j.UnitCommand()
 	unitName := containers.JobIdentifier(j.Name).UnitNameFor()
 	unitDescription := fmt.Sprintf("Execute image '%s': %s %s", j.Image, j.Command, strings.Join(command, " "))
@@ -108,17 +108,17 @@ func (j *RunContainerRequest) Execute(resp JobResponse) {
 	switch {
 	case err != nil:
 		errType := reflect.TypeOf(err)
-		resp.Failure(SimpleJobError{JobResponseError, fmt.Sprintf("Unable to start container execution due to (%s): %s", errType, err.Error())})
+		resp.Failure(jobs.SimpleJobError{jobs.JobResponseError, fmt.Sprintf("Unable to start container execution due to (%s): %s", errType, err.Error())})
 		return
 	case status != "done":
-		resp.Failure(SimpleJobError{JobResponseError, fmt.Sprintf("Start did not complete successfully: %s", status)})
+		resp.Failure(jobs.SimpleJobError{jobs.JobResponseError, fmt.Sprintf("Start did not complete successfully: %s", status)})
 		return
 	case stdout == nil:
-		resp.Success(JobResponseOk)
+		resp.Success(jobs.JobResponseOk)
 		return
 	}
 
-	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
 	go io.Copy(w, stdout)
 
 wait:

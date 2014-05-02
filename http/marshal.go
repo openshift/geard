@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"io"
@@ -39,12 +40,12 @@ func (h *HttpInstallContainerRequest) MarshalHttpRequestBody(w io.Writer) error 
 func (h *HttpInstallContainerRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error) {
 	if r == nil {
 		pending := make(map[string]interface{})
-		if s := headers.Get("X-" + jobs.PendingPortMappingName); s != "" {
+		if s := headers.Get("X-" + cjobs.PendingPortMappingName); s != "" {
 			ports, err := port.FromPortPairHeader(s)
 			if err != nil {
 				return nil, err
 			}
-			pending[jobs.PendingPortMappingName] = ports
+			pending[cjobs.PendingPortMappingName] = ports
 		}
 		return pending, nil
 	}
@@ -68,7 +69,7 @@ func (h *HttpLinkContainersRequest) MarshalHttpRequestBody(w io.Writer) error {
 
 // Apply the "label" from the job to the response
 type ListContainersResponse struct {
-	jobs.ListContainersResponse
+	cjobs.ListContainersResponse
 }
 
 func (l *ListContainersResponse) WriteTableTo(w io.Writer) error {

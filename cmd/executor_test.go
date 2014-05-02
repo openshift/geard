@@ -3,6 +3,7 @@ package cmd_test
 import (
 	"fmt"
 	. "github.com/openshift/geard/cmd"
+	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/transport"
 	"testing"
@@ -57,7 +58,7 @@ func TestShouldSendRemoteJob(t *testing.T) {
 			if on != locator {
 				t.Fatalf("Expected locator passed to Serial() to be identical to %+v", locator)
 			}
-			return &jobs.StoppedContainerStateRequest{
+			return &cjobs.StoppedContainerStateRequest{
 				Id: AsIdentifier(on),
 			}
 		},

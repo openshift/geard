@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/openshift/geard/containers"
+	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/utils"
 	"github.com/openshift/go-json-rest"
@@ -14,7 +15,7 @@ import (
 type DefaultRequest struct{}
 
 type HttpRunContainerRequest struct {
-	jobs.RunContainerRequest
+	cjobs.RunContainerRequest
 	DefaultRequest
 }
 
@@ -22,7 +23,7 @@ func (h *HttpRunContainerRequest) HttpMethod() string { return "POST" }
 func (h *HttpRunContainerRequest) HttpPath() string   { return "/jobs" }
 func (h *HttpRunContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
-		data := jobs.RunContainerRequest{}
+		data := cjobs.RunContainerRequest{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
 			if err := dec.Decode(&data); err != nil && err != io.EOF {
@@ -38,7 +39,7 @@ func (h *HttpRunContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 }
 
 type HttpInstallContainerRequest struct {
-	jobs.InstallContainerRequest
+	cjobs.InstallContainerRequest
 	DefaultRequest
 }
 
@@ -46,7 +47,7 @@ func (h *HttpInstallContainerRequest) HttpMethod() string { return "PUT" }
 func (h *HttpInstallContainerRequest) HttpPath() string   { return Inline("/container/:id", string(h.Id)) }
 func (h *HttpInstallContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
-		data := HttpInstallContainerRequest{}
+		data := cjobs.InstallContainerRequest{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
 			if err := dec.Decode(&data); err != nil && err != io.EOF {
@@ -68,7 +69,7 @@ func (h *HttpInstallContainerRequest) Handler(conf *HttpConfiguration) JobHandle
 }
 
 type HttpDeleteContainerRequest struct {
-	jobs.DeleteContainerRequest
+	cjobs.DeleteContainerRequest
 	DefaultRequest
 }
 
@@ -80,12 +81,12 @@ func (h *HttpDeleteContainerRequest) Handler(conf *HttpConfiguration) JobHandler
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.DeleteContainerRequest{Id: id}, nil
+		return &cjobs.DeleteContainerRequest{Id: id}, nil
 	}
 }
 
 type HttpListContainersRequest struct {
-	jobs.ListContainersRequest
+	cjobs.ListContainersRequest
 	DefaultRequest
 }
 
@@ -93,31 +94,31 @@ func (h *HttpListContainersRequest) HttpMethod() string { return "GET" }
 func (h *HttpListContainersRequest) HttpPath() string   { return "/containers" }
 func (h *HttpListContainersRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
-		return &jobs.ListContainersRequest{}, nil
+		return &cjobs.ListContainersRequest{}, nil
 	}
 }
 
-type HttpListBuildsRequest jobs.ListBuildsRequest
+type HttpListBuildsRequest cjobs.ListBuildsRequest
 
 func (h *HttpListBuildsRequest) HttpMethod() string { return "GET" }
 func (h *HttpListBuildsRequest) HttpPath() string   { return "/builds" }
 func (h *HttpListBuildsRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
-		return &jobs.ListBuildsRequest{}, nil
+		return &cjobs.ListBuildsRequest{}, nil
 	}
 }
 
-type HttpListImagesRequest jobs.ListImagesRequest
+type HttpListImagesRequest cjobs.ListImagesRequest
 
 func (h *HttpListImagesRequest) HttpMethod() string { return "GET" }
 func (h *HttpListImagesRequest) HttpPath() string   { return "/images" }
 func (h *HttpListImagesRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
-		return &jobs.ListImagesRequest{conf.Docker.Socket}, nil
+		return &cjobs.ListImagesRequest{conf.Docker.Socket}, nil
 	}
 }
 
-type HttpContainerLogRequest jobs.ContainerLogRequest
+type HttpContainerLogRequest cjobs.ContainerLogRequest
 
 func (h *HttpContainerLogRequest) HttpMethod() string { return "GET" }
 func (h *HttpContainerLogRequest) HttpPath() string   { return Inline("/container/:id/log", string(h.Id)) }
@@ -127,14 +128,14 @@ func (h *HttpContainerLogRequest) Handler(conf *HttpConfiguration) JobHandler {
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.ContainerLogRequest{
+		return &cjobs.ContainerLogRequest{
 			id,
 		}, nil
 	}
 }
 
 type HttpContainerStatusRequest struct {
-	jobs.ContainerStatusRequest
+	cjobs.ContainerStatusRequest
 	DefaultRequest
 }
 
@@ -148,11 +149,11 @@ func (h *HttpContainerStatusRequest) Handler(conf *HttpConfiguration) JobHandler
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.ContainerStatusRequest{Id: id}, nil
+		return &cjobs.ContainerStatusRequest{Id: id}, nil
 	}
 }
 
-type HttpListContainerPortsRequest jobs.ContainerPortsRequest
+type HttpListContainerPortsRequest cjobs.ContainerPortsRequest
 
 func (h *HttpListContainerPortsRequest) HttpMethod() string { return "GET" }
 func (h *HttpListContainerPortsRequest) HttpPath() string {
@@ -164,14 +165,14 @@ func (h *HttpListContainerPortsRequest) Handler(conf *HttpConfiguration) JobHand
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.ContainerPortsRequest{
+		return &cjobs.ContainerPortsRequest{
 			id,
 		}, nil
 	}
 }
 
 type HttpStartContainerRequest struct {
-	jobs.StartedContainerStateRequest
+	cjobs.StartedContainerStateRequest
 	DefaultRequest
 }
 
@@ -185,12 +186,12 @@ func (h *HttpStartContainerRequest) Handler(conf *HttpConfiguration) JobHandler 
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.StartedContainerStateRequest{id}, nil
+		return &cjobs.StartedContainerStateRequest{id}, nil
 	}
 }
 
 type HttpStopContainerRequest struct {
-	jobs.StoppedContainerStateRequest
+	cjobs.StoppedContainerStateRequest
 	DefaultRequest
 }
 
@@ -204,12 +205,12 @@ func (h *HttpStopContainerRequest) Handler(conf *HttpConfiguration) JobHandler {
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.StoppedContainerStateRequest{id}, nil
+		return &cjobs.StoppedContainerStateRequest{id}, nil
 	}
 }
 
 type HttpRestartContainerRequest struct {
-	jobs.RestartContainerRequest
+	cjobs.RestartContainerRequest
 	DefaultRequest
 }
 
@@ -223,17 +224,17 @@ func (h *HttpRestartContainerRequest) Handler(conf *HttpConfiguration) JobHandle
 		if errg != nil {
 			return nil, errg
 		}
-		return &jobs.RestartContainerRequest{id}, nil
+		return &cjobs.RestartContainerRequest{id}, nil
 	}
 }
 
-type HttpBuildImageRequest jobs.BuildImageRequest
+type HttpBuildImageRequest cjobs.BuildImageRequest
 
 func (h *HttpBuildImageRequest) HttpMethod() string { return "POST" }
 func (h *HttpBuildImageRequest) HttpPath() string   { return "/build-image" }
 func (h *HttpBuildImageRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
-		data := jobs.ExtendedBuildImageData{}
+		data := cjobs.ExtendedBuildImageData{}
 		if r.Body != nil {
 			dec := json.NewDecoder(r.Body)
 			if err := dec.Decode(&data); err != nil && err != io.EOF {
@@ -245,14 +246,14 @@ func (h *HttpBuildImageRequest) Handler(conf *HttpConfiguration) JobHandler {
 			return nil, err
 		}
 
-		return &jobs.BuildImageRequest{
+		return &cjobs.BuildImageRequest{
 			&data,
 		}, nil
 	}
 }
 
 type HttpPutEnvironmentRequest struct {
-	jobs.PutEnvironmentRequest
+	cjobs.PutEnvironmentRequest
 	DefaultRequest
 }
 
@@ -277,12 +278,12 @@ func (h *HttpPutEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandler 
 		}
 		data.Id = id
 
-		return &jobs.PutEnvironmentRequest{data}, nil
+		return &cjobs.PutEnvironmentRequest{data}, nil
 	}
 }
 
 type HttpPatchEnvironmentRequest struct {
-	jobs.PatchEnvironmentRequest
+	cjobs.PatchEnvironmentRequest
 	DefaultRequest
 }
 
@@ -309,12 +310,12 @@ func (h *HttpPatchEnvironmentRequest) Handler(conf *HttpConfiguration) JobHandle
 		}
 		data.Id = id
 
-		return &jobs.PatchEnvironmentRequest{data}, nil
+		return &cjobs.PatchEnvironmentRequest{data}, nil
 	}
 }
 
 type HttpContentRequest struct {
-	jobs.ContentRequest
+	cjobs.ContentRequest
 	DefaultRequest
 }
 
@@ -322,7 +323,7 @@ func (h *HttpContentRequest) HttpMethod() string { return "GET" }
 func (h *HttpContentRequest) HttpPath() string {
 	var base string
 	switch h.Type {
-	case jobs.ContentTypeEnvironment:
+	case cjobs.ContentTypeEnvironment:
 		base = "/environment/:id"
 	default:
 		base = "/content/:id"
@@ -345,7 +346,7 @@ func (h *HttpContentRequest) Handler(conf *HttpConfiguration) JobHandler {
 			return nil, errors.New("You must specify the type of the content you want to access")
 		}
 
-		return &jobs.ContentRequest{
+		return &cjobs.ContentRequest{
 			contentType,
 			r.PathParam("id"),
 			r.PathParam("*"),
@@ -354,7 +355,7 @@ func (h *HttpContentRequest) Handler(conf *HttpConfiguration) JobHandler {
 }
 
 type HttpLinkContainersRequest struct {
-	jobs.LinkContainersRequest
+	cjobs.LinkContainersRequest
 	DefaultRequest
 }
 
@@ -362,7 +363,7 @@ func (h *HttpLinkContainersRequest) HttpMethod() string { return "POST" }
 func (h *HttpLinkContainersRequest) HttpPath() string   { return "/containers/links" }
 func (h *HttpLinkContainersRequest) Handler(conf *HttpConfiguration) JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
-		data := &jobs.ContainerLinks{}
+		data := &cjobs.ContainerLinks{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
 			if err := dec.Decode(data); err != nil && err != io.EOF {
@@ -374,7 +375,7 @@ func (h *HttpLinkContainersRequest) Handler(conf *HttpConfiguration) JobHandler 
 			return nil, err
 		}
 
-		return &jobs.LinkContainersRequest{ContainerLinks: data}, nil
+		return &cjobs.LinkContainersRequest{ContainerLinks: data}, nil
 	}
 }
 

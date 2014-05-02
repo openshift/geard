@@ -3,6 +3,7 @@ package jobs
 import (
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/openshift/geard/jobs"
 	"log"
 )
 
@@ -10,7 +11,7 @@ type ListImagesRequest struct {
 	DockerSocket string
 }
 
-func (j *ListImagesRequest) Execute(resp JobResponse) {
+func (j *ListImagesRequest) Execute(resp jobs.JobResponse) {
 	// TODO: config item for docker port
 	dockerClient, err := docker.NewClient(j.DockerSocket)
 
@@ -28,7 +29,7 @@ func (j *ListImagesRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
 	for _, img := range imgs {
 		fmt.Fprintf(w, "%+v\n", img.RepoTags[0])
 	}

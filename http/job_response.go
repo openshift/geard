@@ -9,6 +9,10 @@ import (
 	"net/http"
 )
 
+var (
+	ErrContentTypeDoesNotMatch = jobs.SimpleJobError{jobs.JobResponseNotAcceptable, "The content type you requested is not available for this action."}
+)
+
 type ResponseContentMode int
 
 const (
@@ -49,7 +53,7 @@ func (s *httpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interf
 	if s.mode == ResponseTable {
 		tabular, ok := data.(TabularOutput)
 		if !ok {
-			s.Failure(jobs.ErrContentTypeDoesNotMatch)
+			s.Failure(ErrContentTypeDoesNotMatch)
 			return
 		}
 		s.response.Header().Add("Content-Type", "text/plain")

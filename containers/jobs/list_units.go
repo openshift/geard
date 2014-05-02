@@ -3,6 +3,7 @@ package jobs
 import (
 	"fmt"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/go-systemd/dbus"
 	"io"
@@ -100,7 +101,7 @@ func (l *ListContainersResponse) WriteTableTo(w io.Writer) error {
 
 var reContainerUnits = regexp.MustCompile("\\A" + regexp.QuoteMeta(containers.IdentifierPrefix) + "([^\\.]+)\\.service\\z")
 
-func (j *ListContainersRequest) Execute(resp JobResponse) {
+func (j *ListContainersRequest) Execute(resp jobs.JobResponse) {
 	r := &ListContainersResponse{make(ContainerUnitResponses, 0)}
 
 	if err := unitsMatching(reContainerUnits, func(name string, unit *dbus.UnitStatus) {
@@ -124,7 +125,7 @@ func (j *ListContainersRequest) Execute(resp JobResponse) {
 	}
 
 	r.Sort()
-	resp.SuccessWithData(JobResponseOk, r)
+	resp.SuccessWithData(jobs.JobResponseOk, r)
 }
 
 type ListBuildsRequest struct {
@@ -135,7 +136,7 @@ type listBuilds struct {
 
 var reBuildUnits = regexp.MustCompile("\\Abuild-([^\\.]+)\\.service\\z")
 
-func (j *ListBuildsRequest) Execute(resp JobResponse) {
+func (j *ListBuildsRequest) Execute(resp jobs.JobResponse) {
 	r := listBuilds{make(unitResponses, 0)}
 
 	if err := unitsMatching(reBuildUnits, func(name string, unit *dbus.UnitStatus) {
@@ -150,5 +151,5 @@ func (j *ListBuildsRequest) Execute(resp JobResponse) {
 		return
 	}
 	sort.Sort(r.Builds)
-	resp.SuccessWithData(JobResponseOk, r)
+	resp.SuccessWithData(jobs.JobResponseOk, r)
 }

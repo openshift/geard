@@ -3,16 +3,16 @@ package jobs
 import (
 	"errors"
 	"fmt"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/systemd"
+	"github.com/openshift/geard/utils"
+	"github.com/openshift/go-systemd/dbus"
 	"io"
 	"log"
 	"os"
 	"reflect"
 	"time"
-
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/systemd"
-	"github.com/openshift/geard/utils"
-	"github.com/openshift/go-systemd/dbus"
 )
 
 type BuildImageRequest struct {
@@ -47,8 +47,8 @@ const (
 	gearBinaryPath = "/usr/bin/gear"
 )
 
-func (j *BuildImageRequest) Execute(resp JobResponse) {
-	w := resp.SuccessWithWrite(JobResponseAccepted, true, false)
+func (j *BuildImageRequest) Execute(resp jobs.JobResponse) {
+	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
 
 	fmt.Fprintf(w, "Processing build-image request:\n")
 	// TODO: download source, add bind-mount

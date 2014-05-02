@@ -17,6 +17,7 @@ import (
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
+	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/deployment"
 	"github.com/openshift/geard/dispatcher"
 	"github.com/openshift/geard/encrypted"
@@ -323,7 +324,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		failures := Executor{
 			On: removedIds,
 			Serial: func(on Locator) jobs.Job {
-				return &jobs.DeleteContainerRequest{
+				return &cjobs.DeleteContainerRequest{
 					Id:    AsIdentifier(on),
 					Label: on.Identity(),
 				}
@@ -350,7 +351,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		Serial: func(on Locator) jobs.Job {
 			instance, _ := changes.Instances.Find(AsIdentifier(on))
 			links := instance.NetworkLinks()
-			return &jobs.InstallContainerRequest{
+			return &cjobs.InstallContainerRequest{
 				RequestIdentifier: jobs.NewRequestIdentifier(),
 
 				Id:      instance.Id,
@@ -362,7 +363,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 			}
 		},
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			installJob := job.(*jobs.InstallContainerRequest)
+			installJob := job.(*cjobs.InstallContainerRequest)
 			instance, _ := changes.Instances.Find(installJob.Id)
 			if pairs, ok := installJob.PortMappingsFrom(r.Pending); ok {
 				if !instance.Ports.Update(pairs) {
@@ -399,16 +400,16 @@ func deployContainers(cmd *cobra.Command, args []string) {
 	Executor{
 		On: linkedIds,
 		Group: func(on ...Locator) jobs.Job {
-			links := []jobs.ContainerLink{}
+			links := []cjobs.ContainerLink{}
 			for i := range on {
 				instance, _ := changes.Instances.Find(AsIdentifier(on[i]))
 				network := instance.NetworkLinks()
 				if len(network) > 0 {
-					links = append(links, jobs.ContainerLink{instance.Id, network})
+					links = append(links, cjobs.ContainerLink{instance.Id, network})
 				}
 			}
 
-			return &jobs.LinkContainersRequest{&jobs.ContainerLinks{links}, on[0].TransportLocator().String()}
+			return &cjobs.LinkContainersRequest{&cjobs.ContainerLinks{links}, on[0].TransportLocator().String()}
 		},
 		Output: os.Stdout,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
@@ -420,7 +421,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 	Executor{
 		On: addedIds,
 		Serial: func(on Locator) jobs.Job {
-			return &jobs.StartedContainerStateRequest{
+			return &cjobs.StartedContainerStateRequest{
 				Id: AsIdentifier(on),
 			}
 		},
@@ -463,7 +464,7 @@ func installImage(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			r := jobs.InstallContainerRequest{
+			r := cjobs.InstallContainerRequest{
 				RequestIdentifier: jobs.NewRequestIdentifier(),
 
 				Id:               AsIdentifier(on),
@@ -540,10 +541,10 @@ func setEnvironment(cmd *cobra.Command, args []string) {
 		Serial: func(on Locator) jobs.Job {
 			environment.Description.Id = AsIdentifier(on)
 			if resetEnv {
-				return &jobs.PutEnvironmentRequest{environment.Description}
+				return &cjobs.PutEnvironmentRequest{environment.Description}
 			}
 
-			return &jobs.PatchEnvironmentRequest{environment.Description}
+			return &cjobs.PatchEnvironmentRequest{environment.Description}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemdAndData,
@@ -563,9 +564,9 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 	data, errors := Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &jobs.ContentRequest{
+			return &cjobs.ContentRequest{
 				Locator: string(AsIdentifier(on)),
-				Type:    jobs.ContentTypeEnvironment,
+				Type:    cjobs.ContentTypeEnvironment,
 			}
 		},
 		LocalInit: needsData,
@@ -604,14 +605,14 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &jobs.DeleteContainerRequest{
+			return &cjobs.DeleteContainerRequest{
 				Id:    AsIdentifier(on),
 				Label: on.Identity(),
 			}
 		},
 		Output: os.Stdout,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			fmt.Fprintf(w, "Deleted %s", string(job.(*jobs.DeleteContainerRequest).Id))
+			fmt.Fprintf(w, "Deleted %s", string(job.(*cjobs.DeleteContainerRequest).Id))
 		},
 		LocalInit: needsSystemdAndData,
 		Transport: defaultTransport.Get(),
@@ -633,16 +634,16 @@ func linkContainers(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Group: func(on ...Locator) jobs.Job {
-			links := &jobs.ContainerLinks{make([]jobs.ContainerLink, 0, len(on))}
+			links := &cjobs.ContainerLinks{make([]cjobs.ContainerLink, 0, len(on))}
 			buf := bytes.Buffer{}
 			for i := range on {
-				links.Links = append(links.Links, jobs.ContainerLink{AsIdentifier(on[i]), *networkLinks.NetworkLinks})
+				links.Links = append(links.Links, cjobs.ContainerLink{AsIdentifier(on[i]), *networkLinks.NetworkLinks})
 				if i > 0 {
 					buf.WriteString(", ")
 				}
 				buf.WriteString(on[i].Identity())
 			}
-			return &jobs.LinkContainersRequest{links, buf.String()}
+			return &cjobs.LinkContainersRequest{links, buf.String()}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsData,
@@ -668,7 +669,7 @@ func startContainer(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &jobs.StartedContainerStateRequest{
+			return &cjobs.StartedContainerStateRequest{
 				Id: AsIdentifier(on),
 			}
 		},
@@ -693,7 +694,7 @@ func stopContainer(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &jobs.StoppedContainerStateRequest{
+			return &cjobs.StoppedContainerStateRequest{
 				Id: AsIdentifier(on),
 			}
 		},
@@ -718,7 +719,7 @@ func restartContainer(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &jobs.RestartContainerRequest{
+			return &cjobs.RestartContainerRequest{
 				Id: AsIdentifier(on),
 			}
 		},
@@ -743,7 +744,7 @@ func containerStatus(cmd *cobra.Command, args []string) {
 	data, errors := Executor{
 		On: ids,
 		Serial: func(on Locator) jobs.Job {
-			return &jobs.ContainerStatusRequest{
+			return &cjobs.ContainerStatusRequest{
 				Id: AsIdentifier(on),
 			}
 		},
@@ -781,7 +782,7 @@ func listUnits(cmd *cobra.Command, args []string) {
 	data, errors := Executor{
 		On: servers,
 		Group: func(on ...Locator) jobs.Job {
-			return &jobs.ListContainersRequest{on[0].TransportLocator().String()}
+			return &cjobs.ListContainersRequest{on[0].TransportLocator().String()}
 		},
 		Output:    os.Stdout,
 		LocalInit: needsSystemd,
@@ -792,7 +793,7 @@ func listUnits(cmd *cobra.Command, args []string) {
 	for i := range data {
 		if r, ok := data[i].(*http.ListContainersResponse); ok {
 			combined.Append(&r.ListContainersResponse)
-		} else if j, ok := data[i].(*jobs.ListContainersResponse); ok {
+		} else if j, ok := data[i].(*cjobs.ListContainersResponse); ok {
 			combined.Append(j)
 		}
 	}
@@ -820,7 +821,7 @@ func createToken(cmd *cobra.Command, args []string) {
 		Fail(1, "Unable to load token configuration: %s", err.Error())
 	}
 
-	job := &jobs.ContentRequest{Locator: args[1], Type: args[0]}
+	job := &cjobs.ContentRequest{Locator: args[1], Type: args[0]}
 	value, err := config.Sign(job, "key", expiresAt)
 	if err != nil {
 		Fail(1, "Unable to sign this request: %s", err.Error())

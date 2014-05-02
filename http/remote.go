@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	cjobs "github.com/openshift/geard/containers/jobs"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/transport"
 	"io"
 	"log"
 	"net"
@@ -11,9 +14,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/transport"
 )
 
 const DefaultHttpPort = "43273"
@@ -88,27 +88,27 @@ func urlForLocator(locator transport.Locator) (*url.URL, error) {
 
 func HttpJobFor(job jobs.Job) (exc RemoteExecutable, err error) {
 	switch j := job.(type) {
-	case *jobs.InstallContainerRequest:
+	case *cjobs.InstallContainerRequest:
 		exc = &HttpInstallContainerRequest{InstallContainerRequest: *j}
-	case *jobs.StartedContainerStateRequest:
+	case *cjobs.StartedContainerStateRequest:
 		exc = &HttpStartContainerRequest{StartedContainerStateRequest: *j}
-	case *jobs.StoppedContainerStateRequest:
+	case *cjobs.StoppedContainerStateRequest:
 		exc = &HttpStopContainerRequest{StoppedContainerStateRequest: *j}
-	case *jobs.RestartContainerRequest:
+	case *cjobs.RestartContainerRequest:
 		exc = &HttpRestartContainerRequest{RestartContainerRequest: *j}
-	case *jobs.PutEnvironmentRequest:
+	case *cjobs.PutEnvironmentRequest:
 		exc = &HttpPutEnvironmentRequest{PutEnvironmentRequest: *j}
-	case *jobs.PatchEnvironmentRequest:
+	case *cjobs.PatchEnvironmentRequest:
 		exc = &HttpPatchEnvironmentRequest{PatchEnvironmentRequest: *j}
-	case *jobs.ContainerStatusRequest:
+	case *cjobs.ContainerStatusRequest:
 		exc = &HttpContainerStatusRequest{ContainerStatusRequest: *j}
-	case *jobs.ContentRequest:
+	case *cjobs.ContentRequest:
 		exc = &HttpContentRequest{ContentRequest: *j}
-	case *jobs.DeleteContainerRequest:
+	case *cjobs.DeleteContainerRequest:
 		exc = &HttpDeleteContainerRequest{DeleteContainerRequest: *j}
-	case *jobs.LinkContainersRequest:
+	case *cjobs.LinkContainersRequest:
 		exc = &HttpLinkContainersRequest{LinkContainersRequest: *j}
-	case *jobs.ListContainersRequest:
+	case *cjobs.ListContainersRequest:
 		exc = &HttpListContainersRequest{ListContainersRequest: *j}
 	default:
 		for _, ext := range extensions {
