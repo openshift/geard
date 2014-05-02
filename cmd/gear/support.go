@@ -226,9 +226,11 @@ func (resolver *addressResolver) ResolveIP(host string) (net.IP, error) {
 					}
 					for i := range addrs {
 						if ip, ok := addrs[i].(*net.IPNet); ok {
-							log.Printf("Using %v for %s", ip, host)
-							resolver.local = ip.IP
-							return resolver.local, nil
+							if ip.IP.To4() != nil {
+								log.Printf("Using %v for %s", ip, host)
+								resolver.local = ip.IP
+								return resolver.local, nil
+							}
 						}
 					}
 				}
