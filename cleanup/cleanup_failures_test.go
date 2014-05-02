@@ -317,7 +317,7 @@ func TestDataContainer(t *testing.T) {
 	plugin.Clean(context)
 
 	if strings.Contains(info.String(), "Removing container") {
-		t.Errorf("Attempted to remove container too early: \n%s\n%s", info, error)
+		t.Errorf("Attempted to remove data container: \n%s\n%s", info, error)
 	}
 
 	if 0 != error.Len() {
