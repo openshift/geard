@@ -2,13 +2,14 @@ package jobs
 
 import (
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
 )
 
 type PutEnvironmentRequest struct {
 	containers.EnvironmentDescription
 }
 
-func (j *PutEnvironmentRequest) Execute(resp JobResponse) {
+func (j *PutEnvironmentRequest) Execute(resp jobs.Response) {
 	if err := j.Fetch(100 * 1024); err != nil {
 		resp.Failure(ErrEnvironmentUpdateFailed)
 		return
@@ -18,17 +19,17 @@ func (j *PutEnvironmentRequest) Execute(resp JobResponse) {
 		return
 	}
 
-	resp.Success(JobResponseOk)
+	resp.Success(jobs.ResponseOk)
 }
 
 type PatchEnvironmentRequest struct {
 	containers.EnvironmentDescription
 }
 
-func (j *PatchEnvironmentRequest) Execute(resp JobResponse) {
+func (j *PatchEnvironmentRequest) Execute(resp jobs.Response) {
 	if err := j.Write(true); err != nil {
 		resp.Failure(ErrEnvironmentUpdateFailed)
 		return
 	}
-	resp.Success(JobResponseOk)
+	resp.Success(jobs.ResponseOk)
 }

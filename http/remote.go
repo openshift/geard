@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	cjobs "github.com/openshift/geard/containers/jobs"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/transport"
 	"io"
 	"log"
 	"net"
@@ -11,9 +14,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/transport"
 )
 
 const DefaultHttpPort = "43273"
@@ -62,7 +62,7 @@ func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j jobs.Job) (job
 		return
 	}
 
-	job = jobs.JobFunction(func(res jobs.JobResponse) {
+	job = jobs.JobFunction(func(res jobs.Response) {
 		if err := h.ExecuteRemote(baseUrl, httpJob, res); err != nil {
 			res.Failure(err)
 		}
@@ -88,27 +88,27 @@ func urlForLocator(locator transport.Locator) (*url.URL, error) {
 
 func HttpJobFor(job jobs.Job) (exc RemoteExecutable, err error) {
 	switch j := job.(type) {
-	case *jobs.InstallContainerRequest:
+	case *cjobs.InstallContainerRequest:
 		exc = &HttpInstallContainerRequest{InstallContainerRequest: *j}
-	case *jobs.StartedContainerStateRequest:
+	case *cjobs.StartedContainerStateRequest:
 		exc = &HttpStartContainerRequest{StartedContainerStateRequest: *j}
-	case *jobs.StoppedContainerStateRequest:
+	case *cjobs.StoppedContainerStateRequest:
 		exc = &HttpStopContainerRequest{StoppedContainerStateRequest: *j}
-	case *jobs.RestartContainerRequest:
+	case *cjobs.RestartContainerRequest:
 		exc = &HttpRestartContainerRequest{RestartContainerRequest: *j}
-	case *jobs.PutEnvironmentRequest:
+	case *cjobs.PutEnvironmentRequest:
 		exc = &HttpPutEnvironmentRequest{PutEnvironmentRequest: *j}
-	case *jobs.PatchEnvironmentRequest:
+	case *cjobs.PatchEnvironmentRequest:
 		exc = &HttpPatchEnvironmentRequest{PatchEnvironmentRequest: *j}
-	case *jobs.ContainerStatusRequest:
+	case *cjobs.ContainerStatusRequest:
 		exc = &HttpContainerStatusRequest{ContainerStatusRequest: *j}
-	case *jobs.ContentRequest:
+	case *cjobs.ContentRequest:
 		exc = &HttpContentRequest{ContentRequest: *j}
-	case *jobs.DeleteContainerRequest:
+	case *cjobs.DeleteContainerRequest:
 		exc = &HttpDeleteContainerRequest{DeleteContainerRequest: *j}
-	case *jobs.LinkContainersRequest:
+	case *cjobs.LinkContainersRequest:
 		exc = &HttpLinkContainersRequest{LinkContainersRequest: *j}
-	case *jobs.ListContainersRequest:
+	case *cjobs.ListContainersRequest:
 		exc = &HttpListContainersRequest{ListContainersRequest: *j}
 	default:
 		for _, ext := range extensions {
@@ -128,7 +128,7 @@ func HttpJobFor(job jobs.Job) (exc RemoteExecutable, err error) {
 	return
 }
 
-func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, res jobs.JobResponse) error {
+func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, res jobs.Response) error {
 	reader, writer := io.Pipe()
 	httpreq, errn := http.NewRequest(job.HttpMethod(), baseUrl.String(), reader)
 	if errn != nil {
@@ -182,7 +182,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 				res.WritePendingSuccess(k, pending[k])
 			}
 		}
-		w := res.SuccessWithWrite(jobs.JobResponseOk, false, false)
+		w := res.SuccessWithWrite(jobs.ResponseOk, false, false)
 		if _, err := io.Copy(w, resp.Body); err != nil {
 			return err
 		}
@@ -196,7 +196,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 				res.WritePendingSuccess(k, pending[k])
 			}
 		}
-		res.Success(jobs.JobResponseOk)
+		res.Success(jobs.ResponseOk)
 	case code >= 200 && code < 300:
 		if !isJson {
 			return errors.New(fmt.Sprintf("remote: Response with %d status code had content type %s (should be application/json)", code, resp.Header.Get("Content-Type")))
@@ -205,7 +205,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 		if err != nil {
 			return err
 		}
-		res.SuccessWithData(jobs.JobResponseOk, data)
+		res.SuccessWithData(jobs.ResponseOk, data)
 	default:
 		if isJson {
 			decoder := json.NewDecoder(resp.Body)
@@ -213,11 +213,11 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 			if err := decoder.Decode(&data); err != nil {
 				return err
 			}
-			res.Failure(jobs.SimpleJobError{jobs.JobResponseError, data.Message})
+			res.Failure(jobs.SimpleError{jobs.ResponseError, data.Message})
 			return nil
 		}
 		io.Copy(os.Stderr, resp.Body)
-		res.Failure(jobs.SimpleJobError{jobs.JobResponseError, "Unable to decode response."})
+		res.Failure(jobs.SimpleError{jobs.ResponseError, "Unable to decode response."})
 	}
 	return nil
 }

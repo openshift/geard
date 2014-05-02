@@ -35,7 +35,7 @@ func (s *CliJobResponse) StreamResult() bool {
 	return true
 }
 
-func (s *CliJobResponse) Success(t jobs.JobResponseSuccess) {
+func (s *CliJobResponse) Success(t jobs.ResponseSuccess) {
 	if s.failed {
 		panic("Cannot call Success() after failure")
 	}
@@ -48,7 +48,7 @@ func (s *CliJobResponse) Success(t jobs.JobResponseSuccess) {
 	}
 }
 
-func (s *CliJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interface{}) {
+func (s *CliJobResponse) SuccessWithData(t jobs.ResponseSuccess, data interface{}) {
 	s.Success(t)
 	s.Data = data
 	if !s.Gather {
@@ -57,7 +57,7 @@ func (s *CliJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interfa
 	}
 }
 
-func (s *CliJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush, structured bool) io.Writer {
+func (s *CliJobResponse) SuccessWithWrite(t jobs.ResponseSuccess, flush, structured bool) io.Writer {
 	s.Success(t)
 	if s.Gather {
 		if structured {

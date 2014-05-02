@@ -17,9 +17,9 @@ import (
 )
 
 // var (
-// 	ErrRepositoryAlreadyExists = jobs.SimpleJobError{jobs.JobResponseAlreadyExists, "A repository with this identifier already exists."}
-// 	ErrSubscribeToUnit         = jobs.SimpleJobError{jobs.JobResponseError, "Unable to watch for the completion of this action."}
-// 	ErrRepositoryCreateFailed  = jobs.SimpleJobError{jobs.JobResponseError, "Unable to create the repository."}
+// 	ErrRepositoryAlreadyExists = jobs.SimpleError{jobs.ResponseAlreadyExists, "A repository with this identifier already exists."}
+// 	ErrSubscribeToUnit         = jobs.SimpleError{jobs.ResponseError, "Unable to watch for the completion of this action."}
+// 	ErrRepositoryCreateFailed  = jobs.SimpleError{jobs.ResponseError, "Unable to create the repository."}
 // )
 
 type UpdateFrontendRequest struct {
@@ -32,7 +32,7 @@ type backendError struct {
 	Error error
 }
 
-func (j UpdateFrontendRequest) Execute(resp jobs.JobResponse) {
+func (j UpdateFrontendRequest) Execute(resp jobs.Response) {
 	// detach empty frontends
 	for _, frontend := range j.Frontends {
 		if frontend.BackendId == "" {
@@ -51,5 +51,5 @@ func (j UpdateFrontendRequest) Execute(resp jobs.JobResponse) {
 		resp.Failure(ErrBackendWriteFailed)
 		return
 	}
-	resp.Success(jobs.JobResponseOk)
+	resp.Success(jobs.ResponseOk)
 }

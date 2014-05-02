@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 	"log"
@@ -18,7 +19,7 @@ func (j *DeleteContainerRequest) JobLabel() string {
 	return j.Label
 }
 
-func (j *DeleteContainerRequest) Execute(resp JobResponse) {
+func (j *DeleteContainerRequest) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 	unitDefinitionsPath := j.Id.VersionedUnitsPathFor()
@@ -31,7 +32,7 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 	_, err := systemd.Connection().GetUnitProperties(unitName)
 	switch {
 	case systemd.IsNoSuchUnit(err):
-		resp.Success(JobResponseOk)
+		resp.Success(jobs.ResponseOk)
 		return
 	case err != nil:
 		resp.Failure(ErrDeleteContainerFailed)
@@ -96,5 +97,5 @@ func (j *DeleteContainerRequest) Execute(resp JobResponse) {
 		log.Printf("delete_container: Some units have not been disabled: %v", err)
 	}
 
-	resp.Success(JobResponseOk)
+	resp.Success(jobs.ResponseOk)
 }

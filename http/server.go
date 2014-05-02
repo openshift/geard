@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/openshift/geard/config"
+	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/dispatcher"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/go-json-rest"
@@ -69,8 +70,8 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 		&HttpPutEnvironmentRequest{},
 
 		&HttpContentRequest{},
-		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Subpath: "*"}},
-		&HttpContentRequest{ContentRequest: jobs.ContentRequest{Type: jobs.ContentTypeEnvironment}},
+		&HttpContentRequest{ContentRequest: cjobs.ContentRequest{Subpath: "*"}},
+		&HttpContentRequest{ContentRequest: cjobs.ContentRequest{Type: cjobs.ContentTypeEnvironment}},
 	}
 
 	for _, ext := range extensions {

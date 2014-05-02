@@ -17,6 +17,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	cjobs "github.com/openshift/geard/containers/jobs"
 	jobhttp "github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/utils"
@@ -48,7 +49,7 @@ func NewTokenConfiguration(private, public string) (*TokenConfiguration, error) 
 	return &TokenConfiguration{priv, pub}, nil
 }
 
-func (t *TokenConfiguration) Sign(job *jobs.ContentRequest, keyId string, expiration int64) (string, error) {
+func (t *TokenConfiguration) Sign(job *cjobs.ContentRequest, keyId string, expiration int64) (string, error) {
 	source := &TokenData{
 		Identifier:     jobs.NewRequestIdentifier().String(),
 		Locator:        job.Locator,
@@ -143,7 +144,7 @@ func (t *TokenConfiguration) Handler(parent http.Handler) http.HandlerFunc {
 			return
 		}
 
-		job := jobhttp.HttpContentRequest{ContentRequest: jobs.ContentRequest{Type: token.Type, Locator: token.Locator}}
+		job := jobhttp.HttpContentRequest{ContentRequest: cjobs.ContentRequest{Type: token.Type, Locator: token.Locator}}
 		r.Method = job.HttpMethod()
 		r.URL.Path = job.HttpPath()
 		parent.ServeHTTP(w, r)

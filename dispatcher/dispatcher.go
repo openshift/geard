@@ -51,11 +51,11 @@ func (d *Dispatcher) work(queue <-chan jobTracker) {
 type jobTracker struct {
 	id       jobs.RequestIdentifier
 	job      jobs.Job
-	response jobs.JobResponse
+	response jobs.Response
 	complete chan bool
 }
 
-func (d *Dispatcher) Dispatch(id jobs.RequestIdentifier, j jobs.Job, resp jobs.JobResponse) (done <-chan bool, err error) {
+func (d *Dispatcher) Dispatch(id jobs.RequestIdentifier, j jobs.Job, resp jobs.Response) (done <-chan bool, err error) {
 	complete := make(chan bool)
 	tracker := jobTracker{id, j, resp, complete}
 

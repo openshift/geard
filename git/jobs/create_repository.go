@@ -20,9 +20,9 @@ import (
 )
 
 var (
-	ErrRepositoryAlreadyExists = jobs.SimpleJobError{jobs.JobResponseAlreadyExists, "A repository with this identifier already exists."}
-	ErrSubscribeToUnit         = jobs.SimpleJobError{jobs.JobResponseError, "Unable to watch for the completion of this action."}
-	ErrRepositoryCreateFailed  = jobs.SimpleJobError{jobs.JobResponseError, "Unable to create the repository."}
+	ErrRepositoryAlreadyExists = jobs.SimpleError{jobs.ResponseAlreadyExists, "A repository with this identifier already exists."}
+	ErrSubscribeToUnit         = jobs.SimpleError{jobs.ResponseError, "Unable to watch for the completion of this action."}
+	ErrRepositoryCreateFailed  = jobs.SimpleError{jobs.ResponseError, "Unable to create the repository."}
 )
 
 type CreateRepositoryRequest struct {
@@ -31,7 +31,7 @@ type CreateRepositoryRequest struct {
 	RequestId jobs.RequestIdentifier
 }
 
-func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
+func (j CreateRepositoryRequest) Execute(resp jobs.Response) {
 	unitName := fmt.Sprintf("job-create-repo-%s.service", j.RequestId.String())
 	path := j.Id.HomePath()
 
@@ -95,7 +95,7 @@ func (j CreateRepositoryRequest) Execute(resp jobs.JobResponse) {
 		return
 	}
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 	go io.Copy(w, stdout)
 
 wait:

@@ -112,7 +112,7 @@ type KeyStructuredFailure struct {
 	Message string `json:"message"`
 }
 
-func (j *CreateKeysRequest) Execute(resp jobs.JobResponse) {
+func (j *CreateKeysRequest) Execute(resp jobs.Response) {
 	failedKeys := []KeyFailure{}
 	for i := range j.Keys {
 		key := j.Keys[i]
@@ -137,8 +137,8 @@ func (j *CreateKeysRequest) Execute(resp jobs.JobResponse) {
 			data[i] = KeyStructuredFailure{failedKeys[i].Index, failedKeys[i].Reason.Error()}
 			log.Printf("Failure %d: %+v", failedKeys[i].Index, failedKeys[i].Reason)
 		}
-		resp.Failure(jobs.StructuredJobError{jobs.SimpleJobError{jobs.JobResponseError, "Not all keys were completed"}, data})
+		resp.Failure(jobs.StructuredJobError{jobs.SimpleError{jobs.ResponseError, "Not all keys were completed"}, data})
 	} else {
-		resp.Success(jobs.JobResponseOk)
+		resp.Success(jobs.ResponseOk)
 	}
 }
