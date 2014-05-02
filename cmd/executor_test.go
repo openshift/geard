@@ -23,7 +23,7 @@ func (t *testLocator) ResolveHostname() (string, error) {
 type testTransport struct {
 	GotLocator string
 	Translated map[string]jobs.Job
-	Invoked    map[string]jobs.JobResponse
+	Invoked    map[string]jobs.Response
 }
 
 func (t *testTransport) LocatorFor(locator string) (transport.Locator, error) {
@@ -33,15 +33,15 @@ func (t *testTransport) LocatorFor(locator string) (transport.Locator, error) {
 func (t *testTransport) RemoteJobFor(locator transport.Locator, job jobs.Job) (jobs.Job, error) {
 	if t.Translated == nil {
 		t.Translated = make(map[string]jobs.Job)
-		t.Invoked = make(map[string]jobs.JobResponse)
+		t.Invoked = make(map[string]jobs.Response)
 	}
 	t.Translated[locator.String()] = job
-	invoked := func(res jobs.JobResponse) {
+	invoked := func(res jobs.Response) {
 		if _, found := t.Invoked[locator.String()]; found {
 			panic(fmt.Sprintf("Same job %+v invoked twice under %s", job, locator.String()))
 		}
 		t.Invoked[locator.String()] = res
-		res.Success(jobs.JobResponseOk)
+		res.Success(jobs.ResponseOk)
 	}
 	return jobs.JobFunction(invoked), nil
 }

@@ -9,7 +9,7 @@ type PutEnvironmentRequest struct {
 	containers.EnvironmentDescription
 }
 
-func (j *PutEnvironmentRequest) Execute(resp jobs.JobResponse) {
+func (j *PutEnvironmentRequest) Execute(resp jobs.Response) {
 	if err := j.Fetch(100 * 1024); err != nil {
 		resp.Failure(ErrEnvironmentUpdateFailed)
 		return
@@ -19,17 +19,17 @@ func (j *PutEnvironmentRequest) Execute(resp jobs.JobResponse) {
 		return
 	}
 
-	resp.Success(jobs.JobResponseOk)
+	resp.Success(jobs.ResponseOk)
 }
 
 type PatchEnvironmentRequest struct {
 	containers.EnvironmentDescription
 }
 
-func (j *PatchEnvironmentRequest) Execute(resp jobs.JobResponse) {
+func (j *PatchEnvironmentRequest) Execute(resp jobs.Response) {
 	if err := j.Write(true); err != nil {
 		resp.Failure(ErrEnvironmentUpdateFailed)
 		return
 	}
-	resp.Success(jobs.JobResponseOk)
+	resp.Success(jobs.ResponseOk)
 }

@@ -49,7 +49,7 @@ func (j *RunContainerRequest) UnitCommand() []string {
 	return command
 }
 
-func (j *RunContainerRequest) Execute(resp jobs.JobResponse) {
+func (j *RunContainerRequest) Execute(resp jobs.Response) {
 	command := j.UnitCommand()
 	unitName := containers.JobIdentifier(j.Name).UnitNameFor()
 	unitDescription := fmt.Sprintf("Execute image '%s': %s %s", j.Image, j.Command, strings.Join(command, " "))
@@ -108,17 +108,17 @@ func (j *RunContainerRequest) Execute(resp jobs.JobResponse) {
 	switch {
 	case err != nil:
 		errType := reflect.TypeOf(err)
-		resp.Failure(jobs.SimpleJobError{jobs.JobResponseError, fmt.Sprintf("Unable to start container execution due to (%s): %s", errType, err.Error())})
+		resp.Failure(jobs.SimpleError{jobs.ResponseError, fmt.Sprintf("Unable to start container execution due to (%s): %s", errType, err.Error())})
 		return
 	case status != "done":
-		resp.Failure(jobs.SimpleJobError{jobs.JobResponseError, fmt.Sprintf("Start did not complete successfully: %s", status)})
+		resp.Failure(jobs.SimpleError{jobs.ResponseError, fmt.Sprintf("Start did not complete successfully: %s", status)})
 		return
 	case stdout == nil:
-		resp.Success(jobs.JobResponseOk)
+		resp.Success(jobs.ResponseOk)
 		return
 	}
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 	go io.Copy(w, stdout)
 
 wait:

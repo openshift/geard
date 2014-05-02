@@ -68,11 +68,11 @@ func (h *httpGitArchiveContentRequest) Handler(conf *http.HttpConfiguration) htt
 	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
 		repoId, errr := containers.NewIdentifier(r.PathParam("id"))
 		if errr != nil {
-			return nil, jobs.SimpleJobError{jobs.JobResponseInvalidRequest, fmt.Sprintf("Invalid repository identifier: %s", errr.Error())}
+			return nil, jobs.SimpleError{jobs.ResponseInvalidRequest, fmt.Sprintf("Invalid repository identifier: %s", errr.Error())}
 		}
 		ref, errc := gitjobs.NewGitCommitRef(r.PathParam("ref"))
 		if errc != nil {
-			return nil, jobs.SimpleJobError{jobs.JobResponseInvalidRequest, fmt.Sprintf("Invalid commit ref: %s", errc.Error())}
+			return nil, jobs.SimpleError{jobs.ResponseInvalidRequest, fmt.Sprintf("Invalid commit ref: %s", errc.Error())}
 		}
 
 		return &gitjobs.GitArchiveContentRequest{

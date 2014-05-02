@@ -47,8 +47,8 @@ const (
 	gearBinaryPath = "/usr/bin/gear"
 )
 
-func (j *BuildImageRequest) Execute(resp jobs.JobResponse) {
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+func (j *BuildImageRequest) Execute(resp jobs.Response) {
+	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 
 	fmt.Fprintf(w, "Processing build-image request:\n")
 	// TODO: download source, add bind-mount

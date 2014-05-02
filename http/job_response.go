@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrContentTypeDoesNotMatch = jobs.SimpleJobError{jobs.JobResponseNotAcceptable, "The content type you requested is not available for this action."}
+	ErrContentTypeDoesNotMatch = jobs.SimpleError{jobs.ResponseNotAcceptable, "The content type you requested is not available for this action."}
 )
 
 type ResponseContentMode int
@@ -33,7 +33,7 @@ type httpJobResponse struct {
 	pending       map[string]string
 }
 
-func NewHttpJobResponse(w http.ResponseWriter, skipStreaming bool, mode ResponseContentMode) jobs.JobResponse {
+func NewHttpJobResponse(w http.ResponseWriter, skipStreaming bool, mode ResponseContentMode) jobs.Response {
 	return &httpJobResponse{
 		response:      w,
 		skipStreaming: skipStreaming,
@@ -45,11 +45,11 @@ func (s *httpJobResponse) StreamResult() bool {
 	return !s.skipStreaming
 }
 
-func (s *httpJobResponse) Success(t jobs.JobResponseSuccess) {
+func (s *httpJobResponse) Success(t jobs.ResponseSuccess) {
 	s.success(t, false, false)
 }
 
-func (s *httpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interface{}) {
+func (s *httpJobResponse) SuccessWithData(t jobs.ResponseSuccess, data interface{}) {
 	if s.mode == ResponseTable {
 		tabular, ok := data.(TabularOutput)
 		if !ok {
@@ -67,7 +67,7 @@ func (s *httpJobResponse) SuccessWithData(t jobs.JobResponseSuccess, data interf
 	encoder.Encode(&data)
 }
 
-func (s *httpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush, structured bool) io.Writer {
+func (s *httpJobResponse) SuccessWithWrite(t jobs.ResponseSuccess, flush, structured bool) io.Writer {
 	if structured {
 		s.response.Header().Add("Content-Type", "application/json")
 	} else {
@@ -85,7 +85,7 @@ func (s *httpJobResponse) SuccessWithWrite(t jobs.JobResponseSuccess, flush, str
 	return w
 }
 
-func (s *httpJobResponse) success(t jobs.JobResponseSuccess, stream, data bool) {
+func (s *httpJobResponse) success(t jobs.ResponseSuccess, stream, data bool) {
 	if s.failed {
 		panic("Cannot call Success() after failure")
 	}
@@ -103,7 +103,7 @@ func (s *httpJobResponse) success(t jobs.JobResponseSuccess, stream, data bool) 
 	s.response.WriteHeader(s.statusCode(t, stream, data))
 }
 
-func (s *httpJobResponse) statusCode(t jobs.JobResponseSuccess, stream, data bool) int {
+func (s *httpJobResponse) statusCode(t jobs.ResponseSuccess, stream, data bool) int {
 	switch {
 	case stream:
 		return http.StatusAccepted
@@ -142,15 +142,15 @@ func (s *httpJobResponse) Failure(err error) {
 		response.Data = e.ResponseData()
 
 		switch e.ResponseFailure() {
-		case jobs.JobResponseAlreadyExists:
+		case jobs.ResponseAlreadyExists:
 			code = http.StatusConflict
-		case jobs.JobResponseNotFound:
+		case jobs.ResponseNotFound:
 			code = http.StatusNotFound
-		case jobs.JobResponseInvalidRequest:
+		case jobs.ResponseInvalidRequest:
 			code = http.StatusBadRequest
-		case jobs.JobResponseNotAcceptable:
+		case jobs.ResponseNotAcceptable:
 			code = http.StatusNotAcceptable
-		case jobs.JobResponseRateLimit:
+		case jobs.ResponseRateLimit:
 			code = 429 // http.statusTooManyRequests
 		}
 	}

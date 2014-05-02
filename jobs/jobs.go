@@ -13,13 +13,13 @@ import (
 // A job is a unit of work - it may execute and return structured
 // data or stream a response.
 type Job interface {
-	Execute(JobResponse)
+	Execute(Response)
 }
 
 // Convenience wrapper for an anonymous function.
-type JobFunction func(JobResponse)
+type JobFunction func(Response)
 
-func (job JobFunction) Execute(res JobResponse) {
+func (job JobFunction) Execute(res Response) {
 	job(res)
 }
 
@@ -42,24 +42,24 @@ type LabeledJob interface {
 // may write speculative side channel data that will be returned when
 // a successful response occurs, or thrown away when an error is written.
 // Error writes are final
-type JobResponse interface {
+type Response interface {
 	StreamResult() bool
 
-	Success(t JobResponseSuccess)
-	SuccessWithData(t JobResponseSuccess, data interface{})
-	SuccessWithWrite(t JobResponseSuccess, flush, structured bool) io.Writer
+	Success(t ResponseSuccess)
+	SuccessWithData(t ResponseSuccess, data interface{})
+	SuccessWithWrite(t ResponseSuccess, flush, structured bool) io.Writer
 	Failure(reason error)
 
 	WritePendingSuccess(name string, value interface{})
 }
 
-type JobResponseSuccess int
-type JobResponseFailure int
+type ResponseSuccess int
+type ResponseFailure int
 
 // A structured error response for a job.
 type JobError interface {
 	error
-	ResponseFailure() JobResponseFailure
+	ResponseFailure() ResponseFailure
 	ResponseData() interface{} // May be nil if no data is returned to a client
 }
 

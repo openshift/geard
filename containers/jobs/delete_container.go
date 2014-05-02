@@ -19,7 +19,7 @@ func (j *DeleteContainerRequest) JobLabel() string {
 	return j.Label
 }
 
-func (j *DeleteContainerRequest) Execute(resp jobs.JobResponse) {
+func (j *DeleteContainerRequest) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 	unitDefinitionsPath := j.Id.VersionedUnitsPathFor()
@@ -32,7 +32,7 @@ func (j *DeleteContainerRequest) Execute(resp jobs.JobResponse) {
 	_, err := systemd.Connection().GetUnitProperties(unitName)
 	switch {
 	case systemd.IsNoSuchUnit(err):
-		resp.Success(jobs.JobResponseOk)
+		resp.Success(jobs.ResponseOk)
 		return
 	case err != nil:
 		resp.Failure(ErrDeleteContainerFailed)
@@ -97,5 +97,5 @@ func (j *DeleteContainerRequest) Execute(resp jobs.JobResponse) {
 		log.Printf("delete_container: Some units have not been disabled: %v", err)
 	}
 
-	resp.Success(jobs.JobResponseOk)
+	resp.Success(jobs.ResponseOk)
 }

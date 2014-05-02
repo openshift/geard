@@ -20,8 +20,8 @@ type GitArchiveContentRequest struct {
 	Ref          GitCommitRef
 }
 
-func (j GitArchiveContentRequest) Execute(resp jobs.JobResponse) {
-	w := resp.SuccessWithWrite(jobs.JobResponseOk, false, false)
+func (j GitArchiveContentRequest) Execute(resp jobs.Response) {
+	w := resp.SuccessWithWrite(jobs.ResponseOk, false, false)
 	if err := writeGitRepositoryArchive(w, j.RepositoryId.RepositoryPathFor(), j.Ref); err != nil {
 		log.Printf("job_content: Invalid git repository stream: %v", err)
 	}

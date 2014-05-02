@@ -62,7 +62,7 @@ func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j jobs.Job) (job
 		return
 	}
 
-	job = jobs.JobFunction(func(res jobs.JobResponse) {
+	job = jobs.JobFunction(func(res jobs.Response) {
 		if err := h.ExecuteRemote(baseUrl, httpJob, res); err != nil {
 			res.Failure(err)
 		}
@@ -128,7 +128,7 @@ func HttpJobFor(job jobs.Job) (exc RemoteExecutable, err error) {
 	return
 }
 
-func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, res jobs.JobResponse) error {
+func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, res jobs.Response) error {
 	reader, writer := io.Pipe()
 	httpreq, errn := http.NewRequest(job.HttpMethod(), baseUrl.String(), reader)
 	if errn != nil {
@@ -182,7 +182,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 				res.WritePendingSuccess(k, pending[k])
 			}
 		}
-		w := res.SuccessWithWrite(jobs.JobResponseOk, false, false)
+		w := res.SuccessWithWrite(jobs.ResponseOk, false, false)
 		if _, err := io.Copy(w, resp.Body); err != nil {
 			return err
 		}
@@ -196,7 +196,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 				res.WritePendingSuccess(k, pending[k])
 			}
 		}
-		res.Success(jobs.JobResponseOk)
+		res.Success(jobs.ResponseOk)
 	case code >= 200 && code < 300:
 		if !isJson {
 			return errors.New(fmt.Sprintf("remote: Response with %d status code had content type %s (should be application/json)", code, resp.Header.Get("Content-Type")))
@@ -205,7 +205,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 		if err != nil {
 			return err
 		}
-		res.SuccessWithData(jobs.JobResponseOk, data)
+		res.SuccessWithData(jobs.ResponseOk, data)
 	default:
 		if isJson {
 			decoder := json.NewDecoder(resp.Body)
@@ -213,11 +213,11 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 			if err := decoder.Decode(&data); err != nil {
 				return err
 			}
-			res.Failure(jobs.SimpleJobError{jobs.JobResponseError, data.Message})
+			res.Failure(jobs.SimpleError{jobs.ResponseError, data.Message})
 			return nil
 		}
 		io.Copy(os.Stderr, resp.Body)
-		res.Failure(jobs.SimpleJobError{jobs.JobResponseError, "Unable to decode response."})
+		res.Failure(jobs.SimpleError{jobs.ResponseError, "Unable to decode response."})
 	}
 	return nil
 }

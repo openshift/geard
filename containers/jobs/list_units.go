@@ -101,7 +101,7 @@ func (l *ListContainersResponse) WriteTableTo(w io.Writer) error {
 
 var reContainerUnits = regexp.MustCompile("\\A" + regexp.QuoteMeta(containers.IdentifierPrefix) + "([^\\.]+)\\.service\\z")
 
-func (j *ListContainersRequest) Execute(resp jobs.JobResponse) {
+func (j *ListContainersRequest) Execute(resp jobs.Response) {
 	r := &ListContainersResponse{make(ContainerUnitResponses, 0)}
 
 	if err := unitsMatching(reContainerUnits, func(name string, unit *dbus.UnitStatus) {
@@ -125,7 +125,7 @@ func (j *ListContainersRequest) Execute(resp jobs.JobResponse) {
 	}
 
 	r.Sort()
-	resp.SuccessWithData(jobs.JobResponseOk, r)
+	resp.SuccessWithData(jobs.ResponseOk, r)
 }
 
 type ListBuildsRequest struct {
@@ -136,7 +136,7 @@ type listBuilds struct {
 
 var reBuildUnits = regexp.MustCompile("\\Abuild-([^\\.]+)\\.service\\z")
 
-func (j *ListBuildsRequest) Execute(resp jobs.JobResponse) {
+func (j *ListBuildsRequest) Execute(resp jobs.Response) {
 	r := listBuilds{make(unitResponses, 0)}
 
 	if err := unitsMatching(reBuildUnits, func(name string, unit *dbus.UnitStatus) {
@@ -151,5 +151,5 @@ func (j *ListBuildsRequest) Execute(resp jobs.JobResponse) {
 		return
 	}
 	sort.Sort(r.Builds)
-	resp.SuccessWithData(jobs.JobResponseOk, r)
+	resp.SuccessWithData(jobs.ResponseOk, r)
 }

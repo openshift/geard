@@ -11,7 +11,7 @@ type ListImagesRequest struct {
 	DockerSocket string
 }
 
-func (j *ListImagesRequest) Execute(resp jobs.JobResponse) {
+func (j *ListImagesRequest) Execute(resp jobs.Response) {
 	// TODO: config item for docker port
 	dockerClient, err := docker.NewClient(j.DockerSocket)
 
@@ -29,7 +29,7 @@ func (j *ListImagesRequest) Execute(resp jobs.JobResponse) {
 		return
 	}
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 	for _, img := range imgs {
 		fmt.Fprintf(w, "%+v\n", img.RepoTags[0])
 	}

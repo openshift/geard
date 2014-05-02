@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 )
 
-var ErrContainerCreateFailedPortsReserved = jobs.SimpleJobError{jobs.JobResponseError, "Unable to create container: some ports could not be reserved."}
+var ErrContainerCreateFailedPortsReserved = jobs.SimpleError{jobs.ResponseError, "Unable to create container: some ports could not be reserved."}
 
 const PendingPortMappingName = "PortMapping"
 
@@ -121,7 +121,7 @@ func dockerPortSpec(p port.PortPairs) string {
 	return portSpec.String()
 }
 
-func (req *InstallContainerRequest) Execute(resp jobs.JobResponse) {
+func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 	id := req.Id
 	unitName := id.UnitNameFor()
 	unitPath := id.UnitPathFor()
@@ -313,7 +313,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.JobResponse) {
 		}
 	}
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 	if req.Started {
 		fmt.Fprintf(w, "Container %s is starting\n", id)
 	} else {

@@ -51,7 +51,7 @@ func (j *LinkContainersRequest) JobLabel() string {
 	return j.Label
 }
 
-func (j *LinkContainersRequest) Execute(resp jobs.JobResponse) {
+func (j *LinkContainersRequest) Execute(resp jobs.Response) {
 	for i := range j.Links {
 		if errw := j.Links[i].NetworkLinks.Write(j.Links[i].Id.NetworkLinksPathFor(), false); errw != nil {
 			resp.Failure(ErrLinkContainersFailed)
@@ -59,5 +59,5 @@ func (j *LinkContainersRequest) Execute(resp jobs.JobResponse) {
 		}
 	}
 
-	resp.Success(jobs.JobResponseOk)
+	resp.Success(jobs.ResponseOk)
 }

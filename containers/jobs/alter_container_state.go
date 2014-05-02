@@ -93,13 +93,13 @@ type StartedContainerStateRequest struct {
 	Id containers.Identifier
 }
 
-func (j *StartedContainerStateRequest) Execute(resp jobs.JobResponse) {
+func (j *StartedContainerStateRequest) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
 	inState, tooSoon := inStateOrTooSoon(j.Id, unitName, true, false, rateLimitChanges)
 	if inState {
-		w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+		w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s starting\n", j.Id)
 		return
 	}
@@ -130,7 +130,7 @@ func (j *StartedContainerStateRequest) Execute(resp jobs.JobResponse) {
 		return
 	}
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 	fmt.Fprintf(w, "Container %s starting\n", j.Id)
 }
 
@@ -138,12 +138,12 @@ type StoppedContainerStateRequest struct {
 	Id containers.Identifier
 }
 
-func (j *StoppedContainerStateRequest) Execute(resp jobs.JobResponse) {
+func (j *StoppedContainerStateRequest) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 
 	inState, tooSoon := inStateOrTooSoon(j.Id, unitName, false, false, rateLimitChanges)
 	if inState {
-		w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+		w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
 		return
 	}
@@ -158,7 +158,7 @@ func (j *StoppedContainerStateRequest) Execute(resp jobs.JobResponse) {
 		return
 	}
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 
 	done := make(chan time.Time)
 	ioerr := make(chan error)
@@ -209,13 +209,13 @@ type RestartContainerRequest struct {
 	Id containers.Identifier
 }
 
-func (j *RestartContainerRequest) Execute(resp jobs.JobResponse) {
+func (j *RestartContainerRequest) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
 	_, tooSoon := inStateOrTooSoon(j.Id, unitName, false, true, rateLimitChanges)
 	/*if inState {
-		w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+		w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 		fmt.Fprintf(w, "Container %s restarting\n", j.Id)
 		return
 	}*/
@@ -246,6 +246,6 @@ func (j *RestartContainerRequest) Execute(resp jobs.JobResponse) {
 		return
 	}
 
-	w := resp.SuccessWithWrite(jobs.JobResponseAccepted, true, false)
+	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 	fmt.Fprintf(w, "Container %s restarting\n", j.Id)
 }

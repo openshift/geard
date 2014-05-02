@@ -1,45 +1,45 @@
 package jobs
 
 var (
-	ErrRanToCompletion = SimpleJobError{JobResponseError, "This job has run to completion."}
+	ErrRanToCompletion = SimpleError{ResponseError, "This job has run to completion."}
 )
 
 const (
-	JobResponseOk JobResponseSuccess = iota
-	JobResponseAccepted
+	ResponseOk ResponseSuccess = iota
+	ResponseAccepted
 )
 
 const (
-	JobResponseError JobResponseFailure = iota
-	JobResponseAlreadyExists
-	JobResponseNotFound
-	JobResponseInvalidRequest
-	JobResponseRateLimit
-	JobResponseNotAcceptable
+	ResponseError ResponseFailure = iota
+	ResponseAlreadyExists
+	ResponseNotFound
+	ResponseInvalidRequest
+	ResponseRateLimit
+	ResponseNotAcceptable
 )
 
 // An error with a code and message to user
-type SimpleJobError struct {
-	Failure JobResponseFailure
+type SimpleError struct {
+	Failure ResponseFailure
 	Reason  string
 }
 
-func (j SimpleJobError) Error() string {
+func (j SimpleError) Error() string {
 	return j.Reason
 }
 
-func (j SimpleJobError) ResponseFailure() JobResponseFailure {
+func (j SimpleError) ResponseFailure() ResponseFailure {
 	return j.Failure
 }
 
-func (j SimpleJobError) ResponseData() interface{} {
+func (j SimpleError) ResponseData() interface{} {
 	return nil
 }
 
 // An error that has associated response data to communicate
 // to a client.
 type StructuredJobError struct {
-	SimpleJobError
+	SimpleError
 	Data interface{}
 }
 
@@ -52,8 +52,8 @@ type UnknownJobError struct {
 	error
 }
 
-func (s UnknownJobError) ResponseFailure() JobResponseFailure {
-	return JobResponseError
+func (s UnknownJobError) ResponseFailure() ResponseFailure {
+	return ResponseError
 }
 
 func (s UnknownJobError) ResponseData() interface{} {
