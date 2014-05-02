@@ -13,7 +13,7 @@ type ContainerStatusRequest struct {
 
 func (j *ContainerStatusRequest) Execute(resp JobResponse) {
 	if _, err := os.Stat(j.Id.UnitPathFor()); err != nil {
-		log.Printf("container_status: Can't stat unit: %v", err)
+		//log.Printf("container_status: Can't stat unit: %v", err)
 		resp.Failure(ErrContainerNotFound)
 		return
 	}

@@ -4,11 +4,12 @@ import (
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/git"
-	"github.com/openshift/geard/git/http"
 	gitjobs "github.com/openshift/geard/git/jobs"
 	"github.com/openshift/geard/jobs"
 	sshjobs "github.com/openshift/geard/ssh/jobs"
 	"github.com/openshift/geard/systemd"
+	"github.com/openshift/geard/transport"
+
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -52,26 +53,33 @@ func repoCreate(c *cobra.Command, args []string) {
 		Fail(1, "Valid arguments: <id> [<clone repo url>]\n")
 	}
 
-	id, err := NewGenericLocator(git.ResourceTypeRepository, args[0])
+	t := c.Flags().Lookup("transport").Value.(*transport.TransportFlag).Get()
+
+	id, err := NewResourceLocator(t, git.ResourceTypeRepository, args[0])
 	if err != nil {
 		Fail(1, "You must pass one valid repository name: %s\n", err.Error())
 	}
-
-	if id.ResourceType() != git.ResourceTypeRepository {
+	if id.(*ResourceLocator).Type != git.ResourceTypeRepository {
 		Fail(1, "You must pass one valid repository name: %s\n", err.Error())
+	}
+
+	cloneUrl := ""
+	if len(args) == 2 {
+		cloneUrl = args[1]
 	}
 
 	Executor{
 		On: Locators{id},
 		Serial: func(on Locator) jobs.Job {
-			var req http.HttpCreateRepositoryRequest
-			req = http.HttpCreateRepositoryRequest{}
-			req.Id = git.RepoIdentifier(on.(ResourceLocator).Identifier())
-
-			return &req
+			return &gitjobs.CreateRepositoryRequest{
+				Id:        git.RepoIdentifier(on.(*ResourceLocator).Id),
+				CloneUrl:  cloneUrl,
+				RequestId: jobs.NewRequestIdentifier(),
+			}
 		},
 		Output:    os.Stdout,
 		LocalInit: LocalInitializers(systemd.Start, containers.InitializeData),
+		Transport: t,
 	}.StreamAndExit()
 }
 

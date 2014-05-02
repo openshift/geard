@@ -1,3 +1,4 @@
+// Common code for gear executables.
 package cmd
 
 // Initializers that should be loaded when the daemon is loaded

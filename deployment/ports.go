@@ -78,6 +78,7 @@ func NewInstancePortTable(sources Containers) (*InstancePortTable, error) {
 	// make existing reservations
 	for i := range sources {
 		instances := sources[i].Instances()
+
 		for j := range instances {
 			instance := instances[j]
 			for k := range instance.Ports {
@@ -85,6 +86,7 @@ func NewInstancePortTable(sources Containers) (*InstancePortTable, error) {
 				if target.Empty() {
 					continue
 				}
+
 				_, found := table.reserved[target]
 				if found {
 					return nil, errors.New(fmt.Sprintf("deployment: The port %s is assigned to multiple instances (last: %s)", target.String(), instance.Id))

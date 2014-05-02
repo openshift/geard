@@ -1,3 +1,7 @@
+// Queue manager for executing jobs, handling deduplication of requests, and
+// limiting the consumption of resources by a server.  Allows callers to
+// "join" an existing job and listen to the output provided by that job without
+// reexecuting the actual task.
 package dispatcher
 
 import (

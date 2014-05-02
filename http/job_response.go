@@ -110,15 +110,6 @@ func (s *httpJobResponse) statusCode(t jobs.JobResponseSuccess, stream, data boo
 	}
 }
 
-func (s *httpJobResponse) WriteClosed() <-chan bool {
-	if c, ok := s.response.(http.CloseNotifier); ok {
-		return c.CloseNotify()
-	}
-	ch := make(chan bool)
-	close(ch)
-	return ch
-}
-
 func (s *httpJobResponse) WritePendingSuccess(name string, value interface{}) {
 	if s.pending == nil {
 		s.pending = make(map[string]string)
@@ -130,7 +121,7 @@ func (s *httpJobResponse) WritePendingSuccess(name string, value interface{}) {
 	}
 }
 
-func (s *httpJobResponse) Failure(e jobs.JobError) {
+func (s *httpJobResponse) Failure(err error) {
 	if s.succeeded {
 		panic("May not invoke failure after Success()")
 	}
@@ -139,24 +130,27 @@ func (s *httpJobResponse) Failure(e jobs.JobError) {
 	}
 	s.failed = true
 
-	response := httpFailureResponse{e.Error(), e.ResponseData()}
-	var code int
-	switch e.ResponseFailure() {
-	case jobs.JobResponseAlreadyExists:
-		code = http.StatusConflict
-	case jobs.JobResponseNotFound:
-		code = http.StatusNotFound
-	case jobs.JobResponseInvalidRequest:
-		code = http.StatusBadRequest
-	case jobs.JobResponseNotAcceptable:
-		code = http.StatusNotAcceptable
-	case jobs.JobResponseRateLimit:
-		code = 429 // http.statusTooManyRequests
-	default:
-		code = http.StatusInternalServerError
+	code := http.StatusInternalServerError
+	response := httpFailureResponse{err.Error(), nil}
+	s.response.Header().Set("Content-Type", "application/json")
+
+	if e, ok := err.(jobs.JobError); ok {
+		response.Data = e.ResponseData()
+
+		switch e.ResponseFailure() {
+		case jobs.JobResponseAlreadyExists:
+			code = http.StatusConflict
+		case jobs.JobResponseNotFound:
+			code = http.StatusNotFound
+		case jobs.JobResponseInvalidRequest:
+			code = http.StatusBadRequest
+		case jobs.JobResponseNotAcceptable:
+			code = http.StatusNotAcceptable
+		case jobs.JobResponseRateLimit:
+			code = 429 // http.statusTooManyRequests
+		}
 	}
 
-	s.response.Header().Set("Content-Type", "application/json")
 	s.response.WriteHeader(code)
 	json.NewEncoder(s.response).Encode(&response)
 }

@@ -1,3 +1,4 @@
+// A job is a unit of execution that is abstracted from its environment.
 package jobs
 
 import (
@@ -9,10 +10,24 @@ import (
 	"strings"
 )
 
+// A job is a unit of work - it may execute and return structured
+// data or stream a response.
 type Job interface {
 	Execute(JobResponse)
 }
 
+// Convenience wrapper for an anonymous function.
+type JobFunction func(JobResponse)
+
+func (job JobFunction) Execute(res JobResponse) {
+	job(res)
+}
+
+// A client may rejoin a running job by re-executing the request,
+// and a job that supports this interface will be notified that
+// a second client has connected.  Typically the join will stream
+// output or return the result of the call, but not do any actual
+// work.
 type Join interface {
 	Join(Job, <-chan bool) (bool, <-chan bool, error)
 }
@@ -33,9 +48,8 @@ type JobResponse interface {
 	Success(t JobResponseSuccess)
 	SuccessWithData(t JobResponseSuccess, data interface{})
 	SuccessWithWrite(t JobResponseSuccess, flush, structured bool) io.Writer
-	Failure(reason JobError)
+	Failure(reason error)
 
-	WriteClosed() <-chan bool
 	WritePendingSuccess(name string, value interface{})
 }
 

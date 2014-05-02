@@ -48,7 +48,6 @@ func AtomicReserveExternalPorts(path string, ports, existing PortPairs) (PortPai
 
 func ReleaseExternalPorts(ports PortPairs) error {
 	var err error
-	log.Printf("ports: Releasing %v", ports)
 	for i := range ports {
 		_, direct := ports[i].External.PortPathsFor()
 		path, errl := os.Readlink(direct)

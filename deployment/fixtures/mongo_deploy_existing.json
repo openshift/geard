@@ -23,10 +23,7 @@
       "Id": "db-1",
       "Image": "ccoleman/ubuntu-mongodb-repl",
       "From": "db",
-      "On": {
-        "Host": "localhost",
-        "Port": 0
-      },
+      "On": "localhost",
       "Ports": [
         {
           "Internal": 27017,
@@ -42,10 +39,7 @@
       "Id": "db-2",
       "Image": "ccoleman/ubuntu-mongodb-repl",
       "From": "db",
-      "On": {
-        "Host": "localhost",
-        "Port": 0
-      },
+      "On": "localhost",
       "Ports": [
         {
           "Internal": 27017,
@@ -61,10 +55,7 @@
       "Id": "db-3",
       "Image": "ccoleman/ubuntu-mongodb-repl",
       "From": "db",
-      "On": {
-        "Host": "localhost",
-        "Port": 0
-      },
+      "On": "localhost",
       "Ports": [
         {
           "Internal": 27017,

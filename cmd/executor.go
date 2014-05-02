@@ -3,14 +3,13 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/pkg/logstreamer"
+	"github.com/openshift/geard/transport"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"reflect"
 	"strings"
 	"sync"
 )
@@ -27,7 +26,7 @@ type FuncReact func(*CliJobResponse, io.Writer, interface{})
 // parallel or sequentially.  You must set either .Group
 // or .Serial
 type Executor struct {
-	On []Locator
+	On Locators
 	// Given a set of locators on the same server, create one
 	// job that represents all ids.
 	Group FuncBulk
@@ -42,6 +41,9 @@ type Executor struct {
 	OnSuccess FuncReact
 	// Optional: respond to errors when they occur
 	OnFailure FuncReact
+	// Optional: a way to transport a job to a remote server. If not
+	// specified remote locators will fail
+	Transport transport.Transport
 }
 
 // Invoke the appropriate job on each server and return the set of data
@@ -106,7 +108,7 @@ func (e Executor) StreamAndExit() {
 
 func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 	on := e.On
-	local, remote := Locators(on).Group()
+	local, remote := on.Group()
 	single := len(on) == 1
 	responses := []*CliJobResponse{}
 
@@ -115,15 +117,20 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 	if err := localJobs.check(); err != nil {
 		return responses, err
 	}
-	remoteJobs := make([]remoteJobSet, len(remote))
+	remoteJobs := make([][]remoteJob, len(remote))
 	for i := range remote {
-		jobs := e.jobs(remote[i])
+		locator := remote[i]
+		jobs := e.jobs(locator)
 		if err := jobs.check(); err != nil {
 			return responses, err
 		}
-		remotes, err := jobs.remotes()
-		if err != nil {
-			return responses, err
+		remotes := make([]remoteJob, len(jobs))
+		for j := range jobs {
+			remote, err := e.Transport.RemoteJobFor(locator[0].TransportLocator(), jobs[j])
+			if err != nil {
+				return responses, err
+			}
+			remotes[j] = remoteJob{remote, jobs[j], locator[0]}
 		}
 		remoteJobs[i] = remotes
 	}
@@ -143,7 +150,7 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 	if len(localJobs) > 0 {
 		tasks.Add(1)
 		go func() {
-			w := logstreamer.NewLogstreamer(stdout, "local ", false)
+			w := logstreamer.NewLogstreamer(stdout, prefixUnless("local ", single), false)
 			defer w.Close()
 			defer tasks.Done()
 
@@ -155,30 +162,22 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 		}()
 	}
 
-	// Executes jobs against each remote server in parallel
+	// Executes jobs against each remote server in parallel (could parallel to each server if necessary)
 	for i := range remote {
 		ids := remote[i]
 		allJobs := remoteJobs[i]
-		host := ids[0].HostIdentity()
-		locator := ids[0].(http.RemoteLocator)
+		host := ids[0].TransportLocator()
 
 		tasks.Add(1)
 		go func() {
-			w := logstreamer.NewLogstreamer(stdout, prefixUnless(host+" ", single), false)
-			logger := log.New(w, "", 0)
+			w := logstreamer.NewLogstreamer(stdout, prefixUnless(host.String()+" ", single), false)
 			defer w.Close()
 			defer tasks.Done()
 
-			dispatcher := http.NewHttpDispatcher(locator, logger)
 			for _, job := range allJobs {
 				response := &CliJobResponse{Output: w, Gather: gather}
-				if err := dispatcher.Dispatch(job, response); err != nil {
-					// set an explicit error
-					response = &CliJobResponse{
-						Error: jobs.SimpleJobError{jobs.JobResponseError, fmt.Sprintf("The server did not respond correctly: %s", err.Error())},
-					}
-				}
-				respch <- e.react(response, w, job)
+				job.Execute(response)
+				respch <- e.react(response, w, job.Original)
 			}
 		}()
 	}
@@ -226,7 +225,11 @@ func (e *Executor) jobs(on []Locator) jobSet {
 }
 
 type jobSet []jobs.Job
-type remoteJobSet []http.RemoteExecutable
+type remoteJob struct {
+	jobs.Job
+	Original jobs.Job
+	Locator  Locator
+}
 
 func (jobs jobSet) check() error {
 	for i := range jobs {
@@ -238,20 +241,6 @@ func (jobs jobSet) check() error {
 		}
 	}
 	return nil
-}
-
-func (jobs jobSet) remotes() (remotes remoteJobSet, err error) {
-	remotes = make(remoteJobSet, 0, len(remotes))
-	for i := range jobs {
-		job := jobs[i]
-		remotable, ok := job.(http.RemoteExecutable)
-		if !ok {
-			err = errors.New(fmt.Sprintf("Unable to run this action (%+v) against a remote server", reflect.TypeOf(job)))
-			return
-		}
-		remotes = append(remotes, remotable)
-	}
-	return
 }
 
 func Fail(code int, format string, other ...interface{}) {

@@ -1,3 +1,6 @@
+// Provide SSH client commands and API that will enable SSH
+// key distribution and revocation to individual servers.
+// Key types are pluggable to allow other forms of access.
 package ssh
 
 import (

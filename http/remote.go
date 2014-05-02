@@ -4,21 +4,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/jobs"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
+
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/transport"
 )
 
-type Locator interface {
-	IsRemote() bool
-	Identity() string
-}
+const DefaultHttpPort = "43273"
 
 type RemoteLocator interface {
-	BaseURL() *url.URL
+	ToURL() *url.URL
 }
 
 type RemoteJob interface {
@@ -33,26 +34,103 @@ type RemoteExecutable interface {
 	UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error)
 }
 
-type HttpDispatcher struct {
-	client  *http.Client
-	locator RemoteLocator
-	log     *log.Logger
+type HttpTransport struct {
+	client *http.Client
 }
 
-func NewHttpDispatcher(l RemoteLocator, logger *log.Logger) *HttpDispatcher {
-	if logger == nil {
-		logger = log.New(os.Stdout, "", 0)
-	}
-	return &HttpDispatcher{
-		client:  &http.Client{},
-		locator: l,
-		log:     logger,
-	}
+func NewHttpTransport() *HttpTransport {
+	return &HttpTransport{&http.Client{}}
 }
 
-func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) error {
+func (h *HttpTransport) LocatorFor(value string) (transport.Locator, error) {
+	return transport.NewHostLocator(value)
+}
+
+func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j jobs.Job) (job jobs.Job, err error) {
+	if locator == transport.Local {
+		job = j
+		return
+	}
+	baseUrl, errl := urlForLocator(locator)
+	if errl != nil {
+		err = errors.New("The provided host is not valid '" + locator.String() + "': " + errl.Error())
+		return
+	}
+	httpJob, errh := HttpJobFor(j)
+	if errh != nil {
+		err = errh
+		return
+	}
+
+	job = jobs.JobFunction(func(res jobs.JobResponse) {
+		if err := h.ExecuteRemote(baseUrl, httpJob, res); err != nil {
+			res.Failure(err)
+		}
+	})
+	return
+}
+
+func urlForLocator(locator transport.Locator) (*url.URL, error) {
+	base := locator.String()
+	if strings.Contains(base, ":") {
+		host, port, err := net.SplitHostPort(base)
+		if err != nil {
+			return nil, err
+		}
+		if port == "" {
+			base = net.JoinHostPort(host, DefaultHttpPort)
+		}
+	} else {
+		base = net.JoinHostPort(base, DefaultHttpPort)
+	}
+	return &url.URL{Scheme: "http", Host: base}, nil
+}
+
+func HttpJobFor(job jobs.Job) (exc RemoteExecutable, err error) {
+	switch j := job.(type) {
+	case *jobs.InstallContainerRequest:
+		exc = &HttpInstallContainerRequest{InstallContainerRequest: *j}
+	case *jobs.StartedContainerStateRequest:
+		exc = &HttpStartContainerRequest{StartedContainerStateRequest: *j}
+	case *jobs.StoppedContainerStateRequest:
+		exc = &HttpStopContainerRequest{StoppedContainerStateRequest: *j}
+	case *jobs.RestartContainerRequest:
+		exc = &HttpRestartContainerRequest{RestartContainerRequest: *j}
+	case *jobs.PutEnvironmentRequest:
+		exc = &HttpPutEnvironmentRequest{PutEnvironmentRequest: *j}
+	case *jobs.PatchEnvironmentRequest:
+		exc = &HttpPatchEnvironmentRequest{PatchEnvironmentRequest: *j}
+	case *jobs.ContainerStatusRequest:
+		exc = &HttpContainerStatusRequest{ContainerStatusRequest: *j}
+	case *jobs.ContentRequest:
+		exc = &HttpContentRequest{ContentRequest: *j}
+	case *jobs.DeleteContainerRequest:
+		exc = &HttpDeleteContainerRequest{DeleteContainerRequest: *j}
+	case *jobs.LinkContainersRequest:
+		exc = &HttpLinkContainersRequest{LinkContainersRequest: *j}
+	case *jobs.ListContainersRequest:
+		exc = &HttpListContainersRequest{ListContainersRequest: *j}
+	default:
+		for _, ext := range extensions {
+			req, errr := ext.HttpJobFor(job)
+			if errr != nil {
+				return nil, errr
+			}
+			if req != nil {
+				exc = req
+				break
+			}
+		}
+	}
+	if exc == nil {
+		err = errors.New("The provided job cannot be sent remotely")
+	}
+	return
+}
+
+func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, res jobs.JobResponse) error {
 	reader, writer := io.Pipe()
-	httpreq, errn := http.NewRequest(job.HttpMethod(), h.locator.BaseURL().String(), reader)
+	httpreq, errn := http.NewRequest(job.HttpMethod(), baseUrl.String(), reader)
 	if errn != nil {
 		return errn
 	}
@@ -75,7 +153,7 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 	req.URL.RawQuery = query.Encode()
 	go func() {
 		if err := job.MarshalHttpRequestBody(writer); err != nil {
-			h.log.Printf("remote: Error when writing to http: %v", err)
+			log.Printf("http_remote: Error when writing to http: %v", err)
 			writer.CloseWithError(err)
 		} else {
 			writer.Close()
@@ -84,7 +162,6 @@ func (h *HttpDispatcher) Dispatch(job RemoteExecutable, res jobs.JobResponse) er
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		h.log.Printf("Failed: %v", err)
 		return err
 	}
 	defer resp.Body.Close()

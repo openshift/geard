@@ -4,18 +4,19 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	. "github.com/openshift/geard/cmd"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-	sshkey "github.com/openshift/geard/pkg/ssh-public-key"
-	"github.com/openshift/geard/ssh"
-	. "github.com/openshift/geard/ssh/http"
-	. "github.com/openshift/geard/ssh/jobs"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
+
+	. "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
+	sshkey "github.com/openshift/geard/pkg/ssh-public-key"
+	"github.com/openshift/geard/ssh"
+	. "github.com/openshift/geard/ssh/jobs"
+	"github.com/openshift/geard/transport"
 )
 
 var (
@@ -39,7 +40,7 @@ func init() {
 func registerLocal(parent *cobra.Command) {
 	keysForUserCmd := &cobra.Command{
 		Use:   "auth-keys-command <username>",
-		Short: "(Local) Generate authorized_keys output for sshd.",
+		Short: "(Local) Generate authorized_keys output for sshd",
 		Long:  "Generate authorized keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
 		Run:   KeysForUser,
 	}
@@ -78,8 +79,11 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		Fail(1, "Valid arguments: <id> ...")
 	}
+
+	t := cmd.Flags().Lookup("transport").Value.(*transport.TransportFlag).Transport
+
 	// args... are locators for repositories or containers
-	ids, err := NewGenericLocators(ResourceTypeContainer, args...)
+	ids, err := NewResourceLocators(t, ResourceTypeContainer, args...)
 	if err != nil {
 		Fail(1, "You must pass 1 or more valid names: %s", err.Error())
 	}
@@ -91,14 +95,15 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 
 	allPerms := make(map[string]*KeyPermission)
 	for i := range ids {
+		resourceType := ids[i].(*ResourceLocator).Type
 		if permissionHandlers == nil {
-			Fail(1, "The type '%s' is not supported by this command", ids[i].ResourceType())
+			Fail(1, "The type '%s' is not supported by this command", resourceType)
 		}
-		h, ok := permissionHandlers[ids[i].ResourceType()]
+		h, ok := permissionHandlers[resourceType]
 		if !ok {
-			Fail(1, "The type '%s' is not supported by this command", ids[i].ResourceType())
+			Fail(1, "The type '%s' is not supported by this command", resourceType)
 		}
-		perm, err := h.CreatePermission(cmd, string(ids[i].(ResourceLocator).Identifier()))
+		perm, err := h.CreatePermission(cmd, ids[i].(*ResourceLocator).Id)
 		if err != nil {
 			Fail(1, err.Error())
 		}
@@ -113,18 +118,17 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 				permissions = append(permissions, *allPerms[on[i].Identity()])
 			}
 
-			return &HttpCreateKeysRequest{
-				CreateKeysRequest: CreateKeysRequest{
-					&ExtendedCreateKeysData{
-						Keys:        keys,
-						Permissions: permissions,
-					},
+			return &CreateKeysRequest{
+				&ExtendedCreateKeysData{
+					Keys:        keys,
+					Permissions: permissions,
 				},
 			}
 		},
 		Output: os.Stdout,
 		//TODO: display partial error info
 		LocalInit: containers.InitializeData,
+		Transport: t,
 	}.StreamAndExit()
 }
 

@@ -410,7 +410,7 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4001", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:34957", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -454,7 +454,7 @@ func (s *IntegrationTestSuite) TestRestartContainer(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:4002", "--start", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--ports=8080:0", "--start", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
@@ -529,7 +529,7 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4003", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:0", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
