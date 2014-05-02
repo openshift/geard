@@ -215,8 +215,8 @@ func TestRemove(t *testing.T) {
 }
 
 func TestRemoveNotAged(t *testing.T) {
-	p0 := failedPayload(success_payload)
-	payload := strings.Replace(p0,
+	payload := failedPayload(success_payload)
+	payload = strings.Replace(payload,
 		"\"FinishedAt\":\"2014-05-01T00:36:11.985592023Z\"",
 		fmt.Sprintf("\"FinishedAt\":\"%s\"", time.Now().Format(time.RFC3339Nano)),
 		1)
@@ -225,8 +225,6 @@ func TestRemoveNotAged(t *testing.T) {
 		"/info": info_payload,
 		"/containers/json?all=1": containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,
-		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill": "{}",
-		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc?force=1&v=1": "{}",
 	}
 	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
 	defer server.Close()
@@ -294,6 +292,37 @@ func TestDryRun(t *testing.T) {
 
 	if !strings.Contains(info.String(), "Removing container ") {
 		t.Errorf("Dry run failed: \n%s\n%s", info, error)
+	}
+}
+
+func TestDataContainer(t *testing.T) {
+	payload := strings.Replace(
+		failedPayload(success_payload),
+		"\"Name\":\"ctr-sample-service\"",
+		"\"Name\":\"ctr-sample-service-data\"",
+		1)
+
+	routes := map[string]string {
+		"/info": info_payload,
+		"/containers/json?all=1": containers_payload,
+		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,
+	}
+	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
+	defer server.Close()
+
+	context, info, error := newContext(false, true)
+
+	os.Setenv("DOCKER_URI", server.URL)
+	plugin := &FailureCleanup{dockerSocket: server.URL, retentionAge: "72h"}
+	plugin.Clean(context)
+
+	if strings.Contains(info.String(), "Removing container") {
+		t.Errorf("Attempted to remove container too early: \n%s\n%s", info, error)
+	}
+
+	if 0 != error.Len() {
+		t.Log(info)
+		t.Error(error)
 	}
 }
 

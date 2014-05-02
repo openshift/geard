@@ -4,6 +4,7 @@ import (
 	"github.com/openshift/geard/docker"
 	"os"
 	"time"
+	"strings"
 )
 
 type FailureCleanup struct {
@@ -20,7 +21,10 @@ func init() {
 	AddCleaner(&FailureCleanup{dockerSocket: dockerURI, retentionAge: "72h"})
 }
 
-// Remove any geard managed container with a non-zero exit code from runtime
+// Remove any geard managed container with certain criteria from runtime
+// * exit code non-zero and not running
+// * older than retentionAge
+// * name does not have -data suffix
 func (r *FailureCleanup) Clean(ctx *CleanerContext) {
 	ctx.LogInfo.Println("--- \"FAILED CONTAINERS\" CLEANUP ---")
 
@@ -44,9 +48,10 @@ func (r *FailureCleanup) Clean(ctx *CleanerContext) {
 			continue
 		}
 
-		// Happy container or not under geard control
+		// Happy container or not...
 		if 0 == container.State.ExitCode ||
 				container.State.Running ||
+				strings.HasSuffix(container.Name, "-data") ||
 				time.Since(container.State.FinishedAt) < retentionAge {
 			continue
 		}
@@ -63,6 +68,5 @@ func (r *FailureCleanup) Clean(ctx *CleanerContext) {
 			ctx.LogError.Printf("Unable to remove container %s from runtime: %s", container.Name, e1.Error())
 		}
 	}
-
 }
 
