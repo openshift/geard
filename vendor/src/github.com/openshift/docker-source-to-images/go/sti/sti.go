@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	_ "net/http/pprof"
 
 	"errors"
@@ -55,13 +56,18 @@ func Execute() {
 		},
 	}
 	stiCmd.PersistentFlags().StringVarP(&(req.DockerSocket), "url", "U", "unix:///var/run/docker.sock", "Set the url of the docker socket to use")
-	stiCmd.PersistentFlags().BoolVar(&(req.Debug), "debug", false, "Enable debugging output")
+	stiCmd.PersistentFlags().BoolVar(&(req.Verbose), "verbose", false, "Enable verbose output")
 
 	buildCmd := &cobra.Command{
 		Use:   "build SOURCE BUILD_IMAGE APP_IMAGE_TAG",
 		Short: "Build an image",
 		Long:  "Build an image",
 		Run: func(cmd *cobra.Command, args []string) {
+			// if we're not verbose, make sure the logger doesn't print out timestamps
+			if !req.Verbose {
+				log.SetFlags(0)
+			}
+
 			buildReq.Request = req
 			buildReq.Source = args[0]
 			buildReq.BaseImage = args[1]
@@ -94,10 +100,11 @@ func Execute() {
 	}
 	buildCmd.Flags().BoolVar(&(buildReq.Clean), "clean", false, "Perform a clean build")
 	buildCmd.Flags().StringVar(&(req.WorkingDir), "dir", "tempdir", "Directory where generated Dockerfiles and other support scripts are created")
-	buildCmd.Flags().StringVarP(&(req.RuntimeImage), "runtime", "R", "", "Set the runtime image to use")
 	buildCmd.Flags().StringVarP(&envString, "env", "e", "", "Specify an environment var NAME=VALUE,NAME2=VALUE2,...")
 	buildCmd.Flags().StringVarP(&(buildReq.Method), "method", "m", "run", "Specify a method to build with. build -> 'docker build', run -> 'docker run'")
 	buildCmd.Flags().StringVarP(&(buildReq.Ref), "ref", "r", "", "Specify a ref to check-out")
+	buildCmd.Flags().StringVar(&(buildReq.CallbackUrl), "callbackUrl", "", "Specify a URL to invoke via HTTP POST upon build completion")
+
 	stiCmd.AddCommand(buildCmd)
 
 	validateCmd := &cobra.Command{
@@ -119,7 +126,6 @@ func Execute() {
 			}
 		},
 	}
-	validateCmd.Flags().StringVarP(&(req.RuntimeImage), "runtime", "R", "", "Set the runtime image to use")
 	validateCmd.Flags().BoolVarP(&(validateReq.Incremental), "incremental", "I", false, "Validate for an incremental build")
 	stiCmd.AddCommand(validateCmd)
 
