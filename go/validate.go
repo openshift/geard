@@ -34,25 +34,11 @@ func Validate(req ValidateRequest) (*ValidateResult, error) {
 
 	result := &ValidateResult{Success: true}
 
-	if req.RuntimeImage != "" {
-		valid, err := c.validateImage(req.BaseImage, false)
-		if err != nil {
-			return nil, err
-		}
-		result.recordValidation("Base image", req.BaseImage, valid)
-
-		valid, err = c.validateImage(req.RuntimeImage, true)
-		if err != nil {
-			return nil, err
-		}
-		result.recordValidation("Runtime image", req.RuntimeImage, valid)
-	} else {
-		valid, err := c.validateImage(req.BaseImage, req.Incremental)
-		if err != nil {
-			return nil, err
-		}
-		result.recordValidation("Base image", req.BaseImage, valid)
+	valid, err := c.validateImage(req.BaseImage, req.Incremental)
+	if err != nil {
+		return nil, err
 	}
+	result.recordValidation("Base image", req.BaseImage, valid)
 
 	return result, nil
 }
@@ -64,7 +50,7 @@ func (h requestHandler) validateImage(imageName string, incremental bool) (bool,
 		return false, err
 	}
 
-	if h.debug {
+	if h.verbose {
 		log.Printf("Pulled image %s: {%+v}", imageName, image)
 	}
 
@@ -98,7 +84,7 @@ func (h requestHandler) validateRequiredFiles(imageName string, files []string) 
 		if !FileExistsInContainer(h.dockerClient, container.ID, file) {
 			log.Printf("ERROR: Image %s is missing %s\n", imageName, file)
 			return false, nil
-		} else if h.debug {
+		} else if h.verbose {
 			log.Printf("OK: Image %s contains file %s\n", imageName, file)
 		}
 	}

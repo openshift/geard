@@ -10,19 +10,18 @@ import (
 // Request contains essential fields for any request: a Configuration, a base image, and an
 // optional runtime image.
 type Request struct {
-	BaseImage    string
-	RuntimeImage string
+	BaseImage string
 
 	DockerSocket  string
 	DockerTimeout int
 	WorkingDir    string
-	Debug         bool
+	Verbose       bool
 }
 
 // requestHandler encapsulates dependencies needed to fulfill requests.
 type requestHandler struct {
 	dockerClient *docker.Client
-	debug        bool
+	verbose      bool
 }
 
 type STIResult struct {
@@ -32,7 +31,7 @@ type STIResult struct {
 
 // Returns a new handler for a given request.
 func newHandler(req Request) (*requestHandler, error) {
-	if req.Debug {
+	if req.Verbose {
 		log.Printf("Using docker socket: %s\n", req.DockerSocket)
 	}
 
@@ -41,7 +40,7 @@ func newHandler(req Request) (*requestHandler, error) {
 		return nil, ErrDockerConnectionFailed
 	}
 
-	return &requestHandler{dockerClient, req.Debug}, nil
+	return &requestHandler{dockerClient, req.Verbose}, nil
 }
 
 // Determines whether the supplied image is in the local registry.
@@ -65,7 +64,7 @@ func (h requestHandler) checkAndPull(imageName string) (*docker.Image, error) {
 	}
 
 	if image == nil {
-		if h.debug {
+		if h.verbose {
 			log.Printf("Pulling image %s\n", imageName)
 		}
 
@@ -78,7 +77,7 @@ func (h requestHandler) checkAndPull(imageName string) (*docker.Image, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else if h.debug {
+	} else if h.verbose {
 		log.Printf("Image %s available locally\n", imageName)
 	}
 
