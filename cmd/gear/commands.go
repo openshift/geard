@@ -141,10 +141,10 @@ func Execute() {
 	}
 	buildCmd.Flags().BoolVar(&(buildReq.Clean), "clean", false, "Perform a clean build")
 	buildCmd.Flags().StringVar(&(buildReq.WorkingDir), "dir", "tempdir", "Directory where generated Dockerfiles and other support scripts are created")
-	buildCmd.Flags().StringVarP(&(buildReq.RuntimeImage), "runtime", "R", "", "Set the runtime image to use")
 	buildCmd.Flags().StringVarP(&(buildReq.Method), "method", "m", "run", "Specify a method to build with. build -> 'docker build', run -> 'docker run'")
 	buildCmd.Flags().StringVarP(&(buildReq.Ref), "ref", "r", "", "Specify a ref to check-out")
-	buildCmd.Flags().BoolVar(&(buildReq.Debug), "debug", false, "Enable debugging output")
+	buildCmd.Flags().BoolVar(&(buildReq.Verbose), "verbose", false, "Enable verbose output")
+	buildCmd.Flags().StringVar(&(buildReq.CallbackUrl), "callbackUrl", "", "Specify a URL to invoke via HTTP POST upon build completion")
 	buildCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	buildCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	AddCommand(gearCmd, buildCmd, false)
