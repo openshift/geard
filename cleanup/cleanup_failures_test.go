@@ -1,12 +1,12 @@
 package cleanup
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-	"fmt"
 	"os"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -165,13 +165,14 @@ const (
 		} }`
 )
 
-type FailureCleanup_Test struct {}
+type FailureCleanup_Test struct{}
+
 var failureCleanupTest = &FailureCleanup_Test{}
 
 func Test_FailureCleanup_Clean_0(t *testing.T) {
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
+	routes := map[string]string{
+		"/info":                                                                             info_payload,
+		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": success_payload,
 	}
 	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
@@ -194,11 +195,11 @@ func Test_FailureCleanup_Clean_0(t *testing.T) {
 }
 
 func Test_FailureCleanup_Clean_1(t *testing.T) {
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
-		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": failureCleanupTest.failedPayload(success_payload),
-		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill": "{}",
+	routes := map[string]string{
+		"/info":                                                                                    info_payload,
+		"/containers/json?all=1":                                                                   containers_payload,
+		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json":        failureCleanupTest.failedPayload(success_payload),
+		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill":        "{}",
 		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc?force=1&v=1": "{}",
 	}
 	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
@@ -222,9 +223,9 @@ func Test_FailureCleanup_Clean_2(t *testing.T) {
 		fmt.Sprintf("\"FinishedAt\":\"%s\"", time.Now().Format(time.RFC3339Nano)),
 		1)
 
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
+	routes := map[string]string{
+		"/info":                                                                             info_payload,
+		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,
 	}
 	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
@@ -258,8 +259,8 @@ func Test_FailureCleanup_Clean_3(t *testing.T) {
 }
 
 func Test_FailureCleanup_Clean_4(t *testing.T) {
-	routes := map[string]string {
-		"/info": info_payload,
+	routes := map[string]string{
+		"/info":                  info_payload,
 		"/containers/json?all=1": "{}",
 	}
 	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
@@ -276,11 +277,11 @@ func Test_FailureCleanup_Clean_4(t *testing.T) {
 }
 
 func Test_FailureCleanup_Clean_5(t *testing.T) {
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
-		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": failureCleanupTest.failedPayload(success_payload),
-		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill": "{}",
+	routes := map[string]string{
+		"/info":                                                                                    info_payload,
+		"/containers/json?all=1":                                                                   containers_payload,
+		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json":        failureCleanupTest.failedPayload(success_payload),
+		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill":        "{}",
 		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc?force=1&v=1": "{}",
 	}
 	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
@@ -303,9 +304,9 @@ func Test_FailureCleanup_Clean_6(t *testing.T) {
 		"\"Name\":\"ctr-sample-service-data\"",
 		1)
 
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
+	routes := map[string]string{
+		"/info":                                                                             info_payload,
+		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,
 	}
 	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
