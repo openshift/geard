@@ -309,7 +309,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 	base = re.ReplaceAllString(base, "")
 	newPath := base + now
 
-	fmt.Printf("Deploying %s", newPath)
+	fmt.Printf("==> Deploying %s\n", path)
 	changes, removed, err := deploy.Describe(deployment.SimplePlacement(servers), defaultTransport.Get())
 	if err != nil {
 		Fail(1, "Deployment is not valid: %s", err.Error())
@@ -331,7 +331,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 			},
 			Output: os.Stdout,
 			OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-				fmt.Fprintf(w, "Deleted %s", job.(jobs.LabeledJob).JobLabel())
+				fmt.Fprintf(w, "==> Deleted %s", job.(jobs.LabeledJob).JobLabel())
 			},
 			LocalInit: needsSystemdAndData,
 			Transport: defaultTransport.Get(),
@@ -382,7 +382,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		instances := c.Instances()
 		if len(instances) > 0 {
 			for _, link := range instances[0].NetworkLinks() {
-				fmt.Printf("linking %s: %s:%d -> %s:%d\n", c.Name, link.FromHost, link.FromPort, link.ToHost, link.ToPort)
+				fmt.Printf("==> Linking %s: %s:%d -> %s:%d\n", c.Name, link.FromHost, link.FromPort, link.ToHost, link.ToPort)
 			}
 		}
 	}
@@ -411,10 +411,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 
 			return &cjobs.LinkContainersRequest{&cjobs.ContainerLinks{links}, on[0].TransportLocator().String()}
 		},
-		Output: os.Stdout,
-		OnSuccess: func(r *CliJobResponse, w io.Writer, job interface{}) {
-			fmt.Fprintf(w, "Links set on %s\n", job.(jobs.LabeledJob).JobLabel())
-		},
+		Output:    os.Stdout,
 		Transport: defaultTransport.Get(),
 	}.Stream()
 
@@ -429,6 +426,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		Transport: defaultTransport.Get(),
 	}.Stream()
 
+	fmt.Printf("==> Deployed as %s\n", newPath)
 	if len(errors) > 0 {
 		for i := range errors {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", errors[i])
