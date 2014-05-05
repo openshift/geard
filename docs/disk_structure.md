@@ -8,8 +8,8 @@ Assumptions:
   names are just as valuable.
 * Ports are passed by the caller and are assumed to match to the image.  A caller is allowed to specify an external port,
   which may fail if the port is taken.
-* To prevent directories from reach excessive size at high density, directories mapped to ids are partitioned by the first 
-  two characters of the id or, for ports a modulus value.
+* To prevent directories from reaching excessive size at high density, directories mapped to ids are partitioned by the first 
+  two characters of the id or, for ports, a modulus value.
 * The structure of persistent state on disk should facilitate administrators recovering the state of their systems using
   filesystem backups, and also be friendly to standard Linux toolchain introspection of their contents.
 
@@ -39,7 +39,7 @@ The on disk structure of geard is exploratory at the moment.  The major componen
         (unsymlinked) on the remove operation.  The definition can be updated atomically (write new definition,
         update hardlink) when a new version of the container is deployed to the system.
 
-        If a container is idled, a flag is written to the appropriate units directory.  Only containers with an
+        If a container is idled, a flag is written to the appropriate unit's directory.  Only containers with an
         idle flag are considered valid targets for unidling.
 
       targets/
