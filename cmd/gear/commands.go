@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -490,6 +491,13 @@ func buildImage(cmd *cobra.Command, args []string) {
 
 	if len(args) < 3 {
 		Fail(1, "Valid arguments: <source> <build image> <tag> ...")
+	}
+
+	if buildReq.CallbackUrl != "" {
+		_, err := url.ParseRequestURI(buildReq.CallbackUrl)
+		if err != nil {
+			Fail(1, "The callbackUrl was an invalid URL")
+		}
 	}
 
 	buildReq.Source = args[0]

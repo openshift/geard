@@ -5,15 +5,17 @@ package http
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"mime"
+	"net/http"
+	"strings"
+
 	"github.com/openshift/geard/config"
 	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/dispatcher"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/go-json-rest"
-	"io"
-	"log"
-	"net/http"
-	"strings"
 )
 
 func ApiVersion() string {
@@ -152,7 +154,12 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 			mode = ResponseTable
 		}
 
-		canStream := true
+		acceptHeader := r.Header.Get("Accept")
+		overrideAcceptHeader := r.Header.Get("X-Accept")
+		if overrideAcceptHeader != "" {
+			acceptHeader = overrideAcceptHeader
+		}
+		canStream := didClientRequestStreamableResponse(acceptHeader)
 		if streaming, ok := job.(HttpStreamable); ok {
 			canStream = streaming.Streamable()
 		}
@@ -168,6 +175,19 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 		}
 		<-wait
 	}
+}
+
+func didClientRequestStreamableResponse(acceptHeader string) bool {
+	result := false
+	mediaTypes := strings.Split(acceptHeader, ",")
+	for i := range mediaTypes {
+		mediaType, params, _ := mime.ParseMediaType(mediaTypes[i])
+		result = (params["stream"] == "true") && (mediaType == "application/json" || mediaType == "text/plain")
+		if result {
+			break
+		}
+	}
+	return result
 }
 
 func limitedBodyReader(r *rest.Request) io.Reader {

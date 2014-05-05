@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	cjobs "github.com/openshift/geard/containers/jobs"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/transport"
 	"io"
 	"log"
 	"net"
@@ -14,6 +11,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	cjobs "github.com/openshift/geard/containers/jobs"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/transport"
 )
 
 const DefaultHttpPort = "43273"
@@ -146,7 +147,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 	req := httpreq
 	req.Header.Set("X-Request-Id", id.String())
 	req.Header.Set("If-Match", "api="+ApiVersion())
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 	//TODO: introduce API version per job
 	//TODO: content request signing for GETs
 	req.URL.Path = job.HttpPath()
