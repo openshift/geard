@@ -123,7 +123,7 @@ Here are the supported container actions on the agent - these should map cleanly
         # Make sure that /etc/ssh/sshd_config has the following two lines.
         AuthorizedKeysCommand /usr/sbin/gear-auth-keys-command
         AuthorizedKeysCommandUser nobody
-        
+
         # Restart sshd to pickup the changes.
         $ systemctl restart sshd.service
 
@@ -155,9 +155,27 @@ Here are the supported container actions on the agent - these should map cleanly
         # remote build
         $ curl -X POST "http://localhost:43273/build-image" -H "Content-Type: application/json" -d '{"BaseImage":"pmorie/fedora-mock","Source":"git://github.com/pmorie/simple-html","Tag":"mybuild-1"}'
 
-*   Create a Git repository on the host
+*   Use Git repositories on the geard host
 
-        $ gear create-repo localhost/my-sample-repo [<optional source url to clone>]
+        # Create a repository on the host.
+        # Note: We are using localhost for this example, however, it works for remote hosts as well.
+        $ gear create-repo myrepo [<optional source url to clone>]
+
+        # Add keys to grant access to the repository.
+        # The write flag enables git push, otherwise only git clone i.e. read is allowed.
+        $ gear add-keys --write=true --key-file=/path/to/id_rsa.pub repo://myrepo
+
+        # Clone the repo.
+        $ git clone git-myrepo@localhost:~ myrepo
+
+        # Commit some changes locally.
+        $ cd myrepo
+        $ echo "Hello" > hi.txt
+        $ git add hi.txt
+        $ git commit -m "Add simple text file."
+
+        # Push the changes to the repository on the host.
+        $ git push origin master
 
 *   Fetch a Git archive zip for a repository
 
