@@ -3,7 +3,7 @@
     {
       "name":"rockmongo",
       "count":1,
-      "image":"derekwaynecarr/rockmongo",
+      "image":"openshift/centos-rockmongo",
       "publicports":[
         {"internal":80,"external":6060}
       ],
@@ -14,7 +14,7 @@
     {
       "name":"mongodb",
       "count":1,
-      "image":"ccoleman/ubuntu-mongodb",
+      "image":"openshift/centos-mongodb",
       "publicports":[
         {"internal":27017}
       ]
