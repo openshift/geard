@@ -9,6 +9,7 @@ function usage() {
   echo "-i builds with idler daemon"
   echo "-l builds with vendored packages only (skips go get)"
   echo "-n do not copy binaries into /bin and /sbin location"
+  echo "-x disable golang compiler optimizations (for debugging)"
   exit 1
 }
 
@@ -42,7 +43,11 @@ function build_local() {
     echo "Building ${artifact}..."
     echo "-----------------------------------"
     
-    if ! go install -tags "$tags" "github.com/openshift/geard/${artifact}"; then
+    if ! $enable_optimizations; then
+      local flags=("N -l")
+    fi
+
+    if ! go install -gcflags "${flags[@]:-}" -tags "$tags" "github.com/openshift/geard/${artifact}"; then
       echo -e "\n===> FAILED"
       build_success=false
     else
@@ -84,14 +89,16 @@ handle_systemd=false
 build_idler=false
 skip_go_get=false
 copy_binaries=true
+enable_optimizations=true
 
-while getopts "sdiln" o; do
+while getopts "sdilnx" o; do
   case "${o}" in
     s) use_selinux=true;;
     d) handle_systemd=true;;
     i) build_idler=true;;
     l) skip_go_get=true;;
     n) copy_binaries=false;;
+    x) enable_optimizations=false;;
     *) usage;;
   esac
 done

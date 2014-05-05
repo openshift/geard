@@ -31,11 +31,11 @@ func (e *Environment) String() string {
 }
 
 var (
-	containerName string
-	git_rw        bool
-	git_ro        bool
-	envs          Environment
-	reaminingArgs []string
+	containerName   string
+	gitRw           bool
+	gitRo           bool
+	envs            Environment
+	passthroughArgs []string
 )
 
 func main() {
@@ -44,58 +44,70 @@ func main() {
 		Short: "Run commands within containers or repositories",
 		Run:   switchns,
 	}
-	switchnsCmd.Flags().VarP(&(envs), "env", "", "Specify environment variable to set in KEY=VALUE format")
-	switchnsCmd.Flags().StringVarP(&(containerName), "container", "", "", "Container name or ID")
-	switchnsCmd.Flags().BoolVar(&(git_rw), "git", false, "Enter a git container in read-write mode")
-	switchnsCmd.Flags().BoolVar(&(git_ro), "git-ro", false, "Enter a git container in read-write mode")
+	switchnsCmd.Flags().VarP(&envs, "env", "", "Specify environment variable to set in KEY=VALUE format")
+	switchnsCmd.Flags().StringVarP(&containerName, "container", "", "", "Container name or ID")
+	switchnsCmd.Flags().BoolVar(&gitRw, "git", false, "Enter a git container in read-write mode")
+	switchnsCmd.Flags().BoolVar(&gitRo, "git-ro", false, "Enter a git container in read-write mode")
 
-	args := []string{}
-	for idx, arg := range os.Args[1:] {
-		if arg != "--" {
-			args = append(args, arg)
-		} else {
-			reaminingArgs = os.Args[idx+2:]
-			break
-		}
-	}
+	var commandArgs []string
+	commandArgs, passthroughArgs = extractPassthroughArgs()
 
-	switchnsCmd.SetArgs(args)
+	switchnsCmd.SetArgs(commandArgs)
+
 	if err := switchnsCmd.Execute(); err != nil {
 		fmt.Println(err)
 	}
 }
 
+// Parses os.Args and returns the left and right side of `--` as arrays.
+func extractPassthroughArgs() (left []string, right []string) {
+	if len(os.Args) > 0 {
+		for i, arg := range os.Args[1:] {
+			if arg != "--" {
+				left = append(left, arg)
+			} else {
+				right = os.Args[i+2:]
+				break
+			}
+		}
+	}
+
+	return left, right
+}
+
 func switchns(cmd *cobra.Command, args []string) {
-	if git_ro || git_rw {
-		switchnsGit(cmd, reaminingArgs)
+	if gitRo || gitRw {
+		switchnsGit()
 	} else {
-		switchnsExec(cmd, reaminingArgs)
+		switchnsExec(passthroughArgs)
 	}
 }
 
-func switchnsExec(cmd *cobra.Command, args []string) {
+func switchnsExec(args []string) {
 	var err error
 
 	uid := os.Getuid()
 
 	if uid == 0 {
-		runCommand(containerName, args, envs)
+		runCommandInContainer(containerName, args, envs)
 	} else {
 		var u *user.User
 		var containerId containers.Identifier
 
 		if u, err = user.LookupId(strconv.Itoa(uid)); err != nil {
+			fmt.Printf("Couldn't lookup uid %s\n", uid)
 			os.Exit(2)
 		}
 
 		if containerId, err = containers.NewIdentifierFromUser(u); err != nil {
+			fmt.Printf("Couldn't get identifier from user: %v\n", u)
 			os.Exit(2)
 		}
-		runCommand(containerId.ContainerFor(), []string{"/bin/bash", "-l"}, []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"})
+		runCommandInContainer(containerId.ContainerFor(), []string{"/bin/bash", "-l"}, []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"})
 	}
 }
 
-func switchnsGit(cmd *cobra.Command, args []string) {
+func switchnsGit() {
 	var u *user.User
 	var err error
 	var repoId git.RepoIdentifier
@@ -104,18 +116,21 @@ func switchnsGit(cmd *cobra.Command, args []string) {
 	originalCommand := os.Getenv("SSH_ORIGINAL_COMMAND")
 
 	if u, err = user.LookupId(strconv.Itoa(uid)); err != nil {
+		fmt.Printf("Couldn't find user with uid %n\n", uid)
 		os.Exit(2)
 	}
 
 	if uid != 0 {
-		if !isValidGitCommand(originalCommand, !git_rw) {
+		if !isValidGitCommand(originalCommand, !gitRw) {
+			fmt.Printf("Invalid git command: %s\n", originalCommand)
 			os.Exit(2)
 		}
 		if repoId, err = git.NewIdentifierFromUser(u); err != nil {
+			fmt.Printf("Couldn't create identifier for user %v\n", u)
 			os.Exit(2)
 		}
 		env := []string{fmt.Sprintf("HOME=%s", repoId.RepositoryPathFor())}
-		runCommand("geard-githost", []string{"/usr/bin/git-shell", "-c", originalCommand}, env)
+		runCommandInContainer("geard-githost", []string{"/usr/bin/git-shell", "-c", originalCommand}, env)
 	} else {
 		fmt.Println("Cannot switch into any git repo as root user")
 		os.Exit(2)
@@ -132,7 +147,12 @@ func isValidGitCommand(command string, isReadOnlyUser bool) bool {
 	return true
 }
 
-func runCommand(name string, command []string, environment []string) {
+func runCommandInContainer(name string, command []string, environment []string) {
+	if len(command) == 0 {
+		fmt.Println("No command specified")
+		os.Exit(3)
+	}
+
 	client, err := docker.GetConnection("unix:///var/run/docker.sock")
 	if err != nil {
 		fmt.Printf("Unable to connect to server\n")
@@ -146,7 +166,9 @@ func runCommand(name string, command []string, environment []string) {
 	}
 	containerNsPID, err := client.ChildProcessForContainer(container)
 	if err != nil {
+		fmt.Println("Couldn't create child process for container")
 		os.Exit(3)
 	}
+
 	namespace.RunIn(name, containerNsPID, command, environment)
 }
