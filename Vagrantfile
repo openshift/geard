@@ -84,8 +84,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
   end
 
-  config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-dev-vm.sh"
-  config.vm.provision "shell", privileged: true, inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-daemon.sh"
+  config.vm.provision "shell", inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-dev-vm.sh"
+  config.vm.provision "shell", inline: "/vagrant/src/github.com/openshift/geard/contrib/bootstrap-daemon.sh"
 
   # Enable provisioning with Puppet stand alone.  Puppet manifests
   # are contained in a directory path relative to this Vagrantfile.
