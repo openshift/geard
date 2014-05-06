@@ -21,7 +21,9 @@ function build_docker() {
 }
 
 function build_geard_service() {
-  build_local && sudo systemctl enable $(pwd)/contrib/geard.service && sudo systemctl restart geard.service
+  build_local &&
+  sudo systemctl enable $(pwd)/contrib/geard.service &&
+  sudo systemctl restart geard.service
 }
 
 # Performs a local go install of geard.
