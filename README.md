@@ -247,6 +247,14 @@ An example systemd unit file for geard is included in the `contrib/` directory. 
     sudo systemctl start geard.service
 
 
+Report issues and contribute
+----------------------------
+
+Bugs are formally tracked in [Bugzilla in the geard component](https://bugzilla.redhat.com/buglist.cgi?component=geard&product=OpenShift%20Origin), but you can always open a GitHub issue and we'll resolve it there as well.
+
+TBD: Submitting pull requests, tests, etc.
+
+
 How can geard be used in orchestration?
 ---------------------------------------
 
