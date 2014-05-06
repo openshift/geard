@@ -262,7 +262,7 @@ To run the test suite locally, from your development machine or VM, run:
     
 to run just the unit tests.  To run the full integration suite you should run:
 
-    $ contrib/build -r
+    $ contrib/build -g
     $ contrib/test -a
     
 which will build the current source, restart the gear daemon service under systemd, and then run both unit tests and integration tests.  Be aware that at the current time a few of the integration tests fail occasionally due to race conditions - we hope to address that soon.  Just retry!  :)
