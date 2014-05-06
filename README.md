@@ -243,8 +243,8 @@ See [contrib/example.sh](contrib/example.sh) and [contrib/stress.sh](contrib/str
 
 An example systemd unit file for geard is included in the `contrib/` directory.  After building, the following commands will install the unit file and start the agent under systemd:
 
-    sudo systemctl enable contrib/geard.service
-    sudo systemctl start contrib/geard.service
+    sudo systemctl enable $(pwd)/contrib/geard.service
+    sudo systemctl start geard.service
 
 
 How can geard be used in orchestration?
