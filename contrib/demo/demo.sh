@@ -35,8 +35,8 @@ if [ "$SKIP_MONGO" == "" ]; then
   run "sudo switchns --container=replset-db-1 -- /usr/bin/mongo local --eval 'printjson(rs.status())'"
   run "sudo switchns --container=replset-db-1 -- /usr/bin/mongo local --eval 'printjson(rs.status())'"
 
-  run gear build git://github.com/pmorie/scaling-demo-update jboss/eap ccoleman/eap-scaling-demo-test
-  run gear install ccoleman/eap-scaling-demo-test localhost/demo-backend-3 -p 8080:0
+  run gear build git://github.com/pmorie/scaling-demo-update jboss/eap openshift/demo-eap-scaling-test
+  run gear install openshift/demo-eap-scaling-test localhost/demo-backend-3 -p 8080:0
   run gear start localhost/demo-backend-3
   run journalctl -u ctr-demo-backend-3 -f
 fi

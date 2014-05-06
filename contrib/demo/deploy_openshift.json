@@ -15,7 +15,7 @@
     {
       "name":"db",
       "count":1,
-      "image":"dockerfile/mongodb",
+      "image":"openshift/rhel-mongodb",
       "publicports":[
         {"internal":27017}
       ]

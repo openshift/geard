@@ -2,26 +2,33 @@
 
 base=$(dirname $0)
 
-id=$(docker inspect --format="{{.id}}" goldmann/mongod)
+id=$(docker inspect --format="{{.id}}" openshift/rhel-mongodb-repl)
 ret=$?
-if [ $ret -ne 0 ]; then
-  docker pull ccoleman/geard-githost
+if [ $ret -ne 0 ] || [ "$FETCH_IMAGES" != "" ]; then
+  docker pull openshift/geard-githost
   docker pull docker-registry1.dev.rhcloud.com/jboss/eap
-  docker tag docker-registry1.dev.rhcloud.com/jboss/eap jboss/eap
+  docker tag  docker-registry1.dev.rhcloud.com/jboss/eap jboss/eap
   docker pull docker-registry1.dev.rhcloud.com/ccoleman/eap-scaling-demo
-  docker tag docker-registry1.dev.rhcloud.com/ccoleman/eap-scaling-demo ccoleman/eap-scaling-demo
-  docker pull 10.64.27.125/goldmann/mongod
-  docker tag 10.64.27.125/goldmann/mongod goldmann/mongod
-  docker pull 10.64.27.125/goldmann/ews
-  docker tag 10.64.27.125/goldmann/ews goldmann/ews
+  docker tag  docker-registry1.dev.rhcloud.com/ccoleman/eap-scaling-demo openshift/demo-eap-scaling
+  docker pull docker-registry1.dev.rhcloud.com/openshift/rhel-mongodb
+  docker tag  docker-registry1.dev.rhcloud.com/openshift/rhel-mongodb openshift/rhel-mongodb
+  docker pull docker-registry1.dev.rhcloud.com/openshift/rhel-mongodb-repl
+  docker tag  docker-registry1.dev.rhcloud.com/openshift/rhel-mongodb-repl openshift/rhel-mongodb-repl
+  docker pull docker-registry1.dev.rhcloud.com/openshift/demo-ews
+  docker tag  docker-registry1.dev.rhcloud.com/openshift/demo-ews openshift/demo-ews
+
   docker pull pmorie/sti-html-app
-  docker pull ccoleman/ubuntu-mongodb-repl
-  docker pull ccoleman/openshift-broker-docker
-  docker pull dockerfile/mongodb
-  docker tag 103bd59de294 jboss/eap # tag is in the history
+  docker pull openshift/openshift-broker-docker
+  docker tag  103bd59de294 jboss/eap # tag is in the history
 fi
 
 set +x
+
+units=$(curl -q http://localhost:43273/containers)
+ret=$?
+if [ $ret -ne 0]; then
+  echo "gear daemon not responding, make sure the service is running and retry."
+fi
 
 $base/teardown.sh
 
