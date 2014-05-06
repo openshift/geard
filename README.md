@@ -250,10 +250,22 @@ An example systemd unit file for geard is included in the `contrib/` directory. 
 Report issues and contribute
 ----------------------------
 
-Bugs are formally tracked in [Bugzilla in the geard component](https://bugzilla.redhat.com/buglist.cgi?component=geard&product=OpenShift%20Origin), but you can always open a GitHub issue and we'll resolve it there as well.
+Bugs are tracked by the Red Hat and OpenShift test teams in [Bugzilla in the geard component](https://bugzilla.redhat.com/buglist.cgi?component=geard&product=OpenShift%20Origin), but you can always open a GitHub issue as well.
 
-TBD: Submitting pull requests, tests, etc.
+We are glad to accept pull requests for fixes, features, and experimentation. The current roadmap is described on the [OpenShift geard Trello board](https://trello.com/b/KfPwHUAy/openshift-geard).
 
+To submit a pull request, ensure your commit has a good description of the problem and contains a test case where possible for your function.  We use Travis to perform builds and test pull requests - if your pull request fails Travis we'll try to help you get it fixed.
+
+To run the test suite locally, from your development machine or VM, run:
+
+    $ contrib/test
+    
+to run just the unit tests.  To run the full integration suite you should run:
+
+    $ contrib/build -r
+    $ contrib/test -a
+    
+which will build the current source, restart the gear daemon service under systemd, and then run both unit tests and integration tests.  Be aware that at the current time a few of the integration tests fail occasionally due to race conditions - we hope to address that soon.  Just retry!  :)
 
 How can geard be used in orchestration?
 ---------------------------------------
