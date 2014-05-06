@@ -44,7 +44,7 @@ function build_local() {
     echo "-----------------------------------"
     
     if ! $enable_optimizations; then
-      local flags=("N -l")
+      local flags=("-N -l")
     fi
 
     if ! go install -gcflags "${flags[@]:-}" -tags "$tags" "github.com/openshift/geard/${artifact}"; then
