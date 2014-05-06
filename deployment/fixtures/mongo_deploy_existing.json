@@ -2,7 +2,7 @@
   "Containers": [
     {
       "Name": "db",
-      "Image": "ccoleman/ubuntu-mongodb-repl",
+      "Image": "openshift/ubuntu-mongodb-cluster",
       "PublicPorts": [
         {
           "Internal": 27017
@@ -21,7 +21,7 @@
   "Instances": [
     {
       "Id": "db-1",
-      "Image": "ccoleman/ubuntu-mongodb-repl",
+      "Image": "openshift/ubuntu-mongodb-cluster",
       "From": "db",
       "On": "localhost",
       "Ports": [
@@ -37,7 +37,7 @@
     },
     {
       "Id": "db-2",
-      "Image": "ccoleman/ubuntu-mongodb-repl",
+      "Image": "openshift/ubuntu-mongodb-cluster",
       "From": "db",
       "On": "localhost",
       "Ports": [
@@ -53,7 +53,7 @@
     },
     {
       "Id": "db-3",
-      "Image": "ccoleman/ubuntu-mongodb-repl",
+      "Image": "openshift/ubuntu-mongodb-cluster",
       "From": "db",
       "On": "localhost",
       "Ports": [

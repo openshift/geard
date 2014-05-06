@@ -3,7 +3,7 @@
     {
       "Name":"lb",
       "Count":1,
-      "Image":"goldmann/ews",
+      "Image":"openshift/demo-ews",
       "PublicPorts":[
         {"Internal":80,"External":8080}
       ],
