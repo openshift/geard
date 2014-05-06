@@ -3,9 +3,10 @@
 source "$(dirname $0)/build-support"
 
 function usage() {
-  echo "build [-s] [-d] [-i] [-n]"
+  echo "build [-s] [-d|-g] [-i] [-n]"
   echo "-s builds with selinux enabled"
-  echo "-d builds/deploys systemd service with docker"
+  echo "-d builds/deploys docker systemd service"
+  echo "-g builds/deploys geard systemd service"
   echo "-i builds with idler daemon"
   echo "-l builds with vendored packages only (skips go get)"
   echo "-n do not copy binaries into /bin and /sbin location"
@@ -17,6 +18,10 @@ function usage() {
 # restarts the geard service in the host.
 function build_docker() {
   docker build -rm -t openshift/geard . && sudo systemctl restart geard-image.service
+}
+
+function build_geard_service() {
+  build_local && sudo systemctl enable $(pwd)/contrib/geard.service && sudo systemctl restart geard.service
 }
 
 # Performs a local go install of geard.
@@ -89,15 +94,17 @@ handle_systemd=false
 build_idler=false
 skip_go_get=false
 copy_binaries=true
+enable_geard_service=false
 enable_optimizations=true
 
-while getopts "sdilnx" o; do
+while getopts "sdilngx" o; do
   case "${o}" in
     s) use_selinux=true;;
     d) handle_systemd=true;;
     i) build_idler=true;;
     l) skip_go_get=true;;
     n) copy_binaries=false;;
+    g) enable_geard_service=true;;
     x) enable_optimizations=false;;
     *) usage;;
   esac
@@ -116,6 +123,8 @@ fi
 # Perform the build
 if $handle_systemd; then
   build_docker
+elif $enable_geard_service; then
+  build_geard_service
 else
   build_local
 fi
