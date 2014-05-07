@@ -1,32 +1,31 @@
 #!/bin/bash -eu
 
 function usage() {
-  echo "vendor -l|-v <Package URL>"
-  echo "-l List packages that may need to be vendored"
+  echo "vendor -l|-v <Package URL>|-u <Package URL>|-c"
+  echo "-l list packages that may need to be vendored"
   echo "-v vendor a package"
   echo "-u update a vendored package"
+  echo "-c clean vendored dependencies"
   exit 1
 }
 
 list=false
 vendor=false
 update=false
+clean=false
+count=0
 
-while getopts "lvu" o; do
+while getopts "lvuc" o; do
   case "${o}" in
-    l) list=true;;
-    v) vendor=true;;
-    u) update=true;;
+    l) list=true; count=$((count+1));;
+    v) vendor=true; count=$((count+1));;
+    u) update=true; count=$((count+1));;
+    c) clean=true; count=$((count+1));;
     *) usage;;
   esac
 done
 
-if $list && [ "$vendor" -o "$update" ]; then
-  usage
-  exit
-fi
-
-if  ! $list && ! $vendor && ! $update; then
+if [ "$count" -ne "1" ]; then
   usage
   exit
 fi
@@ -69,9 +68,12 @@ if $list; then
   popd > /dev/null
 
   rm -rf /tmp/vendor_pkg_list  
-fi
-
-if [[ $vendor || $update ]]; then
+elif $clean; then
+  echo "Cleaning vendored dependencies"
+  for dot_a in `find vendor/ -name *.a | cut -c 8-`; do
+    rm -f vendor/$dot_a $ORIG_GOPATH/$dot_a
+  done
+elif [[ $vendor || $update ]]; then
   pkg=$2
   
   if [ "x${pkg}x" == "xx" ]; then
