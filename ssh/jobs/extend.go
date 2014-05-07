@@ -29,5 +29,8 @@ func initSsh() error {
 	if err := config.HasRequiredDirectories(); err != nil {
 		return err
 	}
+	if err := checkSshdConfig(); err != nil {
+		return err
+	}
 	return nil
 }
