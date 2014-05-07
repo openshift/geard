@@ -124,6 +124,20 @@ func until(duration, every time.Duration, f func() bool) bool {
 	}
 }
 
+func isContainerAvailable(client *docker.DockerClient, id string) (bool, error) {
+	container, err := client.InspectContainer(id)
+	if err == docker.ErrNoSuchContainer {
+		return false, nil
+	}
+	if err != nil {
+		return true, err
+	}
+	if container.State.Running && container.State.Pid != 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
 func (s *IntegrationTestSuite) assertContainerStarts(c *chk.C, id containers.Identifier) {
 	active, _ := s.unitState(id)
 	switch active {
@@ -155,15 +169,24 @@ func (s *IntegrationTestSuite) assertContainerStarts(c *chk.C, id containers.Ide
 		c.FailNow()
 	}
 
-	container, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
-	if err != nil {
-		c.Error("Can't check container "+id, err)
-		c.FailNow()
+	// Docker does not immediately return container status - possibly due to races inside of the
+	// daemon
+	failed := false
+	isContainerUp := func() bool {
+		done, err := isContainerAvailable(s.dockerClient, id.ContainerFor())
+		if err != nil {
+			failed = true
+			c.Error("Docker couldn't return container info", err)
+			c.FailNow()
+		}
+		return done
 	}
-	if !container.State.Running {
-		c.Logf("Container %s exists, but is not running - race condition %+v", id, container.State)
-		//c.Errorf("Container %s is not running %+v", id, container)
-		//c.FailNow()
+
+	if !until(time.Second*2, time.Second/10, isContainerUp) {
+		if !failed {
+			c.Errorf("Docker never reported the container running %s", id)
+		}
+		c.FailNow()
 	}
 }
 
@@ -224,13 +247,24 @@ func (s *IntegrationTestSuite) assertContainerRestarts(c *chk.C, id containers.I
 		c.FailNow()
 	}
 
-	container, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
-	if err != nil {
-		c.Error("Can't check container "+id, err)
-		c.FailNow()
+	// Docker does not immediately return container status - possibly due to races inside of the
+	// daemon
+	failed := false
+	isContainerUp := func() bool {
+		done, err := isContainerAvailable(s.dockerClient, id.ContainerFor())
+		if err != nil {
+			failed = true
+			c.Error("Docker couldn't return container info", err)
+			c.FailNow()
+		}
+		return done
 	}
-	if !container.State.Running {
-		c.Logf("Container %s exists, but is not running - race condition %+v", id, container.State)
+
+	if !until(time.Second*2, time.Second/10, isContainerUp) {
+		if !failed {
+			c.Errorf("Docker never reported the container running %s", id)
+		}
+		c.FailNow()
 	}
 }
 
