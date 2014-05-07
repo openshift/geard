@@ -82,6 +82,7 @@ var (
 )
 
 func init() {
+	log.SetFlags(0)
 	defaultTransport.Set("http")
 }
 

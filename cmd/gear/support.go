@@ -155,26 +155,35 @@ func InitPostStart(dockerSocket string, id containers.Identifier) error {
 	if file, err := os.Open(id.NetworkLinksPathFor()); err == nil {
 		defer file.Close()
 
-		const ContainerInterval = time.Second / 3
-		const ContainerWait = time.Second * 12
+		const ContainerInterval = time.Second / 10
+		const ContainerWait = time.Second * 15
 		for i := 0; i < int(ContainerWait/ContainerInterval); i++ {
-			if container, err = d.GetContainer(id.ContainerFor(), true); err != nil {
+			if container, err = d.InspectContainer(id.ContainerFor()); err != nil {
+				if err == docker.ErrNoSuchContainer {
+					//log.Printf("Waiting for container to be available.")
+					time.Sleep(ContainerInterval)
+					continue
+				}
 				return err
 			}
-			if container.State.Running {
+			if container.State.Running && container.State.Pid != 0 {
 				break
 			} else {
-				log.Printf("Waiting for container to run.")
+				//log.Printf("Waiting for container to report available.")
 				time.Sleep(ContainerInterval)
 			}
+		}
+
+		if container == nil {
+			return fmt.Errorf("container %s was not visible through Docker before timeout", id.ContainerFor())
 		}
 
 		pid, err := d.ChildProcessForContainer(container)
 		if err != nil {
 			return err
 		}
-		if pid < 2 {
-			return errors.New("support: child PID is not correct")
+		if pid <= 1 {
+			return errors.New("child PID is not correct")
 		}
 		log.Printf("Updating network namespaces for %d", pid)
 		if err := updateNamespaceNetworkLinks(pid, file); err != nil {
@@ -320,6 +329,8 @@ func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
 				log.Printf("gear: Link destination host does not resolve %v", err)
 				continue
 			}
+
+			log.Printf("Mapping %s(%s):%d -> %s:%d", sourceAddr.String(), srcIP.String(), link.FromPort, destIP.String(), link.ToPort)
 
 			data := containers.OutboundNetworkIptables{sourceAddr.String(), srcIP.IP.String(), link.FromPort, destIP.String(), link.ToPort}
 			if err := containers.OutboundNetworkIptablesTemplate.Execute(stdin, &data); err != nil {
