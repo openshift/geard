@@ -6,7 +6,6 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"github.com/fsouza/go-dockerclient/engine"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -53,7 +52,7 @@ func lookupContainer(containerName string, client *docker.Client, waitForContain
 			return containerLookupResult{container, nil}
 		}
 	}
-	return containerLookupResult{nil, fmt.Errorf("Container not active")}
+	return containerLookupResult{nil, fmt.Errorf("container not active")}
 }
 
 func GetConnection(dockerSocket string) (*DockerClient, error) {
@@ -78,6 +77,16 @@ func GetConnection(dockerSocket string) (*DockerClient, error) {
 	return &DockerClient{client, executionDriver}, nil
 }
 
+var ErrNoSuchContainer = errors.New("can't find container")
+
+func (d *DockerClient) InspectContainer(containerName string) (*docker.Container, error) {
+	c, err := d.client.InspectContainer(containerName)
+	if err != nil && strings.HasPrefix(err.Error(), "No such container") {
+		err = ErrNoSuchContainer
+	}
+	return c, err
+}
+
 func (d *DockerClient) GetContainer(containerName string, waitForContainer bool) (*docker.Container, error) {
 	timeoutChannel := make(chan containerLookupResult, 1)
 	var container *docker.Container
@@ -89,7 +98,7 @@ func (d *DockerClient) GetContainer(containerName string, waitForContainer bool)
 		}
 		container = cInfo.Container
 	case <-time.After(time.Minute):
-		return nil, fmt.Errorf("Timeout waiting for container")
+		return nil, fmt.Errorf("timeout waiting for container")
 	}
 
 	return container, nil
@@ -120,11 +129,11 @@ func (d *DockerClient) GetContainerIPs(ids []string) (map[string]string, error) 
 }
 
 func (d *DockerClient) ChildProcessForContainer(container *docker.Container) (int, error) {
-	log.Printf("docker: execution driver %s", d.executionDriver)
+	//log.Printf("docker: execution driver %s", d.executionDriver)
 	if d.executionDriver == "" || strings.HasPrefix(d.executionDriver, "lxc") {
 		//Parent pid (LXC or N-Spawn)
 		ppid := strconv.Itoa(container.State.Pid)
-		log.Printf("docker: parent pid %s", ppid)
+		//log.Printf("docker: parent pid %s", ppid)
 
 		//Lookup any child of parent pid
 		files, _ := filepath.Glob(filepath.Join("/proc", "*", "stat"))
@@ -147,7 +156,7 @@ func (d *DockerClient) ChildProcessForContainer(container *docker.Container) (in
 		if container.State.Pid != 0 {
 			return container.State.Pid, nil
 		}
-		return 0, fmt.Errorf("Container not found")
+		return 0, fmt.Errorf("unable to find child process for container %s - race condition with Docker?", container.ID)
 	}
-	return 0, errors.New(fmt.Sprintf("Unable to find child process for container", container.ID))
+	return 0, fmt.Errorf("unable to find child process for container %s", container.ID)
 }
