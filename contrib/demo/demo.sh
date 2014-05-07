@@ -46,7 +46,7 @@ gear stop --with=$base/deploy_mongo_repl_set_instances.json > /dev/null &
 if [ "$SKIP_ORIGIN" == "" ]; then
   run gear deploy $base/deploy_openshift.json localhost
   run journalctl --unit ctr-openshift-broker-1 -f --since=-3 -q
-  run sudo switchns --container="openshift-broker-1" --env="BROKER_SOURCE=1" --env="HOME=/" -- /bin/bash --login -c "/opt/ruby/src/docker/openshift_init"
+  run sudo switchns --container="openshift-broker-1" --env="BROKER_SOURCE=1" --env="HOME=/opt/ruby" --env="OPENSHIFT_BROKER_DIR=/opt/ruby/src/broker" -- /bin/bash --login -c "/opt/ruby/src/docker/openshift_init"
   run rhc setup --server http://localhost:6060/broker/rest/api
   run rhc create-app test jbosseap-6.0 --no-git --no-dns
 fi
