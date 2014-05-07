@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type containerLookupResult struct {
@@ -32,27 +31,6 @@ func (d *DockerClient) ForceCleanContainer(ID string) error {
 		return err
 	}
 	return d.client.RemoveContainer(docker.RemoveContainerOptions{ID, true, true})
-}
-
-func lookupContainer(containerName string, client *docker.Client, waitForContainer bool) containerLookupResult {
-	timeout := 0
-	if waitForContainer {
-		timeout = 60
-	}
-
-	for i := 0; i <= timeout; i++ {
-		if container, err := client.InspectContainer(containerName); err != nil {
-			if !strings.HasPrefix(err.Error(), "No such container") {
-				return containerLookupResult{nil, err}
-			}
-			if timeout > 0 {
-				time.Sleep(time.Second)
-			}
-		} else {
-			return containerLookupResult{container, nil}
-		}
-	}
-	return containerLookupResult{nil, fmt.Errorf("container not active")}
 }
 
 func GetConnection(dockerSocket string) (*DockerClient, error) {
@@ -87,23 +65,6 @@ func (d *DockerClient) InspectContainer(containerName string) (*docker.Container
 	return c, err
 }
 
-func (d *DockerClient) GetContainer(containerName string, waitForContainer bool) (*docker.Container, error) {
-	timeoutChannel := make(chan containerLookupResult, 1)
-	var container *docker.Container
-	go func() { timeoutChannel <- lookupContainer(containerName, d.client, waitForContainer) }()
-	select {
-	case cInfo := <-timeoutChannel:
-		if cInfo.Error != nil {
-			return nil, cInfo.Error
-		}
-		container = cInfo.Container
-	case <-time.After(time.Minute):
-		return nil, fmt.Errorf("timeout waiting for container")
-	}
-
-	return container, nil
-}
-
 func (d *DockerClient) GetImage(imageName string) (*docker.Image, error) {
 	if img, err := d.client.InspectImage(imageName); err != nil {
 		if err == docker.ErrNoSuchImage {
@@ -121,7 +82,7 @@ func (d *DockerClient) GetImage(imageName string) (*docker.Image, error) {
 func (d *DockerClient) GetContainerIPs(ids []string) (map[string]string, error) {
 	ips := make(map[string]string)
 	for _, id := range ids {
-		if cInfo, err := d.GetContainer(id, false); err == nil {
+		if cInfo, err := d.InspectContainer(id); err == nil {
 			ips[cInfo.NetworkSettings.IPAddress] = id
 		}
 	}

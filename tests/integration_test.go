@@ -20,12 +20,15 @@ import (
 )
 
 const (
-	CONTAINER_STATE_CHANGE_TIMEOUT = time.Second * 15
-	DOCKER_STATE_CHANGE_TIMEOUT    = time.Second * 5
-	SYSTEMD_ACTION_DELAY           = time.Second * 1
-	CONTAINER_CHECK_INTERVAL       = time.Second / 20
-	TestImage                      = "pmorie/sti-html-app"
-	EnvImage                       = "ccoleman/envtest"
+	TimeoutContainerStateChange = time.Second * 15
+	TimeoutDockerStateChange    = time.Second * 5
+	TimeoutDockerWait           = time.Second * 2
+
+	IntervalContainerCheck = time.Second / 20
+	IntervalHttpCheck      = time.Second / 10
+
+	TestImage = "pmorie/sti-html-app"
+	EnvImage  = "ccoleman/envtest"
 )
 
 //Hookup gocheck with go test
@@ -72,7 +75,10 @@ func (s *IntegrationTestSuite) assertFileAbsent(c *chk.C, path string) {
 }
 
 func (s *IntegrationTestSuite) getContainerPid(id containers.Identifier) int {
-	container, _ := s.dockerClient.GetContainer(id.ContainerFor(), true)
+	container, err := s.dockerClient.InspectContainer(id.ContainerFor())
+	if err != nil {
+		return 0
+	}
 	return container.State.Pid
 }
 
@@ -124,6 +130,20 @@ func until(duration, every time.Duration, f func() bool) bool {
 	}
 }
 
+func isContainerAvailable(client *docker.DockerClient, id string) (bool, error) {
+	container, err := client.InspectContainer(id)
+	if err == docker.ErrNoSuchContainer {
+		return false, nil
+	}
+	if err != nil {
+		return true, err
+	}
+	if container.State.Running && container.State.Pid != 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
 func (s *IntegrationTestSuite) assertContainerStarts(c *chk.C, id containers.Identifier) {
 	active, _ := s.unitState(id)
 	switch active {
@@ -150,20 +170,29 @@ func (s *IntegrationTestSuite) assertContainerStarts(c *chk.C, id containers.Ide
 		return false
 	}
 
-	if !until(CONTAINER_STATE_CHANGE_TIMEOUT, time.Second/20, isRunning) {
+	if !until(TimeoutContainerStateChange, time.Second/20, isRunning) {
 		c.Errorf("Timeout during start of %s, never got to 'active' state", id)
 		c.FailNow()
 	}
 
-	container, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
-	if err != nil {
-		c.Error("Can't check container "+id, err)
-		c.FailNow()
+	// Docker does not immediately return container status - possibly due to races inside of the
+	// daemon
+	failed := false
+	isContainerUp := func() bool {
+		done, err := isContainerAvailable(s.dockerClient, id.ContainerFor())
+		if err != nil {
+			failed = true
+			c.Error("Docker couldn't return container info", err)
+			c.FailNow()
+		}
+		return done
 	}
-	if !container.State.Running {
-		c.Logf("Container %s exists, but is not running - race condition %+v", id, container.State)
-		//c.Errorf("Container %s is not running %+v", id, container)
-		//c.FailNow()
+
+	if !until(TimeoutDockerWait, IntervalHttpCheck, isContainerUp) {
+		if !failed {
+			c.Errorf("Docker never reported the container running %s", id)
+		}
+		c.FailNow()
 	}
 }
 
@@ -192,12 +221,12 @@ func (s *IntegrationTestSuite) assertContainerStops(c *chk.C, id containers.Iden
 		return false
 	}
 
-	if !until(CONTAINER_STATE_CHANGE_TIMEOUT, CONTAINER_CHECK_INTERVAL, isStopped) {
+	if !until(TimeoutContainerStateChange, IntervalContainerCheck, isStopped) {
 		c.Errorf("Timeout during start of %s, never got to 'inactive' state", id)
 		c.FailNow()
 	}
 
-	_, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
+	_, err := s.dockerClient.InspectContainer(id.ContainerFor())
 	if err == nil {
 		c.Errorf("Container %s is still active in docker, should be stopped and removed", id.ContainerFor())
 		c.FailNow()
@@ -218,19 +247,30 @@ func (s *IntegrationTestSuite) assertContainerRestarts(c *chk.C, id containers.I
 		return false
 	}
 
-	if !until(CONTAINER_STATE_CHANGE_TIMEOUT, CONTAINER_CHECK_INTERVAL, isStarted) {
+	if !until(TimeoutContainerStateChange, IntervalContainerCheck, isStarted) {
 		active, sub := s.unitState(id)
 		c.Errorf("Timeout during restart of %s, never got back to 'active' state (%s/%s)", id, active, sub)
 		c.FailNow()
 	}
 
-	container, err := s.dockerClient.GetContainer(id.ContainerFor(), false)
-	if err != nil {
-		c.Error("Can't check container "+id, err)
-		c.FailNow()
+	// Docker does not immediately return container status - possibly due to races inside of the
+	// daemon
+	failed := false
+	isContainerUp := func() bool {
+		done, err := isContainerAvailable(s.dockerClient, id.ContainerFor())
+		if err != nil {
+			failed = true
+			c.Error("Docker couldn't return container info", err)
+			c.FailNow()
+		}
+		return done
 	}
-	if !container.State.Running {
-		c.Logf("Container %s exists, but is not running - race condition %+v", id, container.State)
+
+	if !until(TimeoutDockerWait, IntervalHttpCheck, isContainerUp) {
+		if !failed {
+			c.Errorf("Docker never reported the container running %s", id)
+		}
+		c.FailNow()
 	}
 }
 
@@ -257,7 +297,7 @@ func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 	containers, err := s.dockerClient.ListContainers()
 	c.Assert(err, chk.IsNil)
 	for _, cinfo := range containers {
-		container, err := s.dockerClient.GetContainer(cinfo.ID, false)
+		container, err := s.dockerClient.InspectContainer(cinfo.ID)
 		c.Assert(err, chk.IsNil)
 		if strings.HasPrefix(container.Name, "IntTest") {
 			s.dockerClient.ForceCleanContainer(cinfo.ID)
@@ -332,7 +372,6 @@ func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
 	s.assertContainerStarts(c, id)
-	//time.Sleep(time.Second * 5) // startup time is indeterminate unfortunately because gear init --post continues to run
 
 	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
@@ -375,7 +414,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 		}
 		return false
 	}
-	if !until(time.Second*15, time.Second/10, httpAlive) {
+	if !until(TimeoutContainerStateChange, IntervalHttpCheck, httpAlive) {
 		c.Errorf("Unable to retrieve a 200 status code from port %d", ports[0].External)
 		c.FailNow()
 	}
@@ -435,7 +474,7 @@ func (s *IntegrationTestSuite) TestStartStopContainer(c *chk.C) {
 		}
 		return false
 	}
-	if !until(time.Second*15, time.Second/10, httpAlive) {
+	if !until(TimeoutContainerStateChange, IntervalHttpCheck, httpAlive) {
 		c.Errorf("Unable to retrieve a 200 status code from port %d", ports[0].External)
 		c.FailNow()
 	}
@@ -550,7 +589,7 @@ func (s *IntegrationTestSuite) TestLongContainerName(c *chk.C) {
 		}
 		return false
 	}
-	if !until(time.Second*15, time.Second/10, httpAlive) {
+	if !until(TimeoutContainerStateChange, IntervalHttpCheck, httpAlive) {
 		c.Errorf("Unable to retrieve a 200 status code from port %d", ports[0].External)
 		c.FailNow()
 	}
@@ -584,51 +623,6 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "tcp dpt:tproxy to:74.125.239.114"), chk.Equals, true)
 }
-
-// func (s *IntegrationTestSuite) TestSocketActivatedInstallAndStartImage(c *chk.C) {
-//     id, err := containers.NewIdentifier("IntTest007")
-//     c.Assert(err, chk.IsNil)
-//     s.containerIds = append(s.containerIds, id)
-//
-//     hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
-//
-//     cmd := exec.Command("/usr/bin/gear", "install", "pmorie/sti-html-app", hostContainerId, "--start", "--ports=8080:4005", "--socket-activated")
-//     data, err := cmd.CombinedOutput()
-//     c.Log(string(data))
-//     c.Assert(err, chk.IsNil)
-//
-//     s.assertFilePresent(c, id.UnitPathFor(), 0664, true)
-//     paths, err := filepath.Glob(id.VersionedUnitPathFor("*"))
-//     c.Assert(err, chk.IsNil)
-//     for _, p := range paths {
-//         s.assertFilePresent(c, p, 0664, true)
-//     }
-//
-//     ports, err := containers.GetExistingPorts(id)
-//     c.Assert(err, chk.IsNil)
-// c.Assert(len(ports), chk.Equals, 1)
-//
-//     t := time.NewTicker(time.Second/10)
-//     defer t.Stop()
-//     for true {
-//         select {
-//         case <-t.C:
-//             resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
-//             if err == nil {
-//                 c.Logf("attempting http .. response code %v", resp.StatusCode)
-//                 if resp.StatusCode == 200 {
-//                     break
-//                 }
-//             }else{
-//                 c.Logf("attempting http .. error %v", err)
-//             }
-//         case <-time.After(time.Second * 15):
-//             c.Fail()
-//         }
-//     }
-//     s.assertFilePresent(c, filepath.Join(id.RunPathFor(), "container-init.sh"), 0700, false)
-//     s.assertContainerState(c, id, CONTAINER_STARTED)
-// }
 
 func (s *IntegrationTestSuite) TearDownSuite(c *chk.C) {
 	for _, id := range s.containerIds {
