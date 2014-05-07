@@ -4,7 +4,7 @@
     {
       "Name":"lb",
       "Count":1,
-      "Image":"goldmann/ews",
+      "Image":"openshift/demo-ews",
       "PublicPorts":[
         {"Internal":80,"External":14000}
       ],
@@ -15,7 +15,7 @@
     {
       "Name":"backend",
       "Count":3,
-      "Image":"ccoleman/eap-scaling-demo",
+      "Image":"openshift/demo-eap-scaling",
       "PublicPorts":[
         {"Internal":8080,"External":0}
       ],
@@ -26,7 +26,7 @@
     {
       "Name":"db",
       "Count":1,
-      "Image":"dockerfile/mongodb",
+      "Image":"openshift/rhel-mongodb",
       "PublicPorts":[
         {"Internal":27017,"External":0}
       ]

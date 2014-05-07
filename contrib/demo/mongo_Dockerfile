@@ -1,20 +1,25 @@
-FROM 10.64.27.125:5000/rhel:7-0.0.1.beta.el7
+FROM rhel7
 MAINTAINER scollier <scollier@redhat.com>
-
-# Update the system
-RUN yum -y update; yum clean all
 
 # Add repo files
 ADD ./mongo.repo /etc/yum.repos.d/
-ADD ./mongod.conf /etc/
 
-# Install MongoDB and extras
-RUN yum -y install mongo-10gen-server mongo-10gen; yum clean all
-RUN yum -y install procps-ng iptables; yum clean all
+# Install MongoDB packages and extras
+RUN yum --assumeyes update && \
+    yum --assumeyes install \
+      mongo-10gen-server \
+      mongo-10gen \
+      procps-ng \
+      iptables && \
+    yum clean all && \
+    mkdir -p /var/lib/mongodb && \
+    touch /var/lib/mongodb/.keep && \
+    chown -R mongod:mongod /var/lib/mongodb
 
-# Expose ports
-EXPOSE 27017 28017
+VOLUME ["/var/lib/mongodb"]
+USER mongod
 
-# USER mongod
+ADD mongodb.conf /etc/mongodb.conf
 
-CMD ["/usr/bin/mongod", "-f", "/etc/mongod.conf"]
+EXPOSE 27017
+CMD ["/usr/bin/mongod", "--config", "/etc/mongodb.conf"]
