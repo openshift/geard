@@ -159,7 +159,7 @@ func runCommandInContainer(name string, command []string, environment []string) 
 		os.Exit(3)
 	}
 
-	container, err := client.GetContainer(name, false)
+	container, err := client.InspectContainer(name)
 	if err != nil {
 		fmt.Printf("Unable to locate container named %v\n", name)
 		os.Exit(3)

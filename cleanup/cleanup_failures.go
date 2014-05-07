@@ -3,8 +3,8 @@ package cleanup
 import (
 	"github.com/openshift/geard/docker"
 	"os"
-	"time"
 	"strings"
+	"time"
 )
 
 type FailureCleanup struct {
@@ -42,7 +42,7 @@ func (r *FailureCleanup) Clean(ctx *CleanerContext) {
 
 	retentionAge, err := time.ParseDuration(r.retentionAge)
 	for _, cinfo := range gears {
-		container, err := client.GetContainer(cinfo.ID, false)
+		container, err := client.InspectContainer(cinfo.ID)
 		if err != nil {
 			ctx.LogError.Printf("Unable to retrieve container information for %s: %s", container.Name, err.Error())
 			continue
@@ -50,9 +50,9 @@ func (r *FailureCleanup) Clean(ctx *CleanerContext) {
 
 		// Happy container or not...
 		if 0 == container.State.ExitCode ||
-				container.State.Running ||
-				strings.HasSuffix(container.Name, "-data") ||
-				time.Since(container.State.FinishedAt) < retentionAge {
+			container.State.Running ||
+			strings.HasSuffix(container.Name, "-data") ||
+			time.Since(container.State.FinishedAt) < retentionAge {
 			continue
 		}
 
@@ -69,4 +69,3 @@ func (r *FailureCleanup) Clean(ctx *CleanerContext) {
 		}
 	}
 }
-
