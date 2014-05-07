@@ -18,7 +18,7 @@ if [ $ret -ne 0 ] || [ "$FETCH_IMAGES" != "" ]; then
   docker tag  docker-registry1.dev.rhcloud.com/openshift/demo-ews openshift/demo-ews
 
   docker pull pmorie/sti-html-app
-  docker pull openshift/openshift-broker-docker
+  docker pull openshift/origin-server-docker
   docker tag  103bd59de294 jboss/eap # tag is in the history
 fi
 
@@ -26,7 +26,7 @@ set +x
 
 units=$(curl -q http://localhost:43273/containers)
 ret=$?
-if [ $ret -ne 0]; then
+if [ $ret -ne 0 ]; then
   echo "gear daemon not responding, make sure the service is running and retry."
 fi
 
