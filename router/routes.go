@@ -1,13 +1,12 @@
 package router
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/port"
-	"github.com/openshift/geard/utils"
-	"io"
-	"path/filepath"
-	"strings"
+	"io/ioutil"
+	"os/exec"
+	"strconv"
+	"time"
 )
 
 const (
@@ -16,57 +15,206 @@ const (
 	ProtocolTls   = "tls"
 )
 
-type Identifier string
+const (
+	TERM_EDGE  = "TERM_EDGE"
+	TERM_GEAR  = "TERM_GEAR"
+	TERM_RESSL = "TERM_RESSL"
+)
 
-type Backend struct {
-	Id      Identifier
-	Servers Servers
-}
+const (
+	RouteFile    = "/var/lib/containers/router/routes.json"
+)
 
 type Frontend struct {
-	Host        string
-	Path        string
-	Protocols   []string
-	Certificate *Certificate
+	Name        string
+	HostAliases []string
+	BeTable     map[string]Backend
+	EndpointTable map[string]Endpoint
+}
+
+type Backend struct {
+	Id           string
+	FePath       string
+	BePath       string
+	Protocols    []string
+	EndpointIds    []string
+	SslTerm      string
+	Certificates []Certificate
 }
 
 type Certificate struct {
-	Id                 Identifier
+	Id                 string
 	Contents           []byte
 	PrivateKey         []byte
 	PrivateKeyPassword string
 }
-type Certificates []Certificate
 
-type Server struct {
-	Id    Identifier
-	Host  string
-	Ports Ports
-}
-type Servers []Server
-
-type Port struct {
-	Port      port.Port
-	Protocols []string
-}
-type Ports []Port
-
-func (i Identifier) BackendPathfor() string {
-	return utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "routes", "backends"), string(i), "")
+type Endpoint struct {
+	Id   string
+	IP   string
+	Port string
 }
 
-func (f *Frontend) Remove() {
+var GlobalRoutes map[string]Frontend
+
+func makeId() string {
+	var s string
+	s = strconv.FormatInt(time.Now().UnixNano(), 16)
+	return s
 }
 
-func (b *Backend) WriteTo(w io.Writer) error {
-	for i := range b.Servers {
-		server := &b.Servers[i]
-		for j := range server.Ports {
-			port := &server.Ports[j]
-			if _, err := fmt.Fprintf(w, "%d\t%s\t%s\t%s", port.Port, server.Id, server.Host, strings.Join(port.Protocols, ",")); err != nil {
-				return err
+func PrintRoutes() string {
+	dat, err := ioutil.ReadFile(RouteFile)
+	var s string
+	if err != nil {
+		s = fmt.Sprintf("Error reading routes file : %s", err.Error())
+	} else {
+		s = fmt.Sprintf("%s", string(dat))
+	}
+	return s
+}
+
+func PrintFrontendRoutes(frontendname string) string {
+	dat, err := json.MarshalIndent(GlobalRoutes[frontendname], "", "  ")
+	if err != nil {
+		fmt.Println("Failed to marshal routes - %s", err.Error())
+	}
+	return string(dat)
+}
+
+func ReadRoutes() {
+	//fmt.Printf("Reading routes file (%s)\n", RouteFile)
+	dat, err := ioutil.ReadFile(RouteFile)
+	if err != nil {
+		GlobalRoutes = make(map[string]Frontend)
+		return
+	}
+	json.Unmarshal(dat, &GlobalRoutes)
+}
+
+func WriteRoutes() {
+	dat, err := json.MarshalIndent(GlobalRoutes, "", "  ")
+	if err != nil {
+		fmt.Println("Failed to marshal routes - %s", err.Error())
+	}
+	err = ioutil.WriteFile(RouteFile, dat, 0644)
+	if err != nil {
+		fmt.Println("Failed to write to routes file - %s", err.Error())
+	}
+}
+
+func (a *Frontend) Init() {
+	// a.HostAliases = make([]string)
+	// a.Certificates = make([]Certificate)
+	if a.BeTable == nil {
+		a.BeTable = make(map[string]Backend)
+	}
+	if a.EndpointTable == nil {
+		a.EndpointTable = make(map[string]Endpoint)
+	}
+}
+
+func CreateFrontend(name string, url string) {
+	a := Frontend{}
+	a.Init()
+	a.Name = name
+	a.HostAliases = make([]string, 1)
+	if url != "" {
+		a.HostAliases[0] = url
+	}
+	GlobalRoutes[a.Name] = a
+	WriteRoutes()
+}
+
+func DeleteFrontend(frontendname string) {
+	delete(GlobalRoutes, frontendname)
+	WriteRoutes()
+	BumpRouter()
+}
+
+func AddAlias(alias string, frontendname string) {
+	a := GlobalRoutes[frontendname]
+	a.HostAliases = append(a.HostAliases, alias)
+	GlobalRoutes[frontendname] = a
+	WriteRoutes()
+}
+
+func AddRoute(frontendname string, fe_path string, be_path string, protocols []string, endpoints []Endpoint) {
+	var id string
+	a := GlobalRoutes[frontendname]
+	a.Init()
+
+	ep_ids := make([]string, 1)
+	for new_ep_id := range endpoints {
+		new_endpoint := endpoints[new_ep_id]
+		found := false
+		for _, ep := range a.EndpointTable {
+			if ep.IP == new_endpoint.IP && ep.Port == new_endpoint.Port {
+				ep_ids = append(ep_ids, ep.Id)
+				found = true
+				break
 			}
 		}
+		if !found {
+			id = makeId()
+			ep := Endpoint{id, new_endpoint.IP, new_endpoint.Port}
+			a.EndpointTable[id] = ep
+			ep_ids = append(ep_ids, ep.Id)
+		}
 	}
-	return nil
+	// locate a backend that may already exist with this protocol and fe/be path
+	found := false
+	for _, be := range a.BeTable {
+		if be.FePath == fe_path && be.BePath == be_path && cmpStrSlices(protocols, be.Protocols) {
+			for _, ep_id := range ep_ids {
+				be.EndpointIds = append(be.EndpointIds, ep_id)
+			}
+			a.BeTable[be.Id] = be
+			found = true
+			break
+		}
+	}
+	if !found {
+		id = makeId()
+		a.BeTable[id] = Backend{id, fe_path, be_path, protocols, ep_ids, TERM_EDGE, nil}
+	}
+	GlobalRoutes[a.Name] = a
+	WriteRoutes()
+	BumpRouter()
+}
+
+func cmpStrSlices(first []string, second []string) bool {
+	if len(first) != len(second) {
+		return false
+	}
+	for _, fi := range first {
+		found := false
+		for _, si := range second {
+			if fi == si {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func (a Frontend) PrintOut() {
+	fmt.Println(GlobalRoutes)
+}
+
+func BumpRouter() {
+	out, err := exec.Command("docker", "kill", "-s", "SIGUSR2", "geard-router").CombinedOutput()
+	if err != nil {
+		fmt.Println(string(out))
+		fmt.Printf("Failed to reload the router - %s\n", err.Error())
+		fmt.Println("Router plugin not installed?")
+	}
+}
+
+func init() {
+	ReadRoutes()
 }

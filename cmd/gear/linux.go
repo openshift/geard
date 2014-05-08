@@ -20,6 +20,8 @@ import (
 	httpcmd "github.com/openshift/geard/http/cmd"
 	"github.com/openshift/geard/jobs"
 	routercmd "github.com/openshift/geard/router/cmd"
+	routerhttp "github.com/openshift/geard/router/http"
+	routerjobs "github.com/openshift/geard/router/jobs/linux"
 	sshcmd "github.com/openshift/geard/ssh/cmd"
 	sshhttp "github.com/openshift/geard/ssh/http"
 	sshjobs "github.com/openshift/geard/ssh/jobs"
@@ -37,6 +39,9 @@ func init() {
 	cmd.AddCommandExtension(ctx.RegisterLocal, true)
 	cmd.AddCommandExtension(ctx.RegisterRemote, false)
 
+	c := &routercmd.Command{&defaultTransport.TransportFlag}
+	cmd.AddCommandExtension(c.RegisterRouterCmds, true)
+
 	cmd.AddCommandExtension(gitcmd.RegisterInitRepo, true)
 	cmd.AddCommandExtension((&gitcmd.CommandContext{&defaultTransport.TransportFlag}).RegisterCreateRepo, false)
 
@@ -47,13 +52,14 @@ func init() {
 
 	cmd.AddCommandExtension(cleancmd.RegisterCleanup, true)
 	cmd.AddCommandExtension(initcmd.RegisterInit, true)
-	cmd.AddCommandExtension(routercmd.RegisterRouter, true)
 
 	jobs.AddJobExtension(cjobs.NewContainerExtension())
 	jobs.AddJobExtension(gitjobs.NewGitExtension())
+	jobs.AddJobExtension(routerjobs.NewRouterExtension())
 	jobs.AddJobExtension(sshjobs.NewSshExtension())
 
 	http.AddHttpExtension(&chttp.HttpExtension{})
 	http.AddHttpExtension(&githttp.HttpExtension{})
 	http.AddHttpExtension(&sshhttp.HttpExtension{})
+	http.AddHttpExtension(&routerhttp.HttpExtension{})
 }
