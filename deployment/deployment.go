@@ -9,8 +9,11 @@ import (
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/transport"
+	"io"
+	"net/url"
 	"os"
 	"strconv"
+	"time"
 )
 
 const DistributeAffinity = "distribute"
@@ -30,8 +33,34 @@ func NewDeploymentFromFile(path string) (*Deployment, error) {
 		return nil, err
 	}
 	defer file.Close()
+
+	return parseDeployment(file)
+}
+
+func NewDeploymentFromURL(uri string, insecure bool, timeout time.Duration) (*Deployment, error) {
+	u, err := url.Parse(uri)
+	if nil != err {
+		return nil, err
+	}
+
+	if "file" == u.Scheme {
+		return NewDeploymentFromFile(u.Path)
+	}
+
+	client := NewHttpClient(insecure, timeout)
+	body, err := client.Get(uri, map[string]string{"Accept": "application/json"})
+	if err != nil {
+		return nil, err
+	}
+	defer body.Close()
+
+	return parseDeployment(body)
+}
+
+func parseDeployment(payload io.Reader) (*Deployment, error) {
 	deployment := &Deployment{}
-	decoder := json.NewDecoder(file)
+
+	decoder := json.NewDecoder(payload)
 	if err := decoder.Decode(deployment); err != nil {
 		return nil, err
 	}
