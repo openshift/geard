@@ -319,12 +319,11 @@ use cases for building deployable images, including:
 
 1. Use a git repository as a source
 1. Incremental builds: downloaded dependencies and generated artifacts are re-used across builds
-1. Extended prepare: build and deploy on different images (compatible with incremental builds)
 
 A number of public STI base images exist:
 
-1. `pmorie/centos-ruby2` - ruby2 on centos
-1. `pmorie/ubuntu-buildpack` - foreman running on ubuntu
+1. `openshift/centos-ruby` - ruby on centos
+1. `openshift/centos-wildfly-standalone` - wildfly on centos
 1. `pmorie/fedora-mock` - a simple Webrick server for static html, on fedora
 
 See the STI docs for information on creating your own base images to use with STI.
