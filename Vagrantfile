@@ -22,21 +22,21 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   end
 
   if ENV['USE_ATOMIC'] && ENV['USE_ATOMIC'] != ""
-	config.vm.define "rhel-7-atomic" do |config|
-	  config.vm.box = "rhel-7-atomic"
-	  config.vm.box_url = "http://rcm-img06.build.bos.redhat.com/images/releases/2014.8/vagrant/rh-atomic-host-vagrant-2014.8.box"
+    config.vm.define "rhel-7-atomic" do |config|
+      config.vm.box = "rhel-7-atomic"
+      config.vm.box_url = "http://rcm-img06.build.bos.redhat.com/images/releases/2014.8/vagrant/rh-atomic-host-vagrant-2014.8.box"
 
-	  config.vm.network "forwarded_port", guest: 43273, host: 53273
-	  config.vm.network "forwarded_port", guest: 6060, host: 12225
-	  config.vm.network "forwarded_port", guest: 14000, host: 24000
-	  for i in 4000..4050
-	    config.vm.network :forwarded_port, guest: i, host: i+1000
-	  end
+      config.vm.network "forwarded_port", guest: 43273, host: 53273
+      config.vm.network "forwarded_port", guest: 6060, host: 12225
+      config.vm.network "forwarded_port", guest: 14000, host: 24000
+      for i in 4000..4050
+        config.vm.network :forwarded_port, guest: i, host: i+1000
+      end
 
-	  config.vm.provider "virtualbox" do |v|
-	    v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-	  end
-	end
+      config.vm.provider "virtualbox" do |v|
+        v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      end
+    end
   end
 
   # Create a forwarded port mapping which allows access to a specific port
