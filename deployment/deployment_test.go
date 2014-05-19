@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+	"net"
 )
 
 var loopbackTransport = http.NewHttpTransport()
@@ -419,5 +421,25 @@ func TestNewDeploymentFromURL_Secure(t *testing.T) {
 	_, err := NewDeploymentFromURL(server.URL, false, 300)
 	if nil == err || !strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
 		t.Errorf("TestDeployment_NewDeploymentFromURL_Secure: Expected x509 error unknown authority: %v", err)
+	}
+}
+
+func TestNewDeploymentFromURL_Timeout(t *testing.T) {
+	server := httptest.NewTLSServer(gohttp.HandlerFunc(func(w gohttp.ResponseWriter, r *gohttp.Request) {
+		time.Sleep(2 * time.Second)
+		w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+
+	_, err := NewDeploymentFromURL(server.URL, true, 1)
+
+	if nil == err {
+		t.Errorf("TestDeployment_NewDeploymentFromURL_Timeout: Expected timeout: %v", err)
+		return
+	}
+
+	if netError, ok := err.(net.Error); ok && !netError.Timeout() {
+		t.Errorf("TestDeployment_NewDeploymentFromURL_Timeout: Expected timeout err, not: %v", err)
+
 	}
 }

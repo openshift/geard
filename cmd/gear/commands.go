@@ -299,18 +299,27 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		Fail(1, "Argument 1 must be deployment file or URL describing how the containers are related")
 	}
 
+	u, err := url.Parse(path)
+	if nil != err  {
+		Fail(1, "Cannot Parse Argument 1: %s", err.Error())
+	}
+
 	var deploy *deployment.Deployment
-	_, err := os.Stat(path)
-	if nil == err {
-		deploy, err = deployment.NewDeploymentFromFile(path)
-		if err != nil {
-			Fail(1, "Unable to load deployment file: %s", err.Error())
-		}
-	} else {
-		deploy, err = deployment.NewDeploymentFromURL(path, insecure, time.Duration(timeout))
-		if err != nil {
-			Fail(1, "Unable to load deployment from url: %s", err.Error())
-		}
+	switch u.Scheme {
+	case "":
+		deploy, err = deployment.NewDeploymentFromFile(u.Path)
+	case "file":
+		deploy, err = deployment.NewDeploymentFromFile(u.Path)
+	case "http":
+		fallthrough
+	case "https":
+		deploy, err = deployment.NewDeploymentFromURL(u.String(), insecure, time.Duration(timeout))
+	default:
+		Fail(1, "Unsupported URL Scheme '%s' for deployment", u.Scheme)
+	}
+
+	if nil != err {
+		Fail(1, "Unable to load deployment from %s: %s", path, err.Error())
 	}
 
 	if len(args) == 1 {

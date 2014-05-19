@@ -10,6 +10,7 @@ import (
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/transport"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -48,13 +49,23 @@ func NewDeploymentFromURL(uri string, insecure bool, timeout time.Duration) (*De
 	}
 
 	client := NewHttpClient(insecure, timeout)
-	body, err := client.Get(uri, map[string]string{"Accept": "application/json"})
-	if err != nil {
+	request, err := http.NewRequest("GET", uri, nil)
+	if nil != err {
 		return nil, err
 	}
-	defer body.Close()
+	request.Header.Add("Accept", "application/json")
 
-	return parseDeployment(body)
+	response, err := client.Do(request)
+	if nil != err {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	if http.StatusOK != response.StatusCode {
+		return nil, errors.New("Get(" + uri + "): " + response.Status)
+	}
+
+	return parseDeployment(response.Body)
 }
 
 func parseDeployment(payload io.Reader) (*Deployment, error) {
