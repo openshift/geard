@@ -423,8 +423,8 @@ func (s *IntegrationTestSuite) TestInstallSimpleEnv(c *chk.C) {
 
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
-	c.Assert(strings.Contains(string(data), "TEST=\"value\""), chk.Equals, true)
-	c.Assert(strings.Contains(string(data), "QUOTED=\"\\\"foo\\\"\""), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "TEST=value"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "QUOTED=\\\"foo\\\""), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "IGNORED"), chk.Equals, false)
 
 	cmd = exec.Command("/usr/bin/gear", "stop", hostContainerId)
