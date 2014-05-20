@@ -310,9 +310,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		deploy, err = deployment.NewDeploymentFromFile(u.Path)
 	case "file":
 		deploy, err = deployment.NewDeploymentFromFile(u.Path)
-	case "http":
-		fallthrough
-	case "https":
+	case "http", "https":
 		deploy, err = deployment.NewDeploymentFromURL(u.String(), insecure, time.Duration(timeout))
 	default:
 		Fail(1, "Unsupported URL Scheme '%s' for deployment", u.Scheme)
