@@ -2,14 +2,20 @@ package deployment
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/transport"
 	"io/ioutil"
 	"log"
+	gohttp "net/http"
+	"net/http/httptest"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+	"net"
 )
 
 var loopbackTransport = http.NewHttpTransport()
@@ -358,5 +364,82 @@ func TestReloadDeploymentMongo(t *testing.T) {
 	}
 	if len(removed) != 3 {
 		t.Fatalf("Expected to remove %d instances, got %d", 3, len(removed))
+	}
+}
+
+func TestNewDeploymentFromURL_200(t *testing.T) {
+	path := "./fixtures/complex_deploy.json"
+	expected := loadDeployment(path)
+
+	server := httptest.NewServer(gohttp.HandlerFunc(func(w gohttp.ResponseWriter, r *gohttp.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		body, err := ioutil.ReadFile(path)
+		if nil == err {
+			fmt.Fprintln(w, string(body))
+			return
+		}
+		gohttp.Error(w, fmt.Sprintf("Failed to ReadFile(%s): %v", path, err), gohttp.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	actual, err := NewDeploymentFromURL(server.URL, true, 300)
+	if nil != err {
+		t.Errorf("TestNewDeploymentFromURL_200: error %v", err)
+		return
+	}
+
+	if nil == actual {
+		t.Errorf("TestNewDeploymentFromURL_200: no deployment created")
+		return
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("TestDeployment_NewDeploymentFromURL: expected %v, actual %v", expected, actual)
+	}
+}
+
+func TestNewDeploymentFromURL_404(t *testing.T) {
+	server := httptest.NewServer(gohttp.HandlerFunc(func(w gohttp.ResponseWriter, r *gohttp.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		gohttp.Error(w, "Testing 404", gohttp.StatusNotFound)
+	}))
+	defer server.Close()
+
+	actual, err := NewDeploymentFromURL(server.URL, true, 300)
+	if nil == err || nil != actual {
+		t.Errorf("TestDeployment_NewDeploymentFromURL_400: Expected error 404 not returned: %v", actual)
+	}
+}
+
+func TestNewDeploymentFromURL_Secure(t *testing.T) {
+	server := httptest.NewTLSServer(gohttp.HandlerFunc(func(w gohttp.ResponseWriter, r *gohttp.Request) {
+		w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+
+	_, err := NewDeploymentFromURL(server.URL, false, 300)
+	if nil == err || !strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
+		t.Errorf("TestDeployment_NewDeploymentFromURL_Secure: Expected x509 error unknown authority: %v", err)
+	}
+}
+
+func TestNewDeploymentFromURL_Timeout(t *testing.T) {
+	server := httptest.NewTLSServer(gohttp.HandlerFunc(func(w gohttp.ResponseWriter, r *gohttp.Request) {
+		time.Sleep(2 * time.Second)
+		w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+
+	_, err := NewDeploymentFromURL(server.URL, true, 1)
+
+	if nil == err {
+		t.Errorf("TestDeployment_NewDeploymentFromURL_Timeout: Expected timeout: %v", err)
+		return
+	}
+
+	if netError, ok := err.(net.Error); ok && !netError.Timeout() {
+		t.Errorf("TestDeployment_NewDeploymentFromURL_Timeout: Expected timeout err, not: %v", err)
+
 	}
 }

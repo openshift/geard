@@ -64,6 +64,9 @@ var (
 	dryRun bool
 	repair bool
 
+	insecure bool
+	timeout  int64
+
 	defaultTransport transport.TransportFlag
 )
 
@@ -101,14 +104,16 @@ func Execute() {
 	gearCmd.PersistentFlags().BoolVar(&(config.SystemDockerFeatures.ForegroundRun), "has-foreground", false, "(experimental) Use --foreground with Docker, requires alexlarsson/forking-run")
 	gearCmd.PersistentFlags().StringVar(&deploymentPath, "with", "", "Provide a deployment descriptor to operate on")
 	gearCmd.PersistentFlags().Var(&defaultTransport, "transport", "Specify an alternate mechanism to connect to the gear agent")
+	gearCmd.PersistentFlags().BoolVarP(&insecure, "insecure", "k", false, "Do not verify CA certificate on SSL connections and transfers")
 
 	deployCmd := &cobra.Command{
-		Use:   "deploy <file> <host>...",
+		Use:   "deploy <file|url> <host>...",
 		Short: "Deploy a set of containers to the named hosts",
 		Long:  "Given a simple description of a group of containers, wire them together using the gear primitives.",
 		Run:   deployContainers,
 	}
 	deployCmd.Flags().BoolVar(&isolate, "isolate", false, "Use an isolated container running as a user")
+	deployCmd.Flags().Int64VarP(&timeout, "timeout", "", 300, "Number of seconds to wait for HTTP/S server")
 	AddCommand(gearCmd, deployCmd, false)
 
 	installImageCmd := &cobra.Command{
@@ -286,17 +291,35 @@ func purge(cmd *cobra.Command, args []string) {
 
 func deployContainers(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <deployment_file> <host> ...")
+		Fail(1, "Valid arguments: <deployment_file|URL> <host> ...")
 	}
 
 	path := args[0]
 	if path == "" {
-		Fail(1, "Argument 1 must be deployment file describing how the containers are related")
+		Fail(1, "Argument 1 must be deployment file or URL describing how the containers are related")
 	}
-	deploy, err := deployment.NewDeploymentFromFile(path)
-	if err != nil {
-		Fail(1, "Unable to load deployment file: %s", err.Error())
+
+	u, err := url.Parse(path)
+	if nil != err  {
+		Fail(1, "Cannot Parse Argument 1: %s", err.Error())
 	}
+
+	var deploy *deployment.Deployment
+	switch u.Scheme {
+	case "":
+		deploy, err = deployment.NewDeploymentFromFile(u.Path)
+	case "file":
+		deploy, err = deployment.NewDeploymentFromFile(u.Path)
+	case "http", "https":
+		deploy, err = deployment.NewDeploymentFromURL(u.String(), insecure, time.Duration(timeout))
+	default:
+		Fail(1, "Unsupported URL Scheme '%s' for deployment", u.Scheme)
+	}
+
+	if nil != err {
+		Fail(1, "Unable to load deployment from %s: %s", path, err.Error())
+	}
+
 	if len(args) == 1 {
 		args = append(args, transport.Local.String())
 	}

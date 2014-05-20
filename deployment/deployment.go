@@ -9,8 +9,12 @@ import (
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/transport"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"strconv"
+	"time"
 )
 
 const DistributeAffinity = "distribute"
@@ -30,8 +34,44 @@ func NewDeploymentFromFile(path string) (*Deployment, error) {
 		return nil, err
 	}
 	defer file.Close()
+
+	return parseDeployment(file)
+}
+
+func NewDeploymentFromURL(uri string, insecure bool, timeout time.Duration) (*Deployment, error) {
+	u, err := url.Parse(uri)
+	if nil != err {
+		return nil, err
+	}
+
+	if "file" == u.Scheme {
+		return NewDeploymentFromFile(u.Path)
+	}
+
+	client := NewHttpClient(insecure, timeout)
+	request, err := http.NewRequest("GET", uri, nil)
+	if nil != err {
+		return nil, err
+	}
+	request.Header.Add("Accept", "application/json")
+
+	response, err := client.Do(request)
+	if nil != err {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	if http.StatusOK != response.StatusCode {
+		return nil, errors.New("Get(" + uri + "): " + response.Status)
+	}
+
+	return parseDeployment(response.Body)
+}
+
+func parseDeployment(payload io.Reader) (*Deployment, error) {
 	deployment := &Deployment{}
-	decoder := json.NewDecoder(file)
+
+	decoder := json.NewDecoder(payload)
 	if err := decoder.Decode(deployment); err != nil {
 		return nil, err
 	}
