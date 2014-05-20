@@ -419,8 +419,8 @@ func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
 	data, err = cmd.CombinedOutput()
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
-	c.Assert(strings.Contains(string(data), "TEST=\"value\""), chk.Equals, true)
-	c.Assert(strings.Contains(string(data), "QUOTED=\"\\\"foo\\\"\""), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "TEST=value"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "QUOTED=\\\"foo\\\""), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "IGNORED"), chk.Equals, false)
 }
 
