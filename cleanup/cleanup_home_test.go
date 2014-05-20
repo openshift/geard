@@ -1,22 +1,7 @@
-/*
-   Copyright 2014 Red Hat, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
-
 package cleanup
 
 import (
+	"github.com/openshift/geard/config"
 	gocheck "launchpad.net/gocheck"
 	"os"
 	"path/filepath"
@@ -44,7 +29,8 @@ func (s *CleanupHomeTestSuite) SetUpSuite(c *gocheck.C) {
 	path = filepath.Join(basePath, "units", "te")
 	os.MkdirAll(path, (os.FileMode)(0775))
 
-	os.Setenv("GEARD_BASE_PATH", basePath)
+	// Cannot set GEARD_BASE_PATH as config.init() has already been loaded
+	config.SetContainerBasePath(basePath)
 }
 
 func (s *CleanupHomeTestSuite) SetUpTest(c *gocheck.C) {
@@ -68,8 +54,8 @@ func (s *CleanupHomeTestSuite) Test_HomeCleanup_Clean_0(c *gocheck.C) {
 	plugin := &HomeCleanup{homePath: filepath.Join(basePath, "home")}
 	plugin.Clean(context)
 
-	c.Assert(fileExist(homePath), gocheck.Equals, true)
-	c.Assert(fileExist(unitFile), gocheck.Equals, true)
+	c.Assert(fileExist(homePath), gocheck.Equals, true, gocheck.Commentf("homePath: %s", homePath))
+	c.Assert(fileExist(unitFile), gocheck.Equals, true, gocheck.Commentf("unitFile: %s", unitFile))
 
 	if 0 != error.Len() {
 		c.Log(info)
