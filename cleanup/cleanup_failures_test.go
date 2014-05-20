@@ -1,14 +1,12 @@
 package cleanup
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-	"fmt"
 	"os"
-	"log"
-	"bytes"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -167,13 +165,17 @@ const (
 		} }`
 )
 
-func TestNoop(t *testing.T) {
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
+type FailureCleanup_Test struct{}
+
+var failureCleanupTest = &FailureCleanup_Test{}
+
+func Test_FailureCleanup_Clean_0(t *testing.T) {
+	routes := map[string]string{
+		"/info":                                                                             info_payload,
+		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": success_payload,
 	}
-	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
+	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
 	defer server.Close()
 
 	context, info, error := newContext(false, true)
@@ -192,15 +194,15 @@ func TestNoop(t *testing.T) {
 	}
 }
 
-func TestRemove(t *testing.T) {
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
-		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": failedPayload(success_payload),
-		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill": "{}",
+func Test_FailureCleanup_Clean_1(t *testing.T) {
+	routes := map[string]string{
+		"/info":                                                                                    info_payload,
+		"/containers/json?all=1":                                                                   containers_payload,
+		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json":        failureCleanupTest.failedPayload(success_payload),
+		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill":        "{}",
 		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc?force=1&v=1": "{}",
 	}
-	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
+	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
 	defer server.Close()
 
 	context, info, error := newContext(false, true)
@@ -214,19 +216,19 @@ func TestRemove(t *testing.T) {
 	}
 }
 
-func TestRemoveNotAged(t *testing.T) {
-	payload := failedPayload(success_payload)
+func Test_FailureCleanup_Clean_2(t *testing.T) {
+	payload := failureCleanupTest.failedPayload(success_payload)
 	payload = strings.Replace(payload,
 		"\"FinishedAt\":\"2014-05-01T00:36:11.985592023Z\"",
 		fmt.Sprintf("\"FinishedAt\":\"%s\"", time.Now().Format(time.RFC3339Nano)),
 		1)
 
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
+	routes := map[string]string{
+		"/info":                                                                             info_payload,
+		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,
 	}
-	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
+	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
 	defer server.Close()
 
 	context, info, error := newContext(false, true)
@@ -245,7 +247,7 @@ func TestRemoveNotAged(t *testing.T) {
 	}
 }
 
-func TestBadConnection(t *testing.T) {
+func Test_FailureCleanup_Clean_3(t *testing.T) {
 	context, info, error := newContext(false, true)
 
 	plugin := &FailureCleanup{dockerSocket: "scheme://bad/connection", retentionAge: "72h"}
@@ -256,12 +258,12 @@ func TestBadConnection(t *testing.T) {
 	}
 }
 
-func TestNoContainers(t *testing.T) {
-	routes := map[string]string {
-		"/info": info_payload,
+func Test_FailureCleanup_Clean_4(t *testing.T) {
+	routes := map[string]string{
+		"/info":                  info_payload,
 		"/containers/json?all=1": "{}",
 	}
-	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
+	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
 	defer server.Close()
 
 	context, info, error := newContext(false, true)
@@ -274,15 +276,15 @@ func TestNoContainers(t *testing.T) {
 	}
 }
 
-func TestDryRun(t *testing.T) {
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
-		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": failedPayload(success_payload),
-		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill": "{}",
+func Test_FailureCleanup_Clean_5(t *testing.T) {
+	routes := map[string]string{
+		"/info":                                                                                    info_payload,
+		"/containers/json?all=1":                                                                   containers_payload,
+		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json":        failureCleanupTest.failedPayload(success_payload),
+		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc/kill":        "{}",
 		"/containers/ef3e44768c1a3f1aeff7eaeec1b367cb3a1ff70dd20ed716846aabe85be84cdc?force=1&v=1": "{}",
 	}
-	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
+	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
 	defer server.Close()
 
 	context, info, error := newContext(true, false)
@@ -295,19 +297,19 @@ func TestDryRun(t *testing.T) {
 	}
 }
 
-func TestDataContainer(t *testing.T) {
+func Test_FailureCleanup_Clean_6(t *testing.T) {
 	payload := strings.Replace(
-		failedPayload(success_payload),
+		failureCleanupTest.failedPayload(success_payload),
 		"\"Name\":\"ctr-sample-service\"",
 		"\"Name\":\"ctr-sample-service-data\"",
 		1)
 
-	routes := map[string]string {
-		"/info": info_payload,
-		"/containers/json?all=1": containers_payload,
+	routes := map[string]string{
+		"/info":                                                                             info_payload,
+		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,
 	}
-	server := httptest.NewServer(http.HandlerFunc(newHandler(t, routes)))
+	server := httptest.NewServer(http.HandlerFunc(failureCleanupTest.newHandler(t, routes)))
 	defer server.Close()
 
 	context, info, error := newContext(false, true)
@@ -326,7 +328,7 @@ func TestDataContainer(t *testing.T) {
 	}
 }
 
-func newHandler(t *testing.T, routes map[string]string) func(w http.ResponseWriter, r *http.Request) {
+func (r *FailureCleanup_Test) newHandler(t *testing.T, routes map[string]string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		url := r.URL.String()
 
@@ -341,16 +343,7 @@ func newHandler(t *testing.T, routes map[string]string) func(w http.ResponseWrit
 	}
 }
 
-func newContext(dryrun bool, repair bool) (*CleanerContext, *bytes.Buffer, *bytes.Buffer) {
-	info := &bytes.Buffer{}
-	error := &bytes.Buffer{}
-	logInfo := log.New(info, "INFO: ", log.Ldate|log.Ltime)
-	logError := log.New(error, "ERROR: ", log.Ldate|log.Ltime)
-
-	return &CleanerContext{DryRun: dryrun, Repair: repair, LogInfo: logInfo, LogError: logError}, info, error
-}
-
-func failedPayload(payload string) string {
+func (r *FailureCleanup_Test) failedPayload(payload string) string {
 	p := strings.Replace(payload, "\"ExitCode\":0", "\"ExitCode\":100", 1)
 	return strings.Replace(p, "\"Running\":true", "\"Running\":false", 1)
 }
