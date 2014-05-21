@@ -1,3 +1,5 @@
+// +build linux
+
 package jobs
 
 import (
@@ -8,14 +10,6 @@ import (
 	"log"
 	"os"
 )
-
-const ContentTypeEnvironment = "env"
-
-type ContentRequest struct {
-	Type    string
-	Locator string
-	Subpath string
-}
 
 func (j *ContentRequest) Fast() bool {
 	return true

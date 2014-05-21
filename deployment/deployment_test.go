@@ -3,11 +3,9 @@ package deployment
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/openshift/geard/http"
-	"github.com/openshift/geard/port"
-	"github.com/openshift/geard/transport"
 	"io/ioutil"
 	"log"
+	"net"
 	gohttp "net/http"
 	"net/http/httptest"
 	"reflect"
@@ -15,7 +13,10 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"net"
+
+	"github.com/openshift/geard/http"
+	"github.com/openshift/geard/port"
+	"github.com/openshift/geard/transport"
 )
 
 var loopbackTransport = http.NewHttpTransport()

@@ -1,11 +1,12 @@
 package cleanup
 
 import (
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/containers"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/containers"
 )
 
 type HomeCleanup struct {

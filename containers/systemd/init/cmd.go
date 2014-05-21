@@ -1,11 +1,10 @@
-// TODO: Needs to be folded into an execution driver or a 'gear run'
-// command.
-package main
+package init
 
 import (
 	"errors"
 	"fmt"
 	dc "github.com/fsouza/go-dockerclient"
+	"github.com/spf13/cobra"
 	"io"
 	"log"
 	"net"
@@ -17,23 +16,65 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/containers/systemd"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/selinux"
 	"github.com/openshift/geard/ssh"
 	"github.com/openshift/geard/utils"
 )
 
+var (
+	pre  bool
+	post bool
+)
+
+func RegisterInit(parent *cobra.Command) {
+	initGearCmd := &cobra.Command{
+		Use:   "init <name> <image>",
+		Short: "(Local) Setup the environment for a container",
+		Long:  "",
+		Run:   initGear,
+	}
+	initGearCmd.Flags().BoolVarP(&pre, "pre", "", false, "Perform pre-start initialization")
+	initGearCmd.Flags().BoolVarP(&post, "post", "", false, "Perform post-start initialization")
+	parent.AddCommand(initGearCmd)
+}
+
+func initGear(c *cobra.Command, args []string) {
+	if len(args) != 2 || !(pre || post) || (pre && post) {
+		cmd.Fail(1, "Valid arguments: <id> <image_name> (--pre|--post)")
+	}
+	containerId, err := containers.NewIdentifier(args[0])
+	if err != nil {
+		cmd.Fail(1, "Argument 1 must be a valid gear identifier: %s", err.Error())
+	}
+
+	dockerSocket := c.Flags().Lookup("docker-socket").Value.String()
+
+	switch {
+	case pre:
+		if err := initPreStart(dockerSocket, containerId, args[1]); err != nil {
+			cmd.Fail(2, "Unable to initialize container %s", err.Error())
+		}
+	case post:
+		if err := initPostStart(dockerSocket, containerId); err != nil {
+			cmd.Fail(2, "Unable to initialize container %s", err.Error())
+		}
+	}
+}
+
 var resolver addressResolver = addressResolver{}
 
-func InitPreStart(dockerSocket string, id containers.Identifier, imageName string) error {
+func initPreStart(dockerSocket string, id containers.Identifier, imageName string) error {
 	var (
 		err     error
 		imgInfo *dc.Image
 		d       *docker.DockerClient
 	)
 
-	_, socketActivationType, err := containers.GetSocketActivation(id)
+	_, socketActivationType, err := systemd.GetSocketActivation(id)
 	if err != nil {
 		fmt.Printf("init_pre_start: Error while parsing unit file: %v\n", err)
 		return err
@@ -77,7 +118,7 @@ func InitPreStart(dockerSocket string, id containers.Identifier, imageName strin
 		return err
 	}
 
-	containerData := containers.ContainerInitScript{
+	containerData := ContainerInitScript{
 		imgInfo.Config.User == "",
 		user,
 		u.Uid,
@@ -96,7 +137,7 @@ func InitPreStart(dockerSocket string, id containers.Identifier, imageName strin
 	}
 	defer file.Close()
 
-	if erre := containers.ContainerInitTemplate.Execute(file, containerData); erre != nil {
+	if erre := ContainerInitTemplate.Execute(file, containerData); erre != nil {
 		fmt.Printf("container init pre-start: Unable to output template: ", erre)
 		return erre
 	}
@@ -111,7 +152,7 @@ func InitPreStart(dockerSocket string, id containers.Identifier, imageName strin
 	}
 	defer file.Close()
 
-	if erre := containers.ContainerCmdTemplate.Execute(file, containerData); erre != nil {
+	if erre := ContainerCmdTemplate.Execute(file, containerData); erre != nil {
 		fmt.Printf("container init pre-start: Unable to output cmd template: ", erre)
 		return erre
 	}
@@ -132,7 +173,7 @@ func createUser(id containers.Identifier) error {
 	return nil
 }
 
-func InitPostStart(dockerSocket string, id containers.Identifier) error {
+func initPostStart(dockerSocket string, id containers.Identifier) error {
 	var (
 		u         *user.User
 		container *dc.Container
@@ -332,8 +373,8 @@ func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
 
 			log.Printf("Mapping %s(%s):%d -> %s:%d", sourceAddr.String(), srcIP.String(), link.FromPort, destIP.String(), link.ToPort)
 
-			data := containers.OutboundNetworkIptables{sourceAddr.String(), srcIP.IP.String(), link.FromPort, destIP.String(), link.ToPort}
-			if err := containers.OutboundNetworkIptablesTemplate.Execute(stdin, &data); err != nil {
+			data := OutboundNetworkIptables{sourceAddr.String(), srcIP.IP.String(), link.FromPort, destIP.String(), link.ToPort}
+			if err := OutboundNetworkIptablesTemplate.Execute(stdin, &data); err != nil {
 				log.Printf("gear: Unable to write network link rules: %v", err)
 				return err
 			}

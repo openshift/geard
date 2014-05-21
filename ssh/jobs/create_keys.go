@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/ssh"
 	"github.com/openshift/geard/utils"
-	"log"
 )
 
 type CreateKeysRequest struct {

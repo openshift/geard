@@ -11,11 +11,9 @@ import (
 	"path/filepath"
 
 	. "github.com/openshift/geard/cmd"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
 	sshkey "github.com/openshift/geard/pkg/ssh-public-key"
 	"github.com/openshift/geard/ssh"
-	. "github.com/openshift/geard/ssh/jobs"
+	"github.com/openshift/geard/ssh/jobs"
 	"github.com/openshift/geard/transport"
 )
 
@@ -27,8 +25,8 @@ var (
 // Implements the default container permission serialization
 type serializeContainerPermission struct{}
 
-func (c *serializeContainerPermission) CreatePermission(cmd *cobra.Command, id string) (*KeyPermission, error) {
-	return NewKeyPermission(ssh.ContainerPermissionType, id)
+func (c *serializeContainerPermission) CreatePermission(cmd *cobra.Command, id string) (*jobs.KeyPermission, error) {
+	return jobs.NewKeyPermission(ssh.ContainerPermissionType, id)
 }
 func (c *serializeContainerPermission) DefineFlags(cmd *cobra.Command) {
 }
@@ -37,17 +35,17 @@ func init() {
 	AddPermissionCommand(ResourceTypeContainer, &handler)
 }
 
-func registerLocal(parent *cobra.Command) {
+func RegisterAuthorizedKeys(parent *cobra.Command) {
 	keysForUserCmd := &cobra.Command{
 		Use:   "auth-keys-command <username>",
 		Short: "(Local) Generate authorized_keys output for sshd",
 		Long:  "Generate authorized keys output for sshd. See sshd_config(5)#AuthorizedKeysCommand",
-		Run:   KeysForUser,
+		Run:   keysForUser,
 	}
 	parent.AddCommand(keysForUserCmd)
 }
 
-func KeysForUser(cmd *cobra.Command, args []string) {
+func keysForUser(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
 		Fail(1, "Valid arguments: <login name>\n")
 	}
@@ -62,25 +60,29 @@ func KeysForUser(cmd *cobra.Command, args []string) {
 	}
 }
 
-func registerRemote(parent *cobra.Command) {
+type Command struct {
+	Transport *transport.TransportFlag
+}
+
+func (e *Command) RegisterAddKeys(parent *cobra.Command) {
 	addKeysCmd := &cobra.Command{
 		Use:   "add-keys <id>...",
 		Short: "Set keys for SSH access to a resource",
 		Long:  "Upload the provided public keys and enable SSH access to the specified resources.",
-		Run:   addSshKeys,
+		Run:   e.addSshKeys,
 	}
 	addKeysCmd.Flags().StringVar(&keyFile, "key-file", "", "read input from file specified matching sshd AuthorizedKeysFile format")
 	defineFlags(addKeysCmd)
 	parent.AddCommand(addKeysCmd)
 }
 
-func addSshKeys(cmd *cobra.Command, args []string) {
+func (e *Command) addSshKeys(cmd *cobra.Command, args []string) {
 	// validate that arguments for locators are passsed
 	if len(args) < 1 {
 		Fail(1, "Valid arguments: <id> ...")
 	}
 
-	t := cmd.Flags().Lookup("transport").Value.(*transport.TransportFlag).Transport
+	t := e.Transport.Get()
 
 	// args... are locators for repositories or containers
 	ids, err := NewResourceLocators(t, ResourceTypeContainer, args...)
@@ -93,7 +95,7 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 		Fail(1, "Unable to read authorized keys file: %s", err.Error())
 	}
 
-	allPerms := make(map[string]*KeyPermission)
+	allPerms := make(map[string]*jobs.KeyPermission)
 	for i := range ids {
 		resourceType := ids[i].(*ResourceLocator).Type
 		if permissionHandlers == nil {
@@ -112,14 +114,14 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 
 	Executor{
 		On: ids,
-		Group: func(on ...Locator) jobs.Job {
-			permissions := []KeyPermission{}
+		Group: func(on ...Locator) JobRequest {
+			permissions := []jobs.KeyPermission{}
 			for i := range on {
 				permissions = append(permissions, *allPerms[on[i].Identity()])
 			}
 
-			return &CreateKeysRequest{
-				&ExtendedCreateKeysData{
+			return &jobs.CreateKeysRequest{
+				&jobs.ExtendedCreateKeysData{
 					Keys:        keys,
 					Permissions: permissions,
 				},
@@ -127,15 +129,14 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 		},
 		Output: os.Stdout,
 		//TODO: display partial error info
-		LocalInit: containers.InitializeData,
 		Transport: t,
 	}.StreamAndExit()
 }
 
-func readAuthorizedKeysFile(keyFile string) ([]KeyData, error) {
+func readAuthorizedKeysFile(keyFile string) ([]jobs.KeyData, error) {
 	var (
 		data []byte
-		keys []KeyData
+		keys []jobs.KeyData
 		err  error
 	)
 
@@ -160,7 +161,7 @@ func readAuthorizedKeysFile(keyFile string) ([]KeyData, error) {
 			return keys, errors.New("Unable to parse authorized key from input source, invalid format")
 		}
 		value := sshkey.MarshalAuthorizedKey(pk)
-		key, err := NewKeyData("authorized_keys", string(value))
+		key, err := jobs.NewKeyData("authorized_keys", string(value))
 		if err != nil {
 			return keys, err
 		}

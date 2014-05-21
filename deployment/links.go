@@ -3,10 +3,11 @@ package deployment
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/port"
 	"log"
 	"sort"
+
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
 )
 
 // A relationship between two containers

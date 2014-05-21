@@ -1,11 +1,10 @@
 package http
 
 import (
-	// "bytes"
-	// "encoding/json"
-	. "github.com/openshift/geard/ssh/jobs"
 	"os"
 	"testing"
+
+	. "github.com/openshift/geard/ssh/jobs"
 )
 
 func TestMarshalKeyData(t *testing.T) {

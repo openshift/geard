@@ -1,15 +1,14 @@
+// +build linux
+
 package jobs
 
 import (
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/openshift/geard/jobs"
 	"log"
-)
 
-type ListImagesRequest struct {
-	DockerSocket string
-}
+	"github.com/openshift/geard/jobs"
+)
 
 func (j *ListImagesRequest) Execute(resp jobs.Response) {
 	// TODO: config item for docker port

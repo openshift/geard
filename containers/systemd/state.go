@@ -1,16 +1,18 @@
-package containers
+package systemd
 
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/openshift/geard/containers"
 )
 
-func (i Identifier) activeUnitPathFor() string {
+func activeUnitPathFor(i containers.Identifier) string {
 	return filepath.Join("/etc/systemd/system/container-active.target.wants", i.UnitNameFor())
 }
 
-func (i Identifier) UnitStartOnBoot() (bool, error) {
-	if _, err := os.Lstat(i.activeUnitPathFor()); err != nil {
+func UnitStartOnBoot(i containers.Identifier) (bool, error) {
+	if _, err := os.Lstat(activeUnitPathFor(i)); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
@@ -19,13 +21,13 @@ func (i Identifier) UnitStartOnBoot() (bool, error) {
 	return true, nil
 }
 
-func (i Identifier) SetUnitStartOnBoot(active bool) error {
+func SetUnitStartOnBoot(i containers.Identifier, active bool) error {
 	if active {
-		if err := os.Symlink(i.UnitPathFor(), i.activeUnitPathFor()); err != nil && !os.IsExist(err) {
+		if err := os.Symlink(i.UnitPathFor(), activeUnitPathFor(i)); err != nil && !os.IsExist(err) {
 			return err
 		}
 	} else {
-		if err := os.Remove(i.activeUnitPathFor()); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(activeUnitPathFor(i)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}

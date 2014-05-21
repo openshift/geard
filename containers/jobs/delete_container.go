@@ -1,23 +1,18 @@
+// +build linux
+
 package jobs
 
 import (
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/port"
-	"github.com/openshift/geard/systemd"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/openshift/geard/containers"
+	csystemd "github.com/openshift/geard/containers/systemd"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/port"
+	"github.com/openshift/geard/systemd"
 )
-
-type DeleteContainerRequest struct {
-	Id    containers.Identifier
-	Label string
-}
-
-func (j *DeleteContainerRequest) JobLabel() string {
-	return j.Label
-}
 
 func (j *DeleteContainerRequest) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
@@ -65,7 +60,7 @@ func (j *DeleteContainerRequest) Execute(resp jobs.Response) {
 		return
 	}
 
-	if err := j.Id.SetUnitStartOnBoot(false); err != nil {
+	if err := csystemd.SetUnitStartOnBoot(j.Id, false); err != nil {
 		log.Printf("delete_container: Unable to clear unit boot state: %v", err)
 	}
 

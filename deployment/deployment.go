@@ -6,15 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/port"
-	"github.com/openshift/geard/transport"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/port"
+	"github.com/openshift/geard/transport"
 )
 
 const DistributeAffinity = "distribute"

@@ -2,11 +2,22 @@ package git
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+
+	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/ssh"
 	"github.com/openshift/geard/utils"
-	"os"
 )
+
+func init() {
+	// Register the required configuration directories
+	config.AddRequiredDirectory(
+		0755,
+		filepath.Join(config.ContainerBasePath(), "access", "git"),
+	)
+}
 
 const RepositoryPermissionType = "repository"
 

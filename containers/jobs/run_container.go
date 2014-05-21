@@ -1,36 +1,21 @@
+// +build linux
+
 package jobs
 
 import (
-	"errors"
 	"fmt"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/systemd"
-	"github.com/openshift/geard/utils"
-	"github.com/openshift/go-systemd/dbus"
 	"io"
 	"log"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/systemd"
+	"github.com/openshift/geard/utils"
+	"github.com/openshift/go-systemd/dbus"
 )
-
-type RunContainerRequest struct {
-	Name      string
-	Image     string
-	Command   string
-	Arguments []string
-}
-
-func (e *RunContainerRequest) Check() error {
-	if e.Name == "" {
-		return errors.New("A name must be specified for this container execution")
-	}
-	if e.Image == "" {
-		return errors.New("An image must be specified for this container execution")
-	}
-	return nil
-}
 
 func (j *RunContainerRequest) UnitCommand() []string {
 	command := []string{

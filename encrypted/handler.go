@@ -17,16 +17,17 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	cjobs "github.com/openshift/geard/containers/jobs"
-	jobhttp "github.com/openshift/geard/http"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/utils"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"reflect"
 	"strings"
 	"time"
+
+	chttp "github.com/openshift/geard/containers/http"
+	cjobs "github.com/openshift/geard/containers/jobs"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/utils"
 )
 
 // Limit of how far in the future a token may expire - 1 day by default
@@ -144,7 +145,7 @@ func (t *TokenConfiguration) Handler(parent http.Handler) http.HandlerFunc {
 			return
 		}
 
-		job := jobhttp.HttpContentRequest{ContentRequest: cjobs.ContentRequest{Type: token.Type, Locator: token.Locator}}
+		job := chttp.HttpContentRequest{ContentRequest: cjobs.ContentRequest{Type: token.Type, Locator: token.Locator}}
 		r.Method = job.HttpMethod()
 		r.URL.Path = job.HttpPath()
 		parent.ServeHTTP(w, r)

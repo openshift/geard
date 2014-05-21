@@ -32,10 +32,6 @@ type Join interface {
 	Join(Job, <-chan bool) (bool, <-chan bool, error)
 }
 
-type LabeledJob interface {
-	JobLabel() string
-}
-
 // A job may return a structured error, a stream of unstructured data,
 // or a stream of structured data.  In general, jobs only stream on
 // success - a failure is written immediately.  A streaming job

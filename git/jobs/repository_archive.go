@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/git"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/utils"
 	"io"
 	"log"
 	"os/exec"
 	"regexp"
+
+	"github.com/openshift/geard/git"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/utils"
 )
 
 const ContentTypeGitArchive = "gitarchive"

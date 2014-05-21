@@ -1,16 +1,18 @@
-package containers
+package systemd
 
 import (
 	"fmt"
 	"github.com/openshift/go-systemd/dbus"
 	"os"
 	"strings"
+
+	"github.com/openshift/geard/containers"
 )
 
 type EventListener struct {
 	conn      *dbus.Conn
 	exitChan  chan bool
-	lastEvent map[Identifier]EventType
+	lastEvent map[containers.Identifier]EventType
 }
 
 type EventType int
@@ -25,7 +27,7 @@ const (
 )
 
 type ContainerEvent struct {
-	Id   Identifier
+	Id   containers.Identifier
 	Type EventType
 }
 
@@ -61,7 +63,7 @@ func NewEventListener() (*EventListener, error) {
 		return nil, err
 	}
 
-	e.lastEvent = make(map[Identifier]EventType)
+	e.lastEvent = make(map[containers.Identifier]EventType)
 
 	return &e, nil
 }
@@ -73,11 +75,11 @@ func (e *EventListener) runner(errorChan chan error, eventChan chan *ContainerEv
 		select {
 		case update := <-updateChan:
 			unit := update.UnitName
-			if !strings.HasPrefix(unit, IdentifierPrefix) {
+			if !strings.HasPrefix(unit, containers.IdentifierPrefix) {
 				continue
 			}
 
-			id, err := NewIdentifier(unit[len(IdentifierPrefix):(len(unit) - len(".service"))])
+			id, err := containers.NewIdentifier(unit[len(containers.IdentifierPrefix):(len(unit) - len(".service"))])
 			if err != nil {
 				select {
 				case errorChan <- err:
@@ -98,7 +100,7 @@ func (e *EventListener) runner(errorChan chan error, eventChan chan *ContainerEv
 			if _, err := os.Stat(id.IdleUnitPathFor()); err == nil {
 				idleFlag = true
 			}
-			started, _ = id.UnitStartOnBoot()
+			started, _ = UnitStartOnBoot(id)
 
 			if fileExists == false {
 				event = ContainerEvent{id, Deleted}

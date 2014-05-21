@@ -5,12 +5,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/utils"
 	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/utils"
 )
 
 type Identifier string

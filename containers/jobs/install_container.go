@@ -1,117 +1,23 @@
+// +build linux
+
 package jobs
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
+	csystemd "github.com/openshift/geard/containers/systemd"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/utils"
-	"log"
-	"os"
-	"path/filepath"
 )
-
-var ErrContainerCreateFailedPortsReserved = jobs.SimpleError{jobs.ResponseError, "Unable to create container: some ports could not be reserved."}
-
-const PendingPortMappingName = "PortMapping"
-
-// Installing a Container
-//
-// This job will install a given container definition as a systemd service unit,
-// or update the existing definition if one already exists.
-//
-// There are a number of run modes for containers.  Some options the caller must
-// decide:
-//
-// * Is the container transient?
-//   Should stop remove any data not in a volume - accomplished by running as a
-//   specific user, and by using 'docker run --rm' as ExecStart=
-//
-// * Is the container isolated from the rest of the system?
-//   Some use cases involve the container having access to the host disk or sockets
-//   to perform system roles.  Otherwise, where possible containers should be
-//   fully isolated from the host via SELinux, user namespaces, and capability
-//   dropping.
-//
-// * Is the container hooked up to other containers?
-//   The defined unit should allow regular docker linking (name based pairing),
-//   the iptable-based SDN implemented here, and the propagation to the container
-//   environment of that configuration (whether as ENV vars or a file).
-//
-// Isolated containers:
-//
-// An isolated container runs in a way that protects it from other containers on
-// the system.  At a minimum today this means:
-//
-// 1) Create a user to represent the container, and run the process in the container
-//    as that user.  Avoids root compromise
-// 2) Assign a unique MCS category label to the container.
-//
-// In the future the need for #1 is removed by user namespaces, although given the
-// relative immaturity of that function in the kernel at the present time it is not
-// considered sufficiently secure for production use.
-//
-type InstallContainerRequest struct {
-	jobs.RequestIdentifier `json:"-"`
-
-	Id    containers.Identifier
-	Image string
-
-	// A simple container is allowed to default to normal Docker
-	// options like -P.  If simple is true no user or home
-	// directory is created and SSH is not available
-	Simple bool
-	// Should this container be run in an isolated fashion
-	// (separate user, permission changes)
-	Isolate bool
-	// Should this container be run in a socket activated fashion
-	// Implies Isolated (separate user, permission changes,
-	// no port forwarding, socket activated).
-	// If UseSocketProxy then socket files are proxies to the
-	// appropriate port
-	SocketActivation bool
-	SkipSocketProxy  bool
-
-	Ports        port.PortPairs
-	Environment  *containers.EnvironmentDescription
-	NetworkLinks *containers.NetworkLinks
-
-	// Should the container be started by default
-	Started bool
-}
-
-func (req *InstallContainerRequest) Check() error {
-	if req.SocketActivation && len(req.Ports) == 0 {
-		req.SocketActivation = false
-	}
-	if len(req.RequestIdentifier) == 0 {
-		return errors.New("A request identifier is required to create this item.")
-	}
-	if req.Image == "" {
-		return errors.New("A container must have an image identifier")
-	}
-	if req.Environment != nil && !req.Environment.Empty() {
-		if err := req.Environment.Check(); err != nil {
-			return err
-		}
-		if req.Environment.Id == containers.InvalidIdentifier {
-			return errors.New("You must specify an environment identifier on creation.")
-		}
-	}
-	if req.NetworkLinks != nil {
-		if err := req.NetworkLinks.Check(); err != nil {
-			return err
-		}
-	}
-	if req.Ports == nil {
-		req.Ports = make([]port.PortPair, 0)
-	}
-	return nil
-}
 
 func dockerPortSpec(p port.PortPairs) string {
 	var portSpec bytes.Buffer
@@ -218,7 +124,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 	slice := "container-small"
 
 	// write the definition unit file
-	args := containers.ContainerUnit{
+	args := csystemd.ContainerUnit{
 		Id:       id,
 		Image:    req.Image,
 		PortSpec: portSpec,
@@ -251,7 +157,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 		templateName = "SIMPLE"
 	}
 
-	if erre := containers.ContainerUnitTemplate.ExecuteTemplate(unit, templateName, args); erre != nil {
+	if erre := csystemd.ContainerUnitTemplate.ExecuteTemplate(unit, templateName, args); erre != nil {
 		log.Printf("install_container: Unable to output template: %+v", erre)
 		resp.Failure(ErrContainerCreateFailed)
 		defer os.Remove(unitVersionPath)
@@ -274,7 +180,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 
 	// write whether this container should be started on next boot
 	if req.Started {
-		if errs := id.SetUnitStartOnBoot(true); errs != nil {
+		if errs := csystemd.SetUnitStartOnBoot(id, true); errs != nil {
 			log.Print("install_container: Unable to write container boot link: ", err)
 			resp.Failure(ErrContainerCreateFailed)
 			return
@@ -321,7 +227,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 	}
 }
 
-func writeSocketUnit(path string, args *containers.ContainerUnit) error {
+func writeSocketUnit(path string, args *csystemd.ContainerUnit) error {
 	socketUnit, err := os.Create(path)
 	if err != nil {
 		log.Print("install_container: Unable to open socket file: ", err)
@@ -329,7 +235,7 @@ func writeSocketUnit(path string, args *containers.ContainerUnit) error {
 	}
 	defer socketUnit.Close()
 
-	socketTemplate := containers.ContainerSocketTemplate
+	socketTemplate := csystemd.ContainerSocketTemplate
 	if err := socketTemplate.Execute(socketUnit, args); err != nil {
 		log.Printf("install_container: Unable to output socket template: %+v", err)
 		defer os.Remove(path)
@@ -362,9 +268,4 @@ func (j *InstallContainerRequest) Join(job jobs.Job, complete <-chan bool) (join
 	}()
 	joined = true
 	return
-}
-
-func (j *InstallContainerRequest) PortMappingsFrom(pending map[string]interface{}) (port.PortPairs, bool) {
-	p, ok := pending[PendingPortMappingName].(port.PortPairs)
-	return p, ok
 }

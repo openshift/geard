@@ -1,10 +1,10 @@
 package systemd
 
 import (
+	"bufio"
 	"encoding/base64"
 	"fmt"
 	db "github.com/godbus/dbus"
-	"github.com/openshift/geard/config"
 	"github.com/openshift/go-systemd/dbus"
 	"io"
 	"log"
@@ -13,10 +13,26 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
-	"bufio"
+
+	"github.com/openshift/geard/config"
 )
+
+func init() {
+	config.AddRequiredDirectory(
+		0755,
+		config.ContainerBasePath(),
+		filepath.Join(config.ContainerBasePath(), "home"),
+		filepath.Join(config.ContainerBasePath(), "units"),
+	)
+	config.AddRequiredDirectory(
+		0750,
+		filepath.Join(config.ContainerBasePath(), "targets"),
+		filepath.Join(config.ContainerBasePath(), "slices"),
+	)
+}
 
 type SystemdFileType string
 
@@ -134,6 +150,7 @@ func SafeUnitName(r []byte) string {
 }
 
 var connection Systemd
+var connectionLock sync.Mutex
 
 func NewConnection() (Systemd, error) {
 	conn, err := dbus.New()
@@ -144,6 +161,8 @@ func NewConnection() (Systemd, error) {
 }
 
 func StartConnection() error {
+	connectionLock.Lock()
+	defer connectionLock.Unlock()
 	if connection == nil {
 		conn, err := NewConnection()
 		if err != nil {

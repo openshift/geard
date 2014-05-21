@@ -3,6 +3,7 @@ package deployment
 import (
 	"errors"
 	"fmt"
+
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/transport"
 )

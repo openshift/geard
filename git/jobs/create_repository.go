@@ -1,3 +1,5 @@
+// +build linux
+
 package jobs
 
 import (
@@ -12,24 +14,12 @@ import (
 	"time"
 
 	"github.com/openshift/geard/git"
-	jobs "github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/selinux"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/utils"
 	"github.com/openshift/go-systemd/dbus"
 )
-
-var (
-	ErrRepositoryAlreadyExists = jobs.SimpleError{jobs.ResponseAlreadyExists, "A repository with this identifier already exists."}
-	ErrSubscribeToUnit         = jobs.SimpleError{jobs.ResponseError, "Unable to watch for the completion of this action."}
-	ErrRepositoryCreateFailed  = jobs.SimpleError{jobs.ResponseError, "Unable to create the repository."}
-)
-
-type CreateRepositoryRequest struct {
-	Id        git.RepoIdentifier
-	CloneUrl  string
-	RequestId jobs.RequestIdentifier
-}
 
 func (j CreateRepositoryRequest) Execute(resp jobs.Response) {
 	unitName := fmt.Sprintf("job-create-repo-%s.service", j.RequestId.String())

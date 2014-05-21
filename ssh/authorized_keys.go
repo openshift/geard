@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+
 	key "github.com/openshift/geard/pkg/ssh-public-key"
 	"github.com/openshift/geard/utils"
 )

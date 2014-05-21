@@ -2,10 +2,11 @@ package transport
 
 import (
 	"errors"
-	"github.com/openshift/geard/port"
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/openshift/geard/port"
 )
 
 // The reserved identifier for the local transport
