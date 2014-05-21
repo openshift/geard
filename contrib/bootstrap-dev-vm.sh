@@ -19,10 +19,14 @@ else
   echo "AuthorizedKeysCommand already configured"
 fi
 
-# SET VAGRANT USER PATH VARIABLES: GOPATH, GEARD_PATH
+# SET GOPATH, GEARD_PATH
+cat > /etc/profile.d/geard.sh <<DELIM
+export GOPATH=/vagrant
+export PATH=$GOPATH/bin:$PATH
+DELIM
+
+# SET VAGRANT USER PATH VARIABLES
 if [[ $(cat ~vagrant/.bash_profile | grep GOPATH) = "" ]]; then
-  echo 'export GOPATH=/vagrant' >> ~vagrant/.bash_profile
-  echo 'export PATH=$GOPATH/bin:$PATH' >> ~vagrant/.bash_profile
   echo "cd $GEARD_PATH" >> ~vagrant/.bashrc
   echo "bind '\"\e[A\":history-search-backward'" >> ~vagrant/.bashrc
   echo "bind '\"\e[B\":history-search-forward'" >> ~vagrant/.bashrc
@@ -30,10 +34,8 @@ else
   echo "vagrant user path variables already configured"
 fi
 
-# SET ROOT USER PATH VARIABLES: GOPATH, GEARD_PATH
+# SET ROOT USER PATH VARIABLES
 if [[ $(cat /root/.bash_profile | grep GOPATH) = "" ]]; then
-  echo 'export GOPATH=/vagrant' >> /root/.bash_profile
-  echo 'export PATH=$GOPATH/bin:$PATH' >> /root/.bash_profile
   echo "cd $GEARD_PATH" >> /root/.bashrc
   echo "bind '\"\e[A\":history-search-backward'" >> /root/.bashrc
   echo "bind '\"\e[B\":history-search-forward'" >> /root/.bashrc
