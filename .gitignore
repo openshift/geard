@@ -19,3 +19,4 @@ vendor/src/github.com/coreos/
 vendor/src/github.com/dotcloud/
 vendor/src/github.com/gorilla/
 vendor/src/github.com/kr
+contrib/demo/deploy_eap_cluster.json.*
