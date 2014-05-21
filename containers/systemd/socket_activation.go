@@ -1,4 +1,4 @@
-package containers
+package systemd
 
 import (
 	"bufio"
@@ -6,9 +6,11 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/openshift/geard/containers"
 )
 
-func GetSocketActivation(id Identifier) (bool, string, error) {
+func GetSocketActivation(id containers.Identifier) (bool, string, error) {
 	var err error
 	var existing *os.File
 	if existing, err = os.Open(id.UnitPathFor()); err != nil {

@@ -8,13 +8,14 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
-	cjobs "github.com/openshift/geard/containers/jobs"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"net/http"
 	"os"
 	"os/exec"
 	"time"
+
+	cjobs "github.com/openshift/geard/containers/jobs"
 )
 
 var buildTests = flag.Bool("build", false, "Include build integration tests")
@@ -71,7 +72,7 @@ func (s *BuildIntegrationTestSuite) SetUpTest(c *C) {
 
 // TestXxxx methods are identified as test cases
 func (s *BuildIntegrationTestSuite) TestCleanBuild(c *C) {
-	extendedParams := cjobs.ExtendedBuildImageData{
+	extendedParams := cjobs.BuildImageRequest{
 		Tag:       "geard/fake-app",
 		Source:    "git://github.com/pmorie/simple-html",
 		BaseImage: "pmorie/sti-fake",
@@ -87,7 +88,7 @@ func (s *BuildIntegrationTestSuite) TestCleanBuild(c *C) {
 	s.checkBasicBuildState(c, containerId)
 }
 
-func (s *BuildIntegrationTestSuite) buildImage(c *C, extendedParams cjobs.ExtendedBuildImageData) {
+func (s *BuildIntegrationTestSuite) buildImage(c *C, extendedParams cjobs.BuildImageRequest) {
 	url := fmt.Sprintf("http://localhost:%s/build-image", s.daemonPort)
 	b, _ := json.Marshal(extendedParams)
 	req, _ := http.NewRequest("POST", url, bytes.NewReader(b))

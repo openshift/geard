@@ -7,7 +7,6 @@ import (
 var (
 	ErrContainerNotFound       = jobs.SimpleError{jobs.ResponseNotFound, "The specified container does not exist."}
 	ErrContainerAlreadyExists  = jobs.SimpleError{jobs.ResponseAlreadyExists, "A container with this identifier already exists."}
-	ErrContainerCreateFailed   = jobs.SimpleError{jobs.ResponseError, "Unable to create container."}
 	ErrContainerStartFailed    = jobs.SimpleError{jobs.ResponseError, "Unable to start this container."}
 	ErrContainerStopFailed     = jobs.SimpleError{jobs.ResponseError, "Unable to stop this container."}
 	ErrContainerRestartFailed  = jobs.SimpleError{jobs.ResponseError, "Unable to restart this container."}
@@ -20,4 +19,7 @@ var (
 	ErrRestartRequestThrottled = jobs.SimpleError{jobs.ResponseRateLimit, "It has been too soon since the last request to restart or the state is currently changing."}
 	ErrLinkContainersFailed    = jobs.SimpleError{jobs.ResponseError, "Not all links could be set."}
 	ErrDeleteContainerFailed   = jobs.SimpleError{jobs.ResponseError, "Unable to delete the container."}
+
+	ErrContainerCreateFailed              = jobs.SimpleError{jobs.ResponseError, "Unable to create container."}
+	ErrContainerCreateFailedPortsReserved = jobs.SimpleError{jobs.ResponseError, "Unable to create container: some ports could not be reserved."}
 )

@@ -1,10 +1,11 @@
 package cleanup
 
 import (
-	"github.com/openshift/geard/docker"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/openshift/geard/docker"
 )
 
 type FailureCleanup struct {

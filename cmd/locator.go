@@ -17,20 +17,15 @@ type Locator interface {
 type Locators []Locator
 
 // Group resource locators by their transport location
-func (locators Locators) Group() (local Locators, remote []Locators) {
-	local = make(Locators, 0, len(locators))
+func (locators Locators) Group() (remote []Locators) {
 	groups := make(map[string]Locators)
 	for i := range locators {
 		locator := locators[i].TransportLocator()
-		if locator != transport.Local {
-			remotes, ok := groups[locator.String()]
-			if !ok {
-				remotes = make(Locators, 0, 2)
-			}
-			groups[locator.String()] = append(remotes, locators[i])
-		} else {
-			local = append(local, locators[i])
+		remotes, ok := groups[locator.String()]
+		if !ok {
+			remotes = make(Locators, 0, 2)
 		}
+		groups[locator.String()] = append(remotes, locators[i])
 	}
 	remote = make([]Locators, 0, len(groups))
 	for k := range groups {

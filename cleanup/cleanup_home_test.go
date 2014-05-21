@@ -1,11 +1,12 @@
 package cleanup
 
 import (
-	"github.com/openshift/geard/config"
 	gocheck "launchpad.net/gocheck"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/openshift/geard/config"
 )
 
 //Hookup gocheck with go test

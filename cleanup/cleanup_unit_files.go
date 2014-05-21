@@ -1,11 +1,12 @@
 package cleanup
 
 import (
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/systemd"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/systemd"
 )
 
 type UnitFilesCleanup struct {

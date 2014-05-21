@@ -1,17 +1,15 @@
+// +build linux
+
 package jobs
 
 import (
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/systemd"
 	"log"
 	"os"
 	"time"
-)
 
-type ContainerLogRequest struct {
-	Id containers.Identifier
-}
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/systemd"
+)
 
 func (j *ContainerLogRequest) Execute(resp jobs.Response) {
 	if _, err := os.Stat(j.Id.UnitPathFor()); err != nil {

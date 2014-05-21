@@ -2,10 +2,11 @@ package containers
 
 import (
 	"bufio"
-	"github.com/openshift/geard/port"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/openshift/geard/port"
 )
 
 func GetExistingPorts(id Identifier) (port.PortPairs, error) {

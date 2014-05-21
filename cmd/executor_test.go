@@ -22,7 +22,7 @@ func (t *testLocator) ResolveHostname() (string, error) {
 
 type testTransport struct {
 	GotLocator string
-	Translated map[string]jobs.Job
+	Translated map[string]interface{}
 	Invoked    map[string]jobs.Response
 }
 
@@ -30,9 +30,9 @@ func (t *testTransport) LocatorFor(locator string) (transport.Locator, error) {
 	t.GotLocator = locator
 	return &testLocator{locator}, nil
 }
-func (t *testTransport) RemoteJobFor(locator transport.Locator, job jobs.Job) (jobs.Job, error) {
+func (t *testTransport) RemoteJobFor(locator transport.Locator, job interface{}) (jobs.Job, error) {
 	if t.Translated == nil {
-		t.Translated = make(map[string]jobs.Job)
+		t.Translated = make(map[string]interface{})
 		t.Invoked = make(map[string]jobs.Response)
 	}
 	t.Translated[locator.String()] = job
@@ -54,17 +54,13 @@ func TestShouldSendRemoteJob(t *testing.T) {
 
 	Executor{
 		On: Locators{locator},
-		Serial: func(on Locator) jobs.Job {
+		Serial: func(on Locator) JobRequest {
 			if on != locator {
 				t.Fatalf("Expected locator passed to Serial() to be identical to %+v", locator)
 			}
 			return &cjobs.StoppedContainerStateRequest{
 				Id: AsIdentifier(on),
 			}
-		},
-		LocalInit: func() error {
-			initCalled = true
-			return nil
 		},
 		Transport: trans,
 	}.Gather()

@@ -157,3 +157,50 @@ func (n NetworkLinks) ToCompact() string {
 	}
 	return pairs.String()
 }
+
+type ContainerLink struct {
+	Id           Identifier
+	NetworkLinks NetworkLinks
+}
+
+func (link *ContainerLink) Check() error {
+	if link.Id == "" {
+		return errors.New("Container identifier may not be empty")
+	}
+	if _, err := NewIdentifier(string(link.Id)); err != nil {
+		return err
+	}
+	for i := range link.NetworkLinks {
+		if err := link.NetworkLinks[i].Check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type ContainerLinks struct {
+	Links []ContainerLink
+}
+
+func (link *ContainerLinks) Check() error {
+	if len(link.Links) == 0 {
+		return errors.New("One or more links must be specified.")
+	}
+	for i := range link.Links {
+		if err := link.Links[i].Check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (link *ContainerLinks) String() string {
+	buf := bytes.Buffer{}
+	for i := range link.Links {
+		if i > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(string(link.Links[i].Id))
+	}
+	return buf.String()
+}

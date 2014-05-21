@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/ssh/jobs"
-	"github.com/spf13/cobra"
 )
 
 type PermissionCommandHandler interface {

@@ -21,9 +21,12 @@ function build_docker() {
 }
 
 function build_geard_service() {
-  build_local &&
-  sudo systemctl enable $(pwd)/contrib/geard.service &&
+  build_local
+  echo ""
+  echo "Restart geard.service"
+  sudo systemctl enable $(pwd)/contrib/geard.service
   sudo systemctl restart geard.service
+  echo "..done"
 }
 
 # Performs a local go install of geard.
@@ -36,19 +39,25 @@ function build_local() {
     go get -v -d -tags "$tags" ./...
     echo "..done"
   fi
-  
+
+  local GOOS=${GOOS:-linux}
   local artifacts=(
     cmd/gear
-    cmd/switchns
-    ssh/cmd/gear-auth-keys-command
   )
+  if [ "$GOOS" == "linux" ]; then
+    artifacts+=(cmd/switchns)
+    artifacts+=(ssh/cmd/gear-auth-keys-command)
+  else
+    copy_binaries=false
+  fi
+  local cc_message=" (target: $GOOS)"
 
   local build_success=true
   for artifact in ${artifacts[@]}; do
     echo ""
-    echo "-----------------------------------"
-    echo "Building ${artifact}..."
-    echo "-----------------------------------"
+    echo "------------------------------------------"
+    echo "Building ${artifact}${cc_message}..."
+    echo "------------------------------------------"
     
     if ! $enable_optimizations; then
       local flags=("-N -l")

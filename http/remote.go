@@ -12,7 +12,6 @@ import (
 	"os"
 	"strings"
 
-	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/transport"
 )
@@ -34,6 +33,9 @@ type RemoteExecutable interface {
 	MarshalHttpRequestBody(io.Writer) error
 	UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error)
 }
+type ServerAware interface {
+	SetServer(string)
+}
 
 type HttpTransport struct {
 	client *http.Client
@@ -47,20 +49,23 @@ func (h *HttpTransport) LocatorFor(value string) (transport.Locator, error) {
 	return transport.NewHostLocator(value)
 }
 
-func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j jobs.Job) (job jobs.Job, err error) {
-	if locator == transport.Local {
-		job = j
-		return
-	}
+func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j interface{}) (job jobs.Job, err error) {
 	baseUrl, errl := urlForLocator(locator)
 	if errl != nil {
 		err = errors.New("The provided host is not valid '" + locator.String() + "': " + errl.Error())
 		return
 	}
 	httpJob, errh := HttpJobFor(j)
+	if errh == jobs.ErrNoJobForRequest {
+		err = transport.ErrNotTransportable
+		return
+	}
 	if errh != nil {
 		err = errh
 		return
+	}
+	if serverAware, ok := httpJob.(ServerAware); ok {
+		serverAware.SetServer(baseUrl.Host)
 	}
 
 	job = jobs.JobFunction(func(res jobs.Response) {
@@ -87,45 +92,18 @@ func urlForLocator(locator transport.Locator) (*url.URL, error) {
 	return &url.URL{Scheme: "http", Host: base}, nil
 }
 
-func HttpJobFor(job jobs.Job) (exc RemoteExecutable, err error) {
-	switch j := job.(type) {
-	case *cjobs.InstallContainerRequest:
-		exc = &HttpInstallContainerRequest{InstallContainerRequest: *j}
-	case *cjobs.StartedContainerStateRequest:
-		exc = &HttpStartContainerRequest{StartedContainerStateRequest: *j}
-	case *cjobs.StoppedContainerStateRequest:
-		exc = &HttpStopContainerRequest{StoppedContainerStateRequest: *j}
-	case *cjobs.RestartContainerRequest:
-		exc = &HttpRestartContainerRequest{RestartContainerRequest: *j}
-	case *cjobs.PutEnvironmentRequest:
-		exc = &HttpPutEnvironmentRequest{PutEnvironmentRequest: *j}
-	case *cjobs.PatchEnvironmentRequest:
-		exc = &HttpPatchEnvironmentRequest{PatchEnvironmentRequest: *j}
-	case *cjobs.ContainerStatusRequest:
-		exc = &HttpContainerStatusRequest{ContainerStatusRequest: *j}
-	case *cjobs.ContentRequest:
-		exc = &HttpContentRequest{ContentRequest: *j}
-	case *cjobs.DeleteContainerRequest:
-		exc = &HttpDeleteContainerRequest{DeleteContainerRequest: *j}
-	case *cjobs.LinkContainersRequest:
-		exc = &HttpLinkContainersRequest{LinkContainersRequest: *j}
-	case *cjobs.ListContainersRequest:
-		exc = &HttpListContainersRequest{ListContainersRequest: *j}
-	default:
-		for _, ext := range extensions {
-			req, errr := ext.HttpJobFor(job)
-			if errr != nil {
-				return nil, errr
-			}
-			if req != nil {
-				exc = req
-				break
-			}
+func HttpJobFor(job interface{}) (exc RemoteExecutable, err error) {
+	for _, ext := range extensions {
+		req, errr := ext.HttpJobFor(job)
+		if errr == jobs.ErrNoJobForRequest {
+			continue
 		}
+		if errr != nil {
+			return nil, errr
+		}
+		return req, nil
 	}
-	if exc == nil {
-		err = errors.New("The provided job cannot be sent remotely")
-	}
+	err = jobs.ErrNoJobForRequest
 	return
 }
 
@@ -147,7 +125,12 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 	req := httpreq
 	req.Header.Set("X-Request-Id", id.String())
 	req.Header.Set("If-Match", "api="+ApiVersion())
-	req.Header.Set("Accept", "application/json")
+
+	if streamable, ok := job.(HttpStreamable); ok && streamable.Streamable() {
+		req.Header.Set("Accept", "application/json;stream=true")
+	} else {
+		req.Header.Set("Accept", "application/json")
+	}
 	//TODO: introduce API version per job
 	//TODO: content request signing for GETs
 	req.URL.Path = job.HttpPath()
@@ -222,4 +205,3 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 	}
 	return nil
 }
-

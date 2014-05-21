@@ -22,10 +22,6 @@ type DockerClient struct {
 	executionDriver string
 }
 
-func (d *DockerClient) ListImages() ([]docker.APIImages, error) {
-	return d.client.ListImages(true)
-}
-
 func (d *DockerClient) ListContainers() ([]docker.APIContainers, error) {
 	return d.client.ListContainers(docker.ListContainersOptions{All: true})
 }

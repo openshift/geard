@@ -4,6 +4,7 @@ package idler
 
 import (
 	"github.com/openshift/geard/containers"
+	csystemd "github.com/openshift/geard/containers/systemd"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/idler/config"
 	"github.com/openshift/geard/idler/iptables"
@@ -26,7 +27,7 @@ type Idler struct {
 	openChannels  []containers.Identifier
 	hostIp        string
 	idleTimeout   time.Duration
-	eventListener *containers.EventListener
+	eventListener *csystemd.EventListener
 }
 
 var idler *Idler
@@ -46,7 +47,7 @@ func newIdler(d *docker.DockerClient, hostIp string, idleTimeout int) *Idler {
 	idler.waitChan = make(chan uint16)
 	idler.openChannels = make([]containers.Identifier, config.NumQueues)
 	idler.hostIp = hostIp
-	idler.eventListener, err = containers.NewEventListener()
+	idler.eventListener, err = csystemd.NewEventListener()
 	if err != nil {
 		fmt.Printf("Unable to create Systemd event listener: %v\n", err)
 		return nil
@@ -120,7 +121,7 @@ func (idler *Idler) Run() {
 			fmt.Fprintf(w, "[%v] Packet counts:\n\tContainer\tActive?\tIdled?\tPackets\n", time.Now().Format(time.RFC3339))
 			iptables.ResetPacketCount()
 			for id, pkts := range cpkt {
-				started, err := id.UnitStartOnBoot()
+				started, err := csystemd.UnitStartOnBoot(id)
 				if err != nil {
 					fmt.Printf("Error reading container state for %v: %v\n", id, err)
 				}

@@ -1,19 +1,13 @@
+// +build linux
+
 package jobs
 
 import (
+	"log"
+
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/port"
-	"log"
 )
-
-type ContainerPortsRequest struct {
-	Id containers.Identifier
-}
-
-type containerPortsResponse struct {
-	Ports port.PortPairs
-}
 
 func (j *ContainerPortsRequest) Execute(resp jobs.Response) {
 	portPairs, err := containers.GetExistingPorts(j.Id)
@@ -23,5 +17,5 @@ func (j *ContainerPortsRequest) Execute(resp jobs.Response) {
 		return
 	}
 
-	resp.SuccessWithData(jobs.ResponseAccepted, containerPortsResponse{portPairs})
+	resp.SuccessWithData(jobs.ResponseAccepted, ContainerPortsResponse{portPairs})
 }

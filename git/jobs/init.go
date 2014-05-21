@@ -1,15 +1,23 @@
-// Provides API and CLI wrappers to create, delete, and export Git repositories on
-// this system and provide SSH access to them.
-package git
+// +build linux
+
+package jobs
 
 import (
-	"github.com/openshift/geard/systemd"
 	"log"
+	"path/filepath"
+
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/systemd"
 )
 
 const hostServiceName = "geard-githost"
 
-func InitializeData() error {
+func init() {
+	// Bind mounted into the githost
+	config.AddRequiredDirectory(0755, filepath.Join(config.ContainerBasePath(), "git"))
+}
+
+func InitializeServices() error {
 	if err := initializeSlices(); err != nil {
 		log.Fatal(err)
 		return err

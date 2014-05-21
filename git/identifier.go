@@ -3,12 +3,13 @@ package git
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/utils"
 	"os/user"
 	"path/filepath"
 	"strings"
+
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/utils"
 )
 
 type RepoIdentifier containers.Identifier

@@ -43,19 +43,3 @@ func ExtendCommands(parent *cobra.Command, local bool) {
 		}
 	}
 }
-
-type initializerHook struct {
-	Func FuncInit
-	when []string
-	run  bool
-}
-
-// All command extensions
-var initializers []initializerHook
-
-// Register an initializer to be invoked and an optional list of conditions. If
-// no conditions are passed the initializer is run whenever a command invokes
-// cmd.Initialize()
-func AddInitializer(init FuncInit, when ...string) {
-	initializers = append(initializers, initializerHook{init, when, false})
-}

@@ -3,8 +3,9 @@ package deployment
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/port"
 	"net"
+
+	"github.com/openshift/geard/port"
 )
 
 // A port on a container instance that is linked elsewhere

@@ -1,13 +1,10 @@
+// +build linux
+
 package jobs
 
 import (
-	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/jobs"
 )
-
-type PutEnvironmentRequest struct {
-	containers.EnvironmentDescription
-}
 
 func (j *PutEnvironmentRequest) Execute(resp jobs.Response) {
 	if err := j.Fetch(100 * 1024); err != nil {
@@ -20,10 +17,6 @@ func (j *PutEnvironmentRequest) Execute(resp jobs.Response) {
 	}
 
 	resp.Success(jobs.ResponseOk)
-}
-
-type PatchEnvironmentRequest struct {
-	containers.EnvironmentDescription
 }
 
 func (j *PatchEnvironmentRequest) Execute(resp jobs.Response) {

@@ -4,8 +4,9 @@
 package ssh
 
 import (
-	"github.com/openshift/geard/utils"
 	"os/user"
+
+	"github.com/openshift/geard/utils"
 )
 
 var keyTypeHandler map[string]KeyTypeHandler
