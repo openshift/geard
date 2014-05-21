@@ -1,22 +1,13 @@
 package config
 
 import (
-	"os"
 	"fmt"
+	"os"
 )
 
 func init() {
-	var value string
-
-	value = os.Getenv("GEARD_RUN_PATH")
-	if 0 != len(value) {
-		runPath = value
-	}
-
-	value = os.Getenv("GEARD_BASE_PATH")
-	if 0 != len(value) {
-		basePath = value
-	}
+	SetContainerBasePath(os.Getenv("GEARD_BASE_PATH"))
+	SetContainerRunPath(os.Getenv("GEARD_RUN_PATH"))
 }
 
 func ContainerRunPath() string {
@@ -24,7 +15,7 @@ func ContainerRunPath() string {
 }
 
 func SetContainerRunPath(value string) error {
-	if 0 == len(value) {
+	if "" == value {
 		return fmt.Errorf("SetContainerRunPath: requires a non-empty argument")
 	}
 
@@ -37,7 +28,7 @@ func ContainerBasePath() string {
 }
 
 func SetContainerBasePath(value string) error {
-	if 0 == len(value) {
+	if "" == value {
 		return fmt.Errorf("SetContainerBasePath: requires a non-empty argument")
 	}
 
