@@ -28,6 +28,7 @@ units=$(curl -q http://localhost:43273/containers)
 ret=$?
 if [ $ret -ne 0 ]; then
   echo "gear daemon not responding, make sure the service is running and retry."
+  exit 1
 fi
 
 $base/teardown.sh
