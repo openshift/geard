@@ -353,7 +353,7 @@ func (s *IntegrationTestSuite) TestSimpleInstallAndStartImage(c *chk.C) {
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/In/ctr-IntTest000.service; enabled)"), chk.Equals, true)
 }
 
-var hasEnvFile = flag.Bool("env-file", false, "Test env-file feature")
+var hasEnvFile = flag.Bool("env-file", true, "Test env-file feature")
 
 func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
 	if !*hasEnvFile {
@@ -378,7 +378,8 @@ func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "TEST=\"value\""), chk.Equals, true)
-	c.Assert(strings.Contains(string(data), "QUOTED=\"foo\""), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "QUOTED=\"\\\"foo\\\"\""), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "IGNORED"), chk.Equals, false)
 }
 
 func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
