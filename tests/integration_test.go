@@ -428,7 +428,7 @@ func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:4000", "--isolate")
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId, "--start", "--ports=8080:0", "--isolate")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
