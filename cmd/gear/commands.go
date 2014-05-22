@@ -4,6 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	. "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/containers"
+	cjobs "github.com/openshift/geard/containers/jobs"
+	"github.com/openshift/geard/deployment"
+	"github.com/openshift/geard/dispatcher"
 	"github.com/spf13/cobra"
 	"io"
 	"io/ioutil"
@@ -13,19 +19,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"time"
-
-	"github.com/openshift/docker-source-to-images/go"
-
-	. "github.com/openshift/geard/cmd"
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/containers"
-	cjobs "github.com/openshift/geard/containers/jobs"
-	"github.com/openshift/geard/deployment"
-	"github.com/openshift/geard/dispatcher"
 	// "github.com/openshift/geard/encrypted"
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
+	"github.com/openshift/geard/sti"
 	"github.com/openshift/geard/transport"
 )
 

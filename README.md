@@ -147,7 +147,7 @@ Here are the supported container actions on the agent - these should map cleanly
         contain+    24    22  0 19:48 ?        00:00:00 ps -ef
         bash-4.2$
 
-*   Build a new image using [Docker Source-to-Images](https://github.com/openshift/docker-source-to-images) from a source URL and base image
+*   Build a new image using [Source-to-Images](https://github.com/openshift/geard/tree/master/sti) from a source URL and base image
 
         # build an image on the local system and tag it as mybuild-1
         $ gear build git://github.com/pmorie/simple-html pmorie/fedora-mock mybuild-1
@@ -313,7 +313,7 @@ Not yet prototyped:
 Building Images
 ---------------
 
-geard uses [Docker Source to Images (STI)](http://github.com/openshift/docker-source-to-images)
+geard uses [Source to Images (STI)](http://github.com/openshift/geard/tree/master/sti)
 to build deployable images from a base image and application source.  STI supports a number of
 use cases for building deployable images, including:
 
