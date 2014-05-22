@@ -114,6 +114,18 @@ func (s *IntegrationTestSuite) unitState(id containers.Identifier) (string, stri
 	return props["ActiveState"].(string), props["SubState"].(string)
 }
 
+func (s *IntegrationTestSuite) unitTimes(id containers.Identifier) (inactiveStart time.Time, inactiveEnd time.Time, activeStart time.Time, activeEnd time.Time) {
+	props, err := s.sdconn.GetUnitProperties(id.UnitNameFor())
+	if props == nil || err != nil {
+		return
+	}
+	inactiveStart = time.Unix(int64(props["InactiveEnterTimestampMonotonic"].(uint64)), 0)
+	inactiveEnd = time.Unix(int64(props["InactiveExitTimestampMonotonic"].(uint64)), 0)
+	activeStart = time.Unix(int64(props["ActiveEnterTimestampMonotonic"].(uint64)), 0)
+	activeEnd = time.Unix(int64(props["ActiveExitTimestampMonotonic"].(uint64)), 0)
+	return
+}
+
 func until(duration, every time.Duration, f func() bool) bool {
 	timeout := time.After(duration)
 	ticker := time.NewTicker(every)
@@ -192,6 +204,32 @@ func (s *IntegrationTestSuite) assertContainerStarts(c *chk.C, id containers.Ide
 		if !failed {
 			c.Errorf("Docker never reported the container running %s", id)
 		}
+		c.FailNow()
+	}
+}
+
+func (s *IntegrationTestSuite) assertContainerStartsAndExits(c *chk.C, start time.Time, id containers.Identifier) {
+	hasStarted := func() bool {
+		_, inactiveEnd, activeStart, _ := s.unitTimes(id)
+		if inactiveEnd.Before(start) || activeStart.Before(start) {
+			return false
+		}
+		return true
+	}
+	if !until(TimeoutContainerStateChange, IntervalContainerCheck, hasStarted) {
+		c.Errorf("The service did not start in the allotted time")
+		c.FailNow()
+	}
+
+	hasCompleted := func() bool {
+		switch active, _ := s.unitState(id); active {
+		case "active", "activating", "deactivating":
+			return false
+		}
+		return true
+	}
+	if !until(TimeoutContainerStateChange, IntervalContainerCheck, hasCompleted) {
+		c.Errorf("The service did not finish in the allotted time")
 		c.FailNow()
 	}
 }
@@ -366,12 +404,13 @@ func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
+	start := time.Now()
 	cmd := exec.Command("/usr/bin/gear", "install", EnvImage, hostContainerId, "--env-file=deployment/fixtures/simple.env", "--start")
 	data, err := cmd.CombinedOutput()
 	c.Log(cmd.Args)
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	s.assertContainerStarts(c, id)
+	s.assertContainerStartsAndExits(c, start, id)
 
 	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
