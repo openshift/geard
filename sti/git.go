@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log"
 	"net/url"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -38,20 +39,19 @@ func validCloneSpec(source string, verbose bool) bool {
 	return false
 }
 
-func gitClone(source, target string) (string, error) {
-	var buffer bytes.Buffer
+func gitClone(source, target string) error {
 	cmd := exec.Command("git", "clone", "--recursive", source, target)
-	cmd.Stdout, cmd.Stderr = &buffer, &buffer
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stdout
 
 	if err := cmd.Start(); err != nil {
-		return buffer.String(), err
+		return err
 	}
 
 	if err := cmd.Wait(); err != nil {
-		return buffer.String(), err
+		return err
 	}
 
-	return buffer.String(), nil
+	return nil
 }
 
 func gitCheckout(repo, ref string, verbose bool) error {
