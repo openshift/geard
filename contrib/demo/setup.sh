@@ -2,24 +2,13 @@
 
 base=$(dirname $0)
 
-id=$(docker inspect --format="{{.id}}" openshift/rhel-mongodb-repl)
+id=$(docker inspect --format="{{.id}}" openshift/centos-haproxy-simple-balancer)
 ret=$?
 if [ $ret -ne 0 ] || [ "$FETCH_IMAGES" != "" ]; then
-  docker pull openshift/geard-githost
-  docker pull docker-registry1.dev.rhcloud.com/jboss/eap
-  docker tag  docker-registry1.dev.rhcloud.com/jboss/eap jboss/eap
-  docker pull docker-registry1.dev.rhcloud.com/ccoleman/eap-scaling-demo
-  docker tag  docker-registry1.dev.rhcloud.com/ccoleman/eap-scaling-demo openshift/demo-eap-scaling
-  docker pull docker-registry1.dev.rhcloud.com/openshift/rhel-mongodb
-  docker tag  docker-registry1.dev.rhcloud.com/openshift/rhel-mongodb openshift/rhel-mongodb
-  docker pull docker-registry1.dev.rhcloud.com/openshift/rhel-mongodb-repl
-  docker tag  docker-registry1.dev.rhcloud.com/openshift/rhel-mongodb-repl openshift/rhel-mongodb-repl
-  docker pull docker-registry1.dev.rhcloud.com/openshift/demo-ews
-  docker tag  docker-registry1.dev.rhcloud.com/openshift/demo-ews openshift/demo-ews
-
-  docker pull pmorie/sti-html-app
-  docker pull openshift/origin-server-docker
-  docker tag  103bd59de294 jboss/eap # tag is in the history
+  docker pull openshift/centos-haproxy-simple-balancer
+  docker pull openshift/nodejs-0-10-centos
+  docker tag openshift/nodejs-0-10-centos nodejs-centos
+  docker pull openshift/centos-mongodb
 fi
 
 set +x
@@ -33,8 +22,9 @@ fi
 
 $base/teardown.sh
 
-gear deploy $base/deploy_eap_cluster.json localhost
-sleep 3
-gear stop localhost/demo-backend-3
+gear deploy $base/deploy_parks_map.json localhost
+gear stop localhost/parks-backend-{2,3}
 
-$base/wait_for_url.sh "http://localhost:14000/scale-1.0/"
+$base/wait_for_url.sh "http://localhost:14000/"
+
+sudo switchns --container=parks-db-1 -- /bin/bash -c "curl https://raw.githubusercontent.com/thesteve0/fluentwebmap/master/parkcoord.json | mongoimport -d fluent -c parkpoints --type json && mongo fluent --eval 'db.parkpoints.ensureIndex( { pos : \"2d\" } );'"
