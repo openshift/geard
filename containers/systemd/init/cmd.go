@@ -226,13 +226,51 @@ func initPostStart(dockerSocket string, id containers.Identifier) error {
 		if pid <= 1 {
 			return errors.New("child PID is not correct")
 		}
+
+		name, errl := linkNetworkNamespace(pid)
+		if errl != nil {
+			return errl
+		}
+		defer unlinkNetworkNamespace(pid)
+
+		var sourceAddr *net.IPAddr
+		errs := errors.New("IP never became available")
+		for i := 0; i < int(ContainerWait/ContainerInterval); i++ {
+			if sourceAddr, errs = getHostIPFromNamespace(name); errs == nil {
+				break
+			}
+			time.Sleep(ContainerInterval)
+		}
+		if sourceAddr == nil {
+			return fmt.Errorf("unable to get the container's IP address: %s", errs.Error())
+		}
+
 		log.Printf("Updating network namespaces for %d", pid)
-		if err := updateNamespaceNetworkLinks(pid, file); err != nil {
+		if err := updateNamespaceNetworkLinks(name, sourceAddr, file); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func linkNetworkNamespace(pid int) (string, error) {
+	name := "netlink-" + strconv.Itoa(pid)
+	path := fmt.Sprintf("/var/run/netns/%s", name)
+	nsPath := fmt.Sprintf("/proc/%d/ns/net", pid)
+	if err := os.MkdirAll("/var/run/netns", 0755); err != nil {
+		return name, err
+	}
+	if err := os.Symlink(nsPath, path); err != nil && !os.IsExist(err) {
+		return name, err
+	}
+	return name, nil
+}
+
+func unlinkNetworkNamespace(pid int) error {
+	name := "netlink-" + strconv.Itoa(pid)
+	path := fmt.Sprintf("/var/run/netns/%s", name)
+	return os.Remove(path)
 }
 
 func getHostIPFromNamespace(name string) (*net.IPAddr, error) {
@@ -294,24 +332,7 @@ func (resolver *addressResolver) ResolveIP(host string) (net.IP, error) {
 	return addr.IP, nil
 }
 
-func updateNamespaceNetworkLinks(pid int, ports io.Reader) error {
-	name := "netlink-" + strconv.Itoa(pid)
-	nsPath := fmt.Sprintf("/proc/%d/ns/net", pid)
-	path := fmt.Sprintf("/var/run/netns/%s", name)
-
-	if err := os.MkdirAll("/var/run/netns", 0755); err != nil {
-		return err
-	}
-
-	if err := os.Symlink(nsPath, path); err != nil && !os.IsExist(err) {
-		return err
-	}
-	defer os.Remove(path)
-
-	sourceAddr, errs := getHostIPFromNamespace(name)
-	if errs != nil {
-		return errs
-	}
+func updateNamespaceNetworkLinks(name string, sourceAddr *net.IPAddr, ports io.Reader) error {
 
 	// Enable routing in the namespace
 	output, err := exec.Command("ip", "netns", "exec", name, "sysctl", "-w", "net.ipv4.conf.all.route_localnet=1").Output()
