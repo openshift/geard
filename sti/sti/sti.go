@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	sti "github.com/openshift/docker-source-to-images/go"
+	sti "github.com/openshift/geard/sti"
 	"github.com/spf13/cobra"
 )
 
