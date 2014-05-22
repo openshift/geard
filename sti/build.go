@@ -8,12 +8,19 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
 
 	"github.com/fsouza/go-dockerclient"
+)
+
+const (
+	SVirtSandboxFileLabel = "system_u:object_r:svirt_sandbox_file_t:s0"
 )
 
 type BuildRequest struct {
@@ -48,6 +55,19 @@ func Build(req BuildRequest) (*BuildResult, error) {
 		executeCallback(req.CallbackUrl, result)
 	}
 
+	return result, err
+}
+
+// Usage processes a build request by starting the container and executing
+// the assemble script with a "-h" argument to print usage information
+// for the script.
+func Usage(req BuildRequest) (*BuildResult, error) {
+	h, err := newHandler(req.Request)
+	if err != nil {
+		return nil, err
+	}
+	var result *BuildResult
+	result, err = h.usage(req)
 	return result, err
 }
 
@@ -100,7 +120,7 @@ exec su {{.User}} -s /bin/sh -c {{.SaveArtifactsPath}}
 
 // Script used to initialize permissions on bind-mounts for a docker-run build (prepare call)
 var buildTemplate = template.Must(template.New("build-init.sh").Parse(`#!/bin/sh
-chown -R {{.User}}:{{.User}} /tmp/src && chmod -R 755 /tmp/src
+{{if eq .Usage false }}chown -R {{.User}}:{{.User}} /tmp/src && chmod -R 755 /tmp/src{{end}}
 chown -R {{.User}}:{{.User}} /tmp/scripts && chmod -R 755 /tmp/scripts
 chown -R {{.User}}:{{.User}} /tmp/defaultScripts && chmod -R 755 /tmp/defaultScripts
 {{if .Incremental}}chown -R {{.User}}:{{.User}} /tmp/artifacts && chmod -R 755 /tmp/artifacts{{end}}
@@ -110,7 +130,11 @@ if [ -f {{.RunPath}} ]; then
 fi
 
 if [ -f {{.AssemblePath}} ]; then
-	exec su {{.User}} -s /bin/sh -c {{.AssemblePath}}
+	{{if .Usage}}
+		exec su {{.User}} -s /bin/sh -c "{{.AssemblePath}} -h"
+	{{else}}
+		exec su {{.User}} -s /bin/sh -c {{.AssemblePath}}
+	{{end}}
 else 
   echo "No assemble script supplied in ScriptsUrl argument, application source, or default url in the image."
 fi
@@ -145,7 +169,6 @@ func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	incremental := !req.Clean
 
 	if incremental {
@@ -186,6 +209,31 @@ func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
 	}
 
 	return h.buildDeployableImage(req, req.BaseImage, req.WorkingDir, incremental)
+}
+
+func (h requestHandler) usage(req BuildRequest) (*BuildResult, error) {
+
+	dirs := []string{"scripts", "defaultScripts"}
+	for _, v := range dirs {
+		err := os.Mkdir(filepath.Join(req.WorkingDir, v), 0700)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if req.ScriptsUrl != "" {
+		h.downloadScripts(req.ScriptsUrl, filepath.Join(req.WorkingDir, "scripts"))
+	}
+
+	defaultUrl, err := h.getDefaultUrl(req, req.BaseImage)
+	if err != nil {
+		return nil, err
+	}
+	if defaultUrl != "" {
+		h.downloadScripts(defaultUrl, filepath.Join(req.WorkingDir, "defaultScripts"))
+	}
+
+	return h.buildDeployableImage(req, req.BaseImage, req.WorkingDir, false)
 }
 
 func (h requestHandler) getDefaultUrl(req BuildRequest, image string) (string, error) {
@@ -231,32 +279,78 @@ func (h requestHandler) determineScriptPath(contextDir string, script string) st
 	return ""
 }
 
-func (h requestHandler) downloadScripts(url, targetDir string) error {
+// SchemeReaders create an io.Reader from the given url.
+type SchemeReader func(*url.URL) (io.Reader, error)
+
+var schemeReaders = map[string]SchemeReader{
+	"http":  readerFromHttpUrl,
+	"https": readerFromHttpUrl,
+	"file":  readerFromFileUrl,
+}
+
+// Attempts to download scripts from baseUrl to targetDir by apppending
+// known script filenames to baseUrl and delegating the io.Reader
+// aquisition to a SchemeReader. Failures are ignored per-file.
+func (h requestHandler) downloadScripts(baseUrl, targetDir string) error {
 	os.MkdirAll(targetDir, 0700)
 	files := []string{"save-artifacts", "assemble", "run"}
+
 	for _, file := range files {
-		if h.verbose {
-			log.Printf("Downloading file %s from url %s to directory %s\n", file, url, targetDir)
+		u, err := url.Parse(baseUrl + "/" + file)
+
+		sr := schemeReaders[u.Scheme]
+
+		if sr == nil {
+			log.Printf("Skipping file %s due to unsupported scheme %s\n", file, u.Scheme)
+			continue
 		}
 
-		resp, err := http.Get(url + "/" + file)
-		defer resp.Body.Close()
+		reader, err := sr(u)
+
 		if err != nil {
-			return err
+			log.Printf("Skipping file %s due to read error: %s\n", file, err)
+			continue
 		}
-		if resp.StatusCode == 200 || resp.StatusCode == 201 {
-			out, err := os.Create(targetDir + "/" + file)
-			defer out.Close()
-			if err != nil {
-				return err
-			}
-			_, err = io.Copy(out, resp.Body)
-		} else {
-			//return fmt.Errorf("Failed to retrieve %s from %s, response code %d", targetFile, targetDir, resp.StatusCode)
-			log.Printf("Failed to retrieve %s from %s, response code %d", file, targetDir, resp.StatusCode)
+
+		targetFile := path.Join(targetDir, file)
+		out, err := os.Create(targetFile)
+		defer out.Close()
+
+		if err != nil {
+			defer os.Remove(targetFile)
+			log.Printf("Skipping file %s because the target file %s couldn't be created: %s\n", file, targetFile, err)
+			continue
 		}
+
+		_, err = io.Copy(out, reader)
+
+		if err != nil {
+			defer os.Remove(targetFile)
+			log.Printf("Skipping file %s due to error copying from source: %s\n", file, err)
+		}
+
+		log.Printf("Downloaded script from %s\n", u.String())
 	}
 	return nil
+}
+
+// This SchemeReader can produce an io.Reader from an http/https URL.
+func readerFromHttpUrl(url *url.URL) (io.Reader, error) {
+	resp, err := http.Get(url.String())
+	if err != nil {
+		defer resp.Body.Close()
+		return nil, err
+	}
+	if resp.StatusCode == 200 || resp.StatusCode == 201 {
+		return resp.Body, nil
+	} else {
+		return nil, fmt.Errorf("Failed to retrieve %s, response code %d", url.String(), resp.StatusCode)
+	}
+}
+
+// This SchemeReader can produce an io.Reader from a file URL.
+func readerFromFileUrl(url *url.URL) (io.Reader, error) {
+	return os.Open(url.Path)
 }
 
 func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir string, path string, contextDir string) error {
@@ -316,6 +410,15 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 		err = os.MkdirAll(containerInitDir, 0700)
 		if err != nil {
 			return err
+		}
+
+		chconPath, err := exec.LookPath("chcon")
+		if err == nil {
+			chconCmd := exec.Command(chconPath, SVirtSandboxFileLabel, containerInitDir)
+			err = chconCmd.Run()
+			if err != nil {
+				return err
+			}
 		}
 
 		initScriptPath := filepath.Join(containerInitDir, "init.sh")
@@ -405,7 +508,6 @@ func (h requestHandler) prepareSourceDir(source, targetSourceDir, ref string) er
 }
 
 func (h requestHandler) buildDeployableImage(req BuildRequest, image string, contextDir string, incremental bool) (*BuildResult, error) {
-	log.Printf("Building with docker run invocation\n")
 	volumeMap := make(map[string]struct{})
 	volumeMap["/tmp/src"] = struct{}{}
 	volumeMap["/tmp/scripts"] = struct{}{}
@@ -427,33 +529,48 @@ func (h requestHandler) buildDeployableImage(req BuildRequest, image string, con
 		return nil, err
 	}
 
-	origCmd := imageMetadata.Config.Cmd
-	origEntrypoint := imageMetadata.Config.Entrypoint
-
 	runPath := h.determineScriptPath(req.WorkingDir, "run")
 	assemblePath := h.determineScriptPath(req.WorkingDir, "assemble")
 	overrideRun := runPath != ""
 
-	log.Printf("Using run script from %s", runPath)
-	log.Printf("Using assemble script from %s", assemblePath)
+	if h.verbose {
+		log.Printf("Using run script from %s", runPath)
+		log.Printf("Using assemble script from %s", assemblePath)
+	}
 
-	user := imageMetadata.Config.User
+	user := ""
+	if imageMetadata.Config != nil {
+		user = imageMetadata.Config.User
+	}
+
 	hasUser := (user != "")
 	if hasUser {
-		log.Printf("Image has username %s", user)
+		if h.verbose {
+			log.Printf("Image has username %s", user)
+		}
 	}
 
 	if assemblePath == "" {
 		return nil, fmt.Errorf("No assemble script found in provided url, application source, or default image url.  Aborting.")
 	}
 
-	cmd := []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " && mkdir -p /opt/sti/bin && cp " + runPath + " /opt/sti/bin && chmod 700 /opt/sti/bin/run"}
+	var cmd []string
 	if hasUser {
+		// run setup commands as root, then switch to container user
+		// to execute the assemble script.
 		cmd = []string{"/.container.init/init.sh"}
 		volumeMap["/.container.init"] = struct{}{}
+	} else if req.Tag == "" {
+		// invoke assemble script with usage argument
+		log.Printf("Assemble script usage requested, invoking assemble script help")
+		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " -h"}
+	} else {
+		// normal assemble invocation
+		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " && mkdir -p /opt/sti/bin && cp " + runPath + " /opt/sti/bin && chmod 700 /opt/sti/bin/run"}
 	}
 
 	config := docker.Config{User: "root", Image: image, Cmd: cmd, Volumes: volumeMap}
+
 	var cmdEnv []string
 	if len(req.Environment) > 0 {
 		for key, val := range req.Environment {
@@ -486,6 +603,15 @@ func (h requestHandler) buildDeployableImage(req BuildRequest, image string, con
 			return nil, err
 		}
 
+		chconPath, err := exec.LookPath("chcon")
+		if err == nil {
+			chconCmd := exec.Command(chconPath, SVirtSandboxFileLabel, containerInitDir)
+			err = chconCmd.Run()
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		buildScriptPath := filepath.Join(containerInitDir, "init.sh")
 		buildScript, err := os.OpenFile(buildScriptPath, os.O_CREATE|os.O_RDWR, 0700)
 		if err != nil {
@@ -497,7 +623,8 @@ func (h requestHandler) buildDeployableImage(req BuildRequest, image string, con
 			Incremental  bool
 			AssemblePath string
 			RunPath      string
-		}{user, incremental, assemblePath, runPath}
+			Usage        bool
+		}{user, incremental, assemblePath, runPath, req.Tag == ""}
 
 		err = buildTemplate.Execute(buildScript, templateFiller)
 		if err != nil {
@@ -534,12 +661,17 @@ func (h requestHandler) buildDeployableImage(req BuildRequest, image string, con
 		return nil, ErrBuildFailed
 	}
 
+	if req.Tag == "" {
+		// this was just a request for assemble usage, so return without committing
+		// a new runnable image.
+		return &BuildResult{true, nil}, nil
+	}
 	config = docker.Config{Image: image, Env: cmdEnv}
 	if overrideRun {
 		config.Cmd = []string{"/opt/sti/bin/run"}
 	} else {
-		config.Cmd = origCmd
-		config.Entrypoint = origEntrypoint
+		config.Cmd = imageMetadata.Config.Cmd
+		config.Entrypoint = imageMetadata.Config.Entrypoint
 	}
 	if hasUser {
 		config.User = user

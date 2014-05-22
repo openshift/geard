@@ -12,7 +12,7 @@ Dependencies
 Installation
 ------------
 
-	go get github.com/openshift/docker-source-to-images/go
+	go get github.com/openshift/geard/sti
 
 Getting Started
 ---------------
