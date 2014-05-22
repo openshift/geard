@@ -6,5 +6,5 @@ RUN mkdir -p /sti-fake && \
     chown -R fakeuser:fakeuser /sti-fake
 
 USER fakeuser
-ENV STI_SCRIPTS_URL https://raw.githubusercontent.com/openshift/docker-source-to-images/master/test_images/sti-fake/.sti/bin
+ENV STI_SCRIPTS_URL https://raw.githubusercontent.com/openshift/geard/master/sti/test_images/sti-fake/.sti/bin
                 
