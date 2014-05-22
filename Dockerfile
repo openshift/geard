@@ -13,6 +13,7 @@ RUN \
    /bin/cp -f $GOPATH/bin/gear-auth-keys-command /usr/sbin/ && \
    /bin/cp -f $GOPATH/bin/switchns /usr/bin && \
    /bin/cp -f $GOPATH/bin/gear /usr/bin && \
+   /bin/cp -f $GOPATH/bin/sti /usr/bin && \
    rm -rf $GOPATH
 
 CMD ["/bin/gear", "daemon"]

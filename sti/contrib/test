@@ -37,4 +37,4 @@ export STI_TEST_IMAGES_DIR=$(pwd)
 echo "Setting STI_TEST_IMAGES_DIR=${STI_TEST_IMAGES_DIR}"
 popd &>/dev/null
 
-go test github.com/openshift/docker-source-to-images/go $test_opts
+go test github.com/openshift/geard/sti $test_opts

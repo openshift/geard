@@ -47,6 +47,7 @@ function build_local() {
   if [ "$GOOS" == "linux" ]; then
     artifacts+=(cmd/switchns)
     artifacts+=(ssh/cmd/gear-auth-keys-command)
+    artifacts+=(cmd/sti)
   else
     copy_binaries=false
   fi
@@ -84,6 +85,7 @@ function build_local() {
     sudo cp -f ${bin_dir}/gear-auth-keys-command /usr/sbin/
     sudo cp -f ${bin_dir}/switchns /usr/bin
     sudo cp -f ${bin_dir}/gear /usr/bin
+    sudo cp -f ${bin_dir}/sti /usr/bin
     sudo chmod +s /usr/bin/switchns
 
     if $use_selinux; then

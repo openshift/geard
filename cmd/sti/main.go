@@ -6,12 +6,11 @@ import (
 
 	"errors"
 	"fmt"
+	"github.com/openshift/geard/sti"
+	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
 	"strings"
-
-	sti "github.com/openshift/geard/sti"
-	"github.com/spf13/cobra"
 )
 
 func parseEnvs(envStr string) (map[string]string, error) {

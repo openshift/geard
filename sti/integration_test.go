@@ -48,9 +48,9 @@ const (
 )
 
 var (
-	FakeScriptsUrl        = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake", ".sti", "bin")
-	FakeBrokenScriptsUrl  = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake-broken", ".sti", "bin")
-	FakeUserScriptsUrl    = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake-user", ".sti", "bin")
+	FakeScriptsUrl       = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake", ".sti", "bin")
+	FakeBrokenScriptsUrl = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake-broken", ".sti", "bin")
+	FakeUserScriptsUrl   = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake-user", ".sti", "bin")
 )
 
 // Suite/Test fixtures are provided by gocheck
