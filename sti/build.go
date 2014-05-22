@@ -476,10 +476,9 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 func (h requestHandler) prepareSourceDir(source, targetSourceDir, ref string) error {
 	if validCloneSpec(source, h.verbose) {
 		log.Printf("---> Downloading %s to directory %s", source, targetSourceDir)
-		output, err := gitClone(source, targetSourceDir)
+		err := gitClone(source, targetSourceDir)
 		if err != nil {
 			if h.verbose {
-				log.Printf("Git clone output:\n%s", output)
 				log.Printf("Git clone failed: %+v", err)
 			}
 
