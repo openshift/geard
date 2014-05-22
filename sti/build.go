@@ -135,10 +135,10 @@ if [ -f {{.AssemblePath}} ]; then
 	{{else}}
 		exec su {{.User}} -s /bin/sh -c {{.AssemblePath}}
 	{{end}}
-else 
+else
   echo "No assemble script supplied in ScriptsUrl argument, application source, or default url in the image."
 fi
-	
+
 `))
 
 func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
@@ -353,6 +353,34 @@ func readerFromFileUrl(url *url.URL) (io.Reader, error) {
 	return os.Open(url.Path)
 }
 
+func selinuxEnabled() bool {
+	path, err := exec.LookPath("selinuxenabled")
+	if err == nil {
+		cmd := exec.Command(path)
+		err = cmd.Run()
+		if err == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func chcon(label, path string) error {
+	if selinuxEnabled() {
+		chconPath, err := exec.LookPath("chcon")
+		if err == nil {
+			chconCmd := exec.Command(chconPath, label, path)
+			err = chconCmd.Run()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir string, path string, contextDir string) error {
 	if h.verbose {
 		log.Printf("Saving build artifacts from image %s to path %s\n", image, path)
@@ -412,13 +440,9 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 			return err
 		}
 
-		chconPath, err := exec.LookPath("chcon")
-		if err == nil {
-			chconCmd := exec.Command(chconPath, SVirtSandboxFileLabel, containerInitDir)
-			err = chconCmd.Run()
-			if err != nil {
-				return err
-			}
+		err = chcon(SVirtSandboxFileLabel, containerInitDir)
+		if err != nil {
+			return fmt.Errorf("unable to set SELinux context: %s", err.Error())
 		}
 
 		initScriptPath := filepath.Join(containerInitDir, "init.sh")
@@ -599,13 +623,9 @@ func (h requestHandler) buildDeployableImage(req BuildRequest, image string, con
 			return nil, err
 		}
 
-		chconPath, err := exec.LookPath("chcon")
-		if err == nil {
-			chconCmd := exec.Command(chconPath, SVirtSandboxFileLabel, containerInitDir)
-			err = chconCmd.Run()
-			if err != nil {
-				return nil, err
-			}
+		err = chcon(SVirtSandboxFileLabel, containerInitDir)
+		if err != nil {
+			return nil, fmt.Errorf("unable to set SELinux context: %s", err.Error())
 		}
 
 		buildScriptPath := filepath.Join(containerInitDir, "init.sh")
