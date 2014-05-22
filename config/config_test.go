@@ -1,7 +1,9 @@
-package config
+package config_test
 
 import (
 	"testing"
+
+	. "github.com/openshift/geard/config"
 )
 
 type Config_Test struct{}

@@ -31,21 +31,24 @@ func (e *Environment) Check() error {
 	return nil
 }
 
+var whiteSpaces = " \t"
+
 func (e *Environment) FromString(s string) (bool, error) {
 	pair := strings.SplitN(s, "=", 2)
 	if len(pair) != 2 {
 		return false, nil
 	}
 	second := pair[1]
-	if strings.HasPrefix(second, "\"") || strings.HasPrefix(second, "'") {
-		value, err := strconv.Unquote(second)
-		if err != nil {
-			return true, errors.New("The value for " + second + " is not valid: " + err.Error())
-		}
-		second = value
+
+	// trim the front of a variable, but nothing else
+	variable := strings.TrimLeft(pair[0], whiteSpaces)
+	if strings.ContainsAny(variable, whiteSpaces) {
+		return false, fmt.Errorf("variable '%s' has white spaces", variable)
 	}
-	e.Name = pair[0]
+
+	e.Name = variable
 	e.Value = second
+
 	return true, nil
 }
 
