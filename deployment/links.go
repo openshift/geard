@@ -17,10 +17,8 @@ type Link struct {
 	NonLocal  bool `json:"NonLocal,omitempty"`
 	MatchPort bool `json:"MatchPort,omitempty"`
 
-	UsePrimary bool `json:"UsePrimary,omitempty"`
-	Combine    bool `json:"Combine,omitempty"`
-
-	Ports []port.Port `json:"Ports,omitempty"`
+	Ports      port.Ports     `json:"Ports,omitempty"`
+	AliasPorts port.PortPairs `json:"AliasPorts,omitempty"`
 
 	container *Container
 }
@@ -64,14 +62,21 @@ func (sources Containers) OrderLinks() (ordered containerLinks, err error) {
 			}
 			link.container = target
 
-			// by default, use all target ports if non-specified
-			linkedPorts := link.Ports
-			if len(linkedPorts) == 0 {
-				linkedPorts = make([]port.Port, len(target.PublicPorts))
-				for k := range target.PublicPorts {
-					linkedPorts[k] = target.PublicPorts[k].Internal
+			// ensure all direct ports are copied over to aliased ports
+			for i := range link.Ports {
+				if _, ok := link.AliasPorts.Find(link.Ports[i]); !ok {
+					link.AliasPorts = append(link.AliasPorts, port.PortPair{link.Ports[i], 0})
 				}
-				link.Ports = linkedPorts
+			}
+
+			// by default, use all target ports if non-specified
+			linkedPorts := link.AliasPorts
+			if len(linkedPorts) == 0 {
+				linkedPorts = make(port.PortPairs, len(target.PublicPorts))
+				for k := range target.PublicPorts {
+					linkedPorts[k].Internal = target.PublicPorts[k].Internal
+				}
+				link.AliasPorts = linkedPorts
 			}
 			if len(linkedPorts) == 0 {
 				err = errors.New(fmt.Sprintf("deployment: target %s has no public ports", target.Name))
@@ -122,8 +127,8 @@ func (link containerLink) String() string {
 
 func (link containerLink) exposePorts() error {
 	instances := link.Target.Instances()
-	for i := range link.Ports {
-		p := link.Ports[i]
+	for i := range link.AliasPorts {
+		p := link.AliasPorts[i].Internal
 		for j := range instances {
 			target := instances[j]
 
@@ -148,11 +153,11 @@ func (link containerLink) exposePorts() error {
 
 func (link containerLink) reserve(pool PortAssignmentStrategy) error {
 	instances := link.Target.Instances()
-	for i := range link.Ports {
-		port := link.Ports[i]
+	for i := range link.AliasPorts {
+		port := link.AliasPorts[i]
 		for j := range instances {
 			instance := instances[j]
-			mapping, found := instance.Ports.Find(port)
+			mapping, found := instance.Ports.Find(port.Internal)
 			if !found {
 				return errors.New(fmt.Sprintf("deployment: instance does not expose %d for link %s", port, link.String()))
 			}
@@ -164,9 +169,21 @@ func (link containerLink) reserve(pool PortAssignmentStrategy) error {
 				if link.MatchPort && mapping.Target.Port != mapping.Internal {
 					return errors.New(fmt.Sprintf("deployment: The internal and shared ports are not the same for an instance %s on link %s, needs to be reset.", instance.Id, link.String()))
 				}
+				if !port.External.Default() && mapping.Target.Port != port.External {
+					return errors.New(fmt.Sprintf("deployment: The internal and requested shared ports are not the same for an instance %s on link %s, needs to be reset.", instance.Id, link.String()))
+				}
 				continue
 			}
-			mapping.Target = pool.Reserve(!link.NonLocal, link.MatchPort, port)
+
+			match := link.MatchPort
+			requested := port.Internal
+			// If an alias was requested, force matching
+			if port.External != 0 {
+				match = true
+				requested = port.External
+			}
+
+			mapping.Target = pool.Reserve(!link.NonLocal, match, requested)
 		}
 	}
 	return nil
@@ -180,13 +197,13 @@ func (link containerLink) appendLinks() error {
 		instance := sourceInstances[i]
 		for j := range targetInstances {
 			target := targetInstances[j]
-			for k := range link.Ports {
-				port := link.Ports[k]
-				mapping, found := target.Ports.Find(port)
+			for k := range link.AliasPorts {
+				port := link.AliasPorts[k]
+				mapping, found := target.Ports.Find(port.Internal)
 				if !found {
-					return errors.New(fmt.Sprintf("deployment: instance does not expose %d for link %s", port, link.String()))
+					return errors.New(fmt.Sprintf("deployment: instance does not expose %d for link %s", port.Internal, link.String()))
 				}
-				//log.Printf("appending %d on %s: %+v %+v", port, instance.Id, mapping, instance)
+				//log.Printf("appending %+v on %s: %+v %+v", port, instance.Id, mapping, instance)
 
 				name, err := target.ResolveHostname()
 				if err != nil {
@@ -202,7 +219,7 @@ func (link containerLink) appendLinks() error {
 						ToHost: name,
 					},
 					from:     link.Target.Name,
-					fromPort: port,
+					fromPort: port.Internal,
 				})
 			}
 		}

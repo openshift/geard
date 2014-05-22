@@ -211,6 +211,9 @@ func (s *IntegrationTestSuite) assertContainerStarts(c *chk.C, id containers.Ide
 func (s *IntegrationTestSuite) assertContainerStartsAndExits(c *chk.C, start time.Time, id containers.Identifier) {
 	hasStarted := func() bool {
 		_, inactiveEnd, activeStart, _ := s.unitTimes(id)
+		if inactiveEnd.IsZero() || activeStart.IsZero() {
+			c.Logf("Variables empty before")
+		}
 		if inactiveEnd.Before(start) || activeStart.Before(start) {
 			return false
 		}

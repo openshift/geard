@@ -371,7 +371,8 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	contents, _ := json.Marshal(changes)
+	contents, _ := json.MarshalIndent(changes, "", "  ")
+	contents = append(contents, []byte("\n")...)
 	if err := ioutil.WriteFile(newPath, contents, 0664); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write %s: %s\n", newPath, err.Error())
 	}
