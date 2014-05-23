@@ -103,7 +103,7 @@ func switchnsExec(args []string) {
 			fmt.Printf("Couldn't get identifier from user: %v\n", u)
 			os.Exit(2)
 		}
-		runCommandInContainer(containerId.ContainerFor(), []string{"/bin/bash", "-l"}, []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"})
+		runCommandInContainer(containerId.ContainerFor(), []string{"/bin/bash", "-l"}, []string{})
 	}
 }
 
@@ -170,5 +170,11 @@ func runCommandInContainer(name string, command []string, environment []string) 
 		os.Exit(3)
 	}
 
-	namespace.RunIn(name, containerNsPID, command, environment)
+	containerEnv := environment
+
+	if len(containerEnv) == 0 {
+		containerEnv = container.Config.Env
+	}
+
+	namespace.RunIn(name, containerNsPID, command, containerEnv)
 }
