@@ -3,7 +3,7 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
+	gdocker "github.com/fsouza/go-dockerclient"
 	"github.com/fsouza/go-dockerclient/engine"
 	"io/ioutil"
 	"os"
@@ -13,35 +13,35 @@ import (
 )
 
 type containerLookupResult struct {
-	Container *docker.Container
+	Container *gdocker.Container
 	Error     error
 }
 
 type DockerClient struct {
-	client          *docker.Client
+	client          *gdocker.Client
 	executionDriver string
 }
 
-func (d *DockerClient) ListContainers() ([]docker.APIContainers, error) {
-	return d.client.ListContainers(docker.ListContainersOptions{All: true})
+func (d *DockerClient) ListContainers() ([]gdocker.APIContainers, error) {
+	return d.client.ListContainers(gdocker.ListContainersOptions{All: true})
 }
 
 func (d *DockerClient) ForceCleanContainer(ID string) error {
-	if err := d.client.KillContainer(docker.KillContainerOptions{ID: ID}); err != nil {
+	if err := d.client.KillContainer(gdocker.KillContainerOptions{ID: ID}); err != nil {
 		return err
 	}
-	return d.client.RemoveContainer(docker.RemoveContainerOptions{ID, true, true})
+	return d.client.RemoveContainer(gdocker.RemoveContainerOptions{ID, true, true})
 }
 
 func GetConnection(dockerSocket string) (*DockerClient, error) {
 	var (
-		client          *docker.Client
+		client          *gdocker.Client
 		err             error
 		info            *engine.Env
 		executionDriver string
 	)
 
-	client, err = docker.NewClient(dockerSocket)
+	client, err = gdocker.NewClient(dockerSocket)
 	if err != nil {
 		fmt.Println("Unable to connect to docker server:", err.Error())
 		return nil, err
@@ -57,7 +57,7 @@ func GetConnection(dockerSocket string) (*DockerClient, error) {
 
 var ErrNoSuchContainer = errors.New("can't find container")
 
-func (d *DockerClient) InspectContainer(containerName string) (*docker.Container, error) {
+func (d *DockerClient) InspectContainer(containerName string) (*gdocker.Container, error) {
 	c, err := d.client.InspectContainer(containerName)
 	if err != nil && strings.HasPrefix(err.Error(), "No such container") {
 		err = ErrNoSuchContainer
@@ -65,10 +65,10 @@ func (d *DockerClient) InspectContainer(containerName string) (*docker.Container
 	return c, err
 }
 
-func (d *DockerClient) GetImage(imageName string) (*docker.Image, error) {
+func (d *DockerClient) GetImage(imageName string) (*gdocker.Image, error) {
 	if img, err := d.client.InspectImage(imageName); err != nil {
-		if err == docker.ErrNoSuchImage {
-			if err := d.client.PullImage(docker.PullImageOptions{imageName, "", "", os.Stdout}, docker.AuthConfiguration{}); err != nil {
+		if err == gdocker.ErrNoSuchImage {
+			if err := d.client.PullImage(gdocker.PullImageOptions{imageName, "", "", os.Stdout}, gdocker.AuthConfiguration{}); err != nil {
 				return nil, err
 			}
 			return d.client.InspectImage(imageName)
@@ -89,7 +89,7 @@ func (d *DockerClient) GetContainerIPs(ids []string) (map[string]string, error) 
 	return ips, nil
 }
 
-func (d *DockerClient) ChildProcessForContainer(container *docker.Container) (int, error) {
+func (d *DockerClient) ChildProcessForContainer(container *gdocker.Container) (int, error) {
 	//log.Printf("docker: execution driver %s", d.executionDriver)
 	if d.executionDriver == "" || strings.HasPrefix(d.executionDriver, "lxc") {
 		//Parent pid (LXC or N-Spawn)
