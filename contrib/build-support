@@ -14,6 +14,13 @@ function setup_geard_build_env() {
 
   # Inject the geard vendor dir into the GOPATH
   local DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  
+  # Ensure binaries are installed to the normal GOPATH. There have been
+  # observed instances where the install location may vary by golang version
+  # when multiple entries exist in GOPATH.
+  export GOBIN=$GOPATH/bin
+
+  # Prepend geard's vendor source on GOPATH
   export GOPATH=$DIR/../vendor:$GOPATH
   echo "Building with GOPATH: ${GOPATH}"
 
