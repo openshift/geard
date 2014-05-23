@@ -249,6 +249,7 @@ type HttpStartContainerRequest struct {
 }
 
 func (h *HttpStartContainerRequest) HttpMethod() string { return "PUT" }
+func (h *HttpStartContainerRequest) Streamable() bool   { return true }
 func (h *HttpStartContainerRequest) HttpPath() string {
 	return http.Inline("/container/:id/started", string(h.Id))
 }
@@ -268,6 +269,7 @@ type HttpStopContainerRequest struct {
 }
 
 func (h *HttpStopContainerRequest) HttpMethod() string { return "PUT" }
+func (h *HttpStopContainerRequest) Streamable() bool   { return true }
 func (h *HttpStopContainerRequest) HttpPath() string {
 	return http.Inline("/container/:id/stopped", string(h.Id))
 }
@@ -287,6 +289,7 @@ type HttpRestartContainerRequest struct {
 }
 
 func (h *HttpRestartContainerRequest) HttpMethod() string { return "POST" }
+func (h *HttpRestartContainerRequest) Streamable() bool   { return true }
 func (h *HttpRestartContainerRequest) HttpPath() string {
 	return http.Inline("/container/:id/restart", string(h.Id))
 }
@@ -304,6 +307,7 @@ type HttpBuildImageRequest cjobs.BuildImageRequest
 
 func (h *HttpBuildImageRequest) HttpMethod() string { return "POST" }
 func (h *HttpBuildImageRequest) HttpPath() string   { return "/build-image" }
+func (h *HttpBuildImageRequest) Streamable() bool   { return true }
 func (h *HttpBuildImageRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (interface{}, error) {
 		data := &cjobs.BuildImageRequest{}
