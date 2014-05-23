@@ -17,6 +17,7 @@ import (
 
 // An IP port, valid from 1 to 65535.  Use 0 for undefined.
 type Port uint
+type Ports []Port
 
 const InvalidPort = 0
 
@@ -80,7 +81,6 @@ type PortPair struct {
 	Internal Port
 	External Port `json:"External,omitempty"`
 }
-
 type PortPairs []PortPair
 
 func (p PortPairs) Find(port Port) (*PortPair, bool) {

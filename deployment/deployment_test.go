@@ -254,8 +254,29 @@ func TestPrepareDeploymentError(t *testing.T) {
 	if next.Instances[0].Id == "web-1" {
 		t.Fatal("Should randomize ids", next.Instances[0])
 	}
+}
 
-	// b, _ := json.MarshalIndent(next, "", "  ")
+func TestLinkAliasing(t *testing.T) {
+	dep := loadDeployment("./fixtures/link_alias.json")
+	changes, _, err := dep.Describe(oneHost, loopbackTransport)
+	if err != nil {
+		t.Fatal("Should not have received an error", err)
+	}
+	if changes.Instances[1].Ports[0].Target.Port != 8080 {
+		t.Fatalf("Target port should be assigned 8080, was %d", changes.Instances[1].Ports[0].Target.Port)
+	}
+
+	assignPorts(changes)
+	changes.UpdateLinks()
+
+	if len(changes.Instances[0].links) == 0 {
+		t.Fatalf("No links defined on instance %+v", changes.Instances[0])
+	}
+	if changes.Instances[0].links[0].FromPort != 8080 {
+		t.Fatalf("Link should be on port 8080, was %+v", changes.Instances[0].links[0])
+	}
+
+	// b, _ := json.MarshalIndent(changes, "", "  ")
 	// t.Log(string(b))
 }
 
