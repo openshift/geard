@@ -313,7 +313,7 @@ Not yet prototyped:
 Building Images
 ---------------
 
-geard uses [Source to Images (STI)](http://github.com/openshift/geard/tree/master/sti)
+geard uses [Source to Images (STI)](./sti)
 to build deployable images from a base image and application source.  STI supports a number of
 use cases for building deployable images, including:
 
