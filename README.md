@@ -3,9 +3,9 @@ geard [![Build Status](https://travis-ci.org/openshift/geard.png?branch=master)]
 
 geard is a command line client for installing [Docker](https://www.docker.io) images as containers onto a systemd-enabled Linux operating system (systemd 207 or newer).  It may be run as a command:
 
-    $ sudo gear install pmorie/sti-html-app my-sample-service
+    $ sudo gear install openshift/busybox-http-app my-sample-service
 
-to install the public image <code>pmorie/sti-html-app</code> to systemd on the local machine with the service name "ctr-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (default port 43273) :
+to install the public image <code>openshift/busybox-http-app</code> to systemd on the local machine with the service name "ctr-my-sample-service".  The command can also start as a daemon and serve API requests over HTTP (default port 43273) :
 
     $ sudo gear daemon
     2014/02/21 02:59:42 ports: searching block 41, 4000-4099
@@ -14,7 +14,7 @@ to install the public image <code>pmorie/sti-html-app</code> to systemd on the l
 The `gear` CLI can connect to this agent:
 
     $ gear stop localhost/my-sample-service
-    $ gear install pmorie/sti-html-app localhost/my-sample-service.1 localhost/my-sample-service.2
+    $ gear install openshift/busybox-http-app localhost/my-sample-service.1 localhost/my-sample-service.2
     $ gear start localhost/my-sample-service.1 localhost/my-sample-service.2
 
 The geard agent exposes operations on containers needed for [large scale orchestration](./docs/orchestrating_geard.md) in production environments, and tries to map those operations closely to the underlying concepts in Docker and systemd.  It supports linking containers into logical groups (applications) across multiple hosts with [iptables based local networking](./docs/linking.md), shared environment files, and SSH access to containers.  It is also a test bed for prototyping related container services that may eventually exist as Docker plugins, such as routing, event notification, and efficient idling and network activation.
@@ -52,9 +52,9 @@ Here are the supported container actions on the agent - these should map cleanly
 
 *   Create a new system unit file that runs a single docker image (install and start a container)
 
-        $ gear install pmorie/sti-html-app localhost/my-sample-service --start -p 8080:0
+        $ gear install openshift/busybox-http-app localhost/my-sample-service --start -p 8080:0
 
-        $ curl -X PUT "http://localhost:43273/container/my-sample-service" -H "Content-Type: application/json" -d '{"Image": "pmorie/sti-html-app", "Started":true, "Ports":[{"Internal":8080}]}'
+        $ curl -X PUT "http://localhost:43273/container/my-sample-service" -H "Content-Type: application/json" -d '{"Image": "openshift/busybox-http-app", "Started":true, "Ports":[{"Internal":8080}]}'
 
 *   Stop, start, and restart a container
 
@@ -128,7 +128,7 @@ Here are the supported container actions on the agent - these should map cleanly
         $ systemctl restart sshd.service
 
         # Install and start a container in isolate mode which is necessary for SSH.
-        $ gear install pmorie/sti-html-app testapp1 --isolate --start
+        $ gear install openshift/busybox-http-app testapp1 --isolate --start
 
         # Add ssh keys.
         $ gear add-keys --key-file=/path/to/id_rsa.pub testapp1

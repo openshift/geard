@@ -27,7 +27,7 @@ const (
 	IntervalContainerCheck = time.Second / 20
 	IntervalHttpCheck      = time.Second / 10
 
-	TestImage = "pmorie/sti-html-app"
+	TestImage = "openshift/busybox-http-app"
 	EnvImage  = "openshift/envtest"
 )
 
@@ -667,7 +667,8 @@ func (s *IntegrationTestSuite) TestContainerNetLinks(c *chk.C) {
 	s.assertContainerStarts(c, id)
 	s.assertFilePresent(c, filepath.Join(id.RunPathFor(), "container-init.sh"), 0700, false)
 
-	cmd = exec.Command("/usr/bin/switchns", "--container="+id.ContainerFor(), "--", "/sbin/iptables", "-t", "nat", "-L")
+	cmd = exec.Command("/usr/bin/switchns", "--container="+id.ContainerFor(),
+		"--", "/sbin/iptables", "-t", "nat", "-L")
 	data, err = cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "tcp dpt:tproxy to:74.125.239.114"), chk.Equals, true)

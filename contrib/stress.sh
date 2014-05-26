@@ -19,7 +19,7 @@ seq=${SEQ:-$(date +%s)}
 for ((i=1;i<=$count;i++));
 do
   gear=$seq
-  curl "$base/container?u=1&d=1&i=$seq&r=$gear&t=pmorie%2Fsti-html-app" -X PUT -d '{"ports":[{"internal":8080}]}'
+  curl "$base/container?u=1&d=1&i=$seq&r=$gear&t=openshift%2Fbusybox-http-app" -X PUT -d '{"ports":[{"internal":8080}]}'
   echo
   seq=$[seq+1]
 done

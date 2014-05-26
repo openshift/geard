@@ -71,7 +71,7 @@ func TestPrepareDeployment(t *testing.T) {
       {
         "name":"web",
         "count":2,
-        "image":"pmorie/sti-html-app",
+        "image":"openshift/busybox-http-app",
         "publicports":[
           {"internal":8080,"external":0}
         ]
@@ -109,7 +109,7 @@ func TestPrepareDeploymentExternal(t *testing.T) {
       {
         "name":"web",
         "count":2,
-        "image":"pmorie/sti-html-app",
+        "image":"openshift/busybox-http-app",
         "publicports":[
           {"internal":8080,"external":80}
         ]
@@ -137,7 +137,7 @@ func TestPrepareDeploymentRemoveMissing(t *testing.T) {
       {
         "name":"web",
         "count":2,
-        "image":"pmorie/sti-html-app"
+        "image":"openshift/busybox-http-app"
       }
     ],
     "instances":[
@@ -179,7 +179,7 @@ func TestPrepareDeploymentError(t *testing.T) {
       {
         "name":"web",
         "count":2,
-        "image":"pmorie/sti-html-app",
+        "image":"openshift/busybox-http-app",
         "publicports":[
           {"internal":8080,"external":0}
         ],

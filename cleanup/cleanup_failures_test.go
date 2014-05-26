@@ -63,7 +63,7 @@ const (
 		"Command":"true /bin/sh -c /usr/bin/run",
 		"Created":1398871144,
 		"Id":"4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef",
-		"Image":"pmorie/sti-html-app:latest",
+		"Image":"openshift/busybox-http-app:latest",
 		"Names":[
 		  "ctr-sample-service-data"
 		],
@@ -111,7 +111,7 @@ const (
 		  "/usr/bin/run"
 		],
 		"Dns":null,
-		"Image":"pmorie/sti-html-app",
+		"Image":"openshift/busybox-http-app",
 		"Volumes":{
 
 		},

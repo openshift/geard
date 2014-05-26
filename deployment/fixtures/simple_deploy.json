@@ -3,7 +3,7 @@
     {
       "name":"web",
       "count":2,
-      "image":"pmorie/sti-html-app",
+      "image":"openshift/busybox-http-app",
       "publicports":[
         {"internal":8080,"external":0}
       ],

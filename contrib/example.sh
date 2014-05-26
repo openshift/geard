@@ -18,7 +18,7 @@ gear=$seq
 gear1=$gear
 
 header "Create a container and expose a single port"
-curl "$base/container/$gear" -X PUT -d '{"Image":"pmorie/sti-html-app", "Ports":[{"Internal":8080}],"Started":true}'
+curl "$base/container/$gear" -X PUT -d '{"Image":"openshift/busybox-http-app", "Ports":[{"Internal":8080}],"Started":true}'
 echo
 
 seq=$[seq+1]
@@ -49,7 +49,7 @@ gear=$[gear+1]
 gear2=$gear
 
 header "Create a second container"
-curl "$base/container/$gear" -H "Content-Type: application/json" -d '{"Image":"pmorie/sti-html-app"}' -X PUT
+curl "$base/container/$gear" -H "Content-Type: application/json" -d '{"Image":"openshift/busybox-http-app"}' -X PUT
 echo
 
 seq=$[seq+1]
