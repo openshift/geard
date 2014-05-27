@@ -50,4 +50,8 @@ func init() {
 		filepath.Join(config.ContainerBasePath(), "ports", "descriptions"),
 		filepath.Join(config.ContainerBasePath(), "ports", "interfaces"),
 	)
+	config.AddRequiredDirectory(
+		0755,
+		filepath.Join(config.SystemdBasePath(), "container-active.target.wants"),
+	)
 }

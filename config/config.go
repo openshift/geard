@@ -36,6 +36,19 @@ func SetContainerBasePath(value string) error {
 	return nil
 }
 
+func SystemdBasePath() string {
+	return systemdBasePath
+}
+
+func SetSystemdBasePath(value string) error {
+	if "" == value {
+		return fmt.Errorf("SetSystemdBasePath: requires a non-empty argument")
+	}
+
+	systemdBasePath = value
+	return nil
+}
+
 type DockerConfiguration struct {
 	Socket string
 }
@@ -49,4 +62,5 @@ var (
 	SystemDockerFeatures = DockerFeatures{}
 	basePath             = "/var/lib/containers"
 	runPath              = "/var/run/containers"
+	systemdBasePath      = "/etc/systemd/system"
 )
