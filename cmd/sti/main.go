@@ -1,17 +1,19 @@
 package main
 
 import (
-	"log"
-	_ "net/http/pprof"
-
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/sti"
-	"github.com/spf13/cobra"
 	"io/ioutil"
+	"log"
+	_ "net/http/pprof"
 	"os"
 	"strings"
+
+	"github.com/openshift/geard/sti"
+	"github.com/spf13/cobra"
 )
+
+var version string
 
 func parseEnvs(envStr string) (map[string]string, error) {
 	if envStr == "" {
@@ -55,6 +57,17 @@ func Execute() {
 	}
 	stiCmd.PersistentFlags().StringVarP(&(req.DockerSocket), "url", "U", "unix:///var/run/docker.sock", "Set the url of the docker socket to use")
 	stiCmd.PersistentFlags().BoolVar(&(req.Verbose), "verbose", false, "Enable verbose output")
+
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Display version",
+		Long:  "Display version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("sti %s\n", version)
+		},
+	}
+
+	stiCmd.AddCommand(versionCmd)
 
 	buildCmd := &cobra.Command{
 		Use:   "build SOURCE BUILD_IMAGE APP_IMAGE_TAG",

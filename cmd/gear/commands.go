@@ -4,13 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	gcmd "github.com/openshift/geard/cmd"
-	"github.com/openshift/geard/config"
-	"github.com/openshift/geard/containers"
-	cjobs "github.com/openshift/geard/containers/jobs"
-	"github.com/openshift/geard/deployment"
-	"github.com/openshift/geard/dispatcher"
-	"github.com/spf13/cobra"
 	"io"
 	"io/ioutil"
 	"log"
@@ -19,6 +12,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"time"
+
+	gcmd "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/containers"
+	cjobs "github.com/openshift/geard/containers/jobs"
+	"github.com/openshift/geard/deployment"
+	"github.com/openshift/geard/dispatcher"
+	"github.com/spf13/cobra"
 	// "github.com/openshift/geard/encrypted"
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
@@ -39,8 +40,8 @@ var (
 	keyPath   string
 	expiresAt int64
 
-	environment    gcmd.EnvironmentDescription
-	portPairs      gcmd.PortPairs
+	environment  gcmd.EnvironmentDescription
+	portPairs    gcmd.PortPairs
 	networkLinks = gcmd.NetworkLinks{}
 
 	gitKeys     bool
@@ -59,6 +60,8 @@ var (
 	listenAddr string
 
 	defaultTransport LocalTransportFlag
+
+	version string
 )
 
 var conf = http.HttpConfiguration{
@@ -77,6 +80,7 @@ func init() {
 
 // Parse the command line arguments and invoke one of the support subcommands.
 func Execute() {
+
 	gearCmd := &cobra.Command{
 		Use:   "gear",
 		Short: "Gear(d) is a tool for installing Docker containers to systemd",
@@ -237,6 +241,17 @@ func Execute() {
 	// }
 	// createTokenCmd.Flags().Int64Var(&expiresAt, "expires-at", time.Now().Unix()+3600, "Specify the content request token expiration time in seconds after the Unix epoch")
 	// gearCmd.gcmd.AddCommand(createTokenCmd)
+
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Display version",
+		Long:  "Display version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("gear %s\n", version)
+		},
+	}
+
+	gearCmd.AddCommand(versionCmd)
 
 	gcmd.ExtendCommands(gearCmd, true)
 

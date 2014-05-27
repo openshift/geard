@@ -36,6 +36,7 @@ var (
 	gitRo           bool
 	envs            Environment
 	passthroughArgs []string
+	version         string
 )
 
 func main() {
@@ -53,6 +54,17 @@ func main() {
 	commandArgs, passthroughArgs = extractPassthroughArgs()
 
 	switchnsCmd.SetArgs(commandArgs)
+
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Display version",
+		Long:  "Display version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("swtichns %s\n", version)
+		},
+	}
+
+	switchnsCmd.AddCommand(versionCmd)
 
 	if err := switchnsCmd.Execute(); err != nil {
 		fmt.Println(err)
