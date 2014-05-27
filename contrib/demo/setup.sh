@@ -9,6 +9,7 @@ if [ $ret -ne 0 ] || [ "$FETCH_IMAGES" != "" ]; then
   docker pull openshift/nodejs-0-10-centos
   docker tag openshift/nodejs-0-10-centos nodejs-centos
   docker pull openshift/centos-mongodb
+  gear build https://github.com/smarterclayton/fluentwebmap.git nodejs-centos parks-map-app
 fi
 
 set +x
