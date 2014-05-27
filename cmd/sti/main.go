@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	_ "net/http/pprof"
 	"os"
@@ -93,20 +92,10 @@ func Execute() {
 			envs, _ := parseEnvs(envString)
 			buildReq.Environment = envs
 
-			if buildReq.WorkingDir == "tempdir" {
-				var err error
-				buildReq.WorkingDir, err = ioutil.TempDir("", "sti")
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
-				defer os.Remove(buildReq.WorkingDir)
-			}
-
 			res, err := sti.Build(buildReq)
 			if err != nil {
 				fmt.Printf("An error occured: %s\n", err.Error())
-				return
+				os.Exit(1)
 			}
 
 			for _, message := range res.Messages {
@@ -145,20 +134,10 @@ func Execute() {
 			envs, _ := parseEnvs(envString)
 			buildReq.Environment = envs
 
-			if buildReq.WorkingDir == "tempdir" {
-				var err error
-				buildReq.WorkingDir, err = ioutil.TempDir("", "sti")
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
-				defer os.Remove(buildReq.WorkingDir)
-			}
-
 			res, err := sti.Usage(buildReq)
 			if err != nil {
 				fmt.Printf("An error occured: %s\n", err.Error())
-				return
+				os.Exit(1)
 			}
 
 			for _, message := range res.Messages {

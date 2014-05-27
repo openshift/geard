@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -142,6 +143,14 @@ fi
 `))
 
 func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
+	if req.WorkingDir == "tempdir" {
+		var err error
+		req.WorkingDir, err = ioutil.TempDir("", "sti")
+		if err != nil {
+			return nil, fmt.Errorf("Error creating temporary directory '%s': %s\n", req.WorkingDir, err.Error())
+		}
+		defer os.Remove(req.WorkingDir)
+	}
 
 	workingTmpDir := filepath.Join(req.WorkingDir, "tmp")
 	dirs := []string{"tmp", "scripts", "defaultScripts"}
@@ -212,6 +221,14 @@ func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
 }
 
 func (h requestHandler) usage(req BuildRequest) (*BuildResult, error) {
+	if req.WorkingDir == "tempdir" {
+		var err error
+		req.WorkingDir, err = ioutil.TempDir("", "sti")
+		if err != nil {
+			return nil, fmt.Errorf("Error creating temporary directory '%s': %s\n", req.WorkingDir, err.Error())
+		}
+		defer os.Remove(req.WorkingDir)
+	}
 
 	dirs := []string{"scripts", "defaultScripts"}
 	for _, v := range dirs {
