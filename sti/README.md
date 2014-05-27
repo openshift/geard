@@ -1,22 +1,23 @@
 docker-source-to-images (sti)
 =======
 
-Source-to-images (`sti`) is a tool for building reproducable Docker images.  `sti`
-produces ready-to-run images by injecting a user source into a docker image and <i>assembling</i>
+Source-to-images (`sti`) is a tool for building reproducable Docker images.  `sti` produces
+ready-to-run images by injecting a user source into a docker image and <i>assembling</i>
 a new Docker image which incorporates the base image and built source, and is ready to use
 with `docker run`.  `sti` supports incremental builds which re-use previously downloaded 
 dependencies, previously built artifacts, etc
 
 Interested in learning more?  Read on!
 
-Don't want to learn more?  Want to just get started NOW?  Check out the getting started instructions [here](go/).
+Want to just get started now?  Check out the [instructions](#getting-started).
 
 Philosophy
 ----------
 
 1. Simplify the process of application source + base image -> usable image for most use cases (the
    80%)
-2. Define and implement a workflow for incremental build that eventually uses only docker primitives
+2. Define and implement a workflow for incremental build that eventually uses only docker
+   primitives
 3. Develop tooling that can assist in verifying that two different base images result in the same
    "docker run" outcome for the same input
 4. Use native docker primitives to accomplish this - map out useful improvements to docker that
@@ -148,25 +149,27 @@ When using an image that supports incremental builds, you can do a clean build w
 Using scripts from a URL
 ------------------------
 
-You can use any set of `assemble`/`run`/`save-artifacts` scripts you want with an image by specifying a url:
+You don't need a special image to use with `sti`.  You can use any set of `assemble`/`run`/
+`save-artifacts` scripts with any image you want by specifying a URL:
 
     sti build SOURCE BUILD_IMAGE_TAG APP_IMAGE_TAG -s <url>
 
-To provide a default set of images to use with your image, you can specify the `STI_SCRIPTS_URL` environment var in
-your `Dockerfile`:
+If you're creating an image and you want to supply a default set of scripts to use with sti, you
+can specify the `STI_SCRIPTS_URL` environment variable in your `Dockerfile`:
 
     ENV STI_SCRIPTS_URL <url>
 
 Using scripts from an application
 ----------------------------------
 
-You can also supply assemble/run/save-artifacts scripts in your application source.  The scripts must be located
-under `.sti/bin` within the root of your source directory.
+You can also supply assemble/run/save-artifacts scripts in your application source.  The scripts
+must be located under `.sti/bin` within the root of your source directory.
 
 Script precedence
 -----------------
 
-STI selects which location to use for a given script (assemble, run, and save-artifacts) based on the following ordering:
+STI selects which location to use for a given script (assemble, run, and save-artifacts) based on
+the following ordering:
 
 1. A script found at the --scripts URL
 1. A script found in the application source `.sti/bin` directory
