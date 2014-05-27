@@ -35,6 +35,15 @@ rm -f tests.test
 go test $(find . -name *_test.go -printf "%h\n" | grep -v /vendor/ | grep -v /tests | xargs echo)
 
 if $test_integration; then
+  echo "Building test images"
+  for image_dir in tests/images/*/; do
+    pushd $image_dir >/dev/null
+    image_name=$(basename $image_dir)
+    echo " ---> $image_name"
+    docker build -t openshift/$image_name .
+    popd >/dev/null
+  done
+
   echo -e "\nRunning integration tests\n"
   go test -tags integration -c github.com/openshift/geard/tests $test_opts
   sudo ./tests.test -gocheck.v $test_opts

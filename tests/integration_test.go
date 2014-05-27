@@ -28,7 +28,7 @@ const (
 	IntervalHttpCheck      = time.Second / 10
 
 	TestImage = "pmorie/sti-html-app"
-	EnvImage  = "ccoleman/envtest"
+	EnvImage  = "openshift/envtest"
 )
 
 //Hookup gocheck with go test
@@ -407,21 +407,27 @@ func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	start := time.Now()
 	cmd := exec.Command("/usr/bin/gear", "install", EnvImage, hostContainerId, "--env-file=deployment/fixtures/simple.env", "--start")
 	data, err := cmd.CombinedOutput()
 	c.Log(cmd.Args)
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	s.assertContainerStartsAndExits(c, start, id)
+	s.assertContainerStarts(c, id)
 
 	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
+
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "TEST=\"value\""), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "QUOTED=\"\\\"foo\\\"\""), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "IGNORED"), chk.Equals, false)
+
+	cmd = exec.Command("/usr/bin/gear", "stop", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerStops(c, id, true)
 }
 
 func (s *IntegrationTestSuite) TestIsolateInstallAndStartImage(c *chk.C) {
