@@ -1,0 +1,61 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  # All Vagrant configuration is done here. The most common configuration
+  # options are documented and commented below. For a complete reference,
+  # please see the online documentation at vagrantup.com.
+  config.vm.box = "atomic"
+  config.vm.provider :libvirt do |libvirt|
+    libvirt.driver = "qemu"    
+    libvirt.connect_via_ssh = false
+  end
+
+  config.vm.define "vm1", primary: true do |config|
+    config.vm.network "forwarded_port", guest: 43273, host: 43273
+    config.vm.network "forwarded_port", guest: 6060, host: 2225
+    config.vm.network "forwarded_port", guest: 14000, host: 14000
+    for i in 4000..4050
+      config.vm.network :forwarded_port, guest: i, host: i
+    end
+
+    comfig.vm.network "private_network", ip: "192.168.205.10"
+  end
+
+  config.vm.define "vm2", primary: true do |config|
+    config.vm.network "forwarded_port", guest: 43273, host: 53273
+    config.vm.network "forwarded_port", guest: 6060, host: 12225
+    config.vm.network "forwarded_port", guest: 14000, host: 24000
+    for i in 4000..4050
+      config.vm.network :forwarded_port, guest: i, host: i+10001
+    end
+
+    config.vm.network "private_network", ip: "192.168.205.11"
+  end
+
+  if ENV['GOPATH'] && ENV['GOPATH'] != ""
+    puts "Sharing GOPATH with VM"
+    gopath = File.expand_path(ENV['GOPATH'].split(/:/).last)
+    vagrantfile = File.expand_path(File.dirname(__FILE__))
+    if !vagrantfile.index(gopath)
+      puts "\nYou have GOPATH set to '#{gopath}', which geard expects to contain your geard source repository, but are running from '#{vagrantfile}' instead.\n\nSet GOPATH='' when running vagrant or move your geard repo to '#{gopath}/src/github.com/openshift/geard'."
+      exit 1
+    end
+    config.vm.synced_folder gopath, "/vagrant"
+  else
+    puts "Sharing current directory with VM"
+    config.vm.synced_folder '.', "/vagrant/", disabled: true
+    config.vm.synced_folder '.', "/vagrant/src/github.com/openshift/geard", create: true
+  end
+
+  if ENV['JUMBO'] && ENV['JUMBO'] != ""
+    config.vm.provider "virtualbox" do |v|
+      v.memory = 4096
+      v.cpus = 4
+      v.customize ["modifyvm", :id, "--cpus", "4"]
+    end
+  end
+end

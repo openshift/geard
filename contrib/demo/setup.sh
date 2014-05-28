@@ -23,8 +23,13 @@ fi
 
 $base/teardown.sh
 
-gear deploy $base/deploy_parks_map.json localhost
-gear stop localhost/parks-backend-{2,3}
+descriptor=$base/deploy_parks_map.json
+if [ "$MULTIHOST" != "" ]; then
+  descriptor=$base/deploy_parks_map_instances.json
+fi
+
+gear deploy $descriptor localhost 192.168.205.11
+gear stop 192.168.205.11/parks-backend-{2,3}
 
 $base/wait_for_url.sh "http://localhost:14000/"
 
