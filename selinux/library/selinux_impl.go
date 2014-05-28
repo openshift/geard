@@ -36,7 +36,7 @@ var (
 )
 
 func Matchpathcon(path string, mode os.FileMode) (string, error) {
-	var con C.security_context_t
+	var con *C.char
 	var scon string
 	rc, err := C.matchpathcon(C.CString(path), C.mode_t(mode), &con)
 	if rc == 0 {
@@ -52,7 +52,7 @@ func Setfilecon(path, scon string) (int, error) {
 }
 
 func Getfilecon(path string) (string, error) {
-	var scon C.security_context_t
+	var scon *C.char
 	var fcon string
 	rc, err := C.lgetfilecon(C.CString(path), &scon)
 	if rc >= 0 {
@@ -76,7 +76,7 @@ func Setfscreatecon(scon string) (int, error) {
 }
 
 func Getfscreatecon() (string, error) {
-	var scon C.security_context_t
+	var scon *C.char
 	var fcon string
 	rc, err := C.getfscreatecon(&scon)
 	if rc >= 0 {
@@ -88,7 +88,7 @@ func Getfscreatecon() (string, error) {
 }
 
 func Getcon() string {
-	var pcon C.security_context_t
+	var pcon *C.char
 	C.getcon(&pcon)
 	scon := C.GoString(pcon)
 	C.freecon(pcon)
@@ -96,7 +96,7 @@ func Getcon() string {
 }
 
 func Getpidcon(pid int) (string, error) {
-	var pcon C.security_context_t
+	var pcon *C.char
 	var scon string
 	rc, err := C.getpidcon(C.pid_t(pid), &pcon)
 	if rc >= 0 {
@@ -108,7 +108,7 @@ func Getpidcon(pid int) (string, error) {
 }
 
 func Getpeercon(socket int) (string, error) {
-	var pcon C.security_context_t
+	var pcon *C.char
 	var scon string
 	rc, err := C.getpeercon(C.int(socket), &pcon)
 	if rc >= 0 {
