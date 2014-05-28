@@ -14,6 +14,7 @@ function usage() {
 # Options parsing
 skip_build=false
 test_opts=""
+dir=$(dirname $0)
 
 while getopts "so:" o; do
   case "${o}" in
@@ -27,12 +28,12 @@ if $skip_build ; then
   echo "Skipping test image build"
 else
   echo "Building test images"
-  pushd ../test_images >/dev/null
+  pushd $dir/../test_images >/dev/null
   ./buildimages.sh
   popd >/dev/null
 fi
 
-pushd ../test_images &>/dev/null
+pushd $dir/../test_images &>/dev/null
 export STI_TEST_IMAGES_DIR=$(pwd)
 echo "Setting STI_TEST_IMAGES_DIR=${STI_TEST_IMAGES_DIR}"
 popd &>/dev/null

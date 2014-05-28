@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"runtime"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -39,18 +40,20 @@ const (
 	FakeUserImage       = "sti_test/sti-fake-user"
 	FakeBrokenBaseImage = "sti_test/sti-fake-broken"
 
-	TagCleanBuild       = "test/sti-fake-app"
-	TagIncrementalBuild = "test/sti-incremental-app"
+	TagCleanBuild           = "test/sti-fake-app"
+	TagCleanBuildUser       = "test/sti-fake-app-user"
+	TagIncrementalBuild     = "test/sti-incremental-app"
+	TagIncrementalBuildUser = "test/sti-incremental-app-user"
 
-	TagCleanBuildRun       = "test/sti-fake-app-run"
-	TagCleanBuildRunUser   = "test/sti-fake-app-run-user"
-	TagIncrementalBuildRun = "test/sti-incremental-app-run"
+	// Need to serve the scripts from localhost so any potential changes to the
+	// scripts are made available for integration testing.
+	//
+	// Port 23456 must match the port used in the fake image Dockerfiles
+	FakeScriptsHttpUrl = "http://localhost:23456/sti-fake/.sti/bin"
 )
 
 var (
-	FakeScriptsUrl       = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake", ".sti", "bin")
-	FakeBrokenScriptsUrl = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake-broken", ".sti", "bin")
-	FakeUserScriptsUrl   = "file://" + path.Join(os.Getenv("STI_TEST_IMAGES_DIR"), "sti-fake-user", ".sti", "bin")
+	FakeScriptsFileUrl string
 )
 
 // Suite/Test fixtures are provided by gocheck
@@ -59,11 +62,18 @@ func (s *IntegrationTestSuite) SetUpSuite(c *C) {
 		c.Skip("-integration not provided")
 	}
 
+	// get the full path to this .go file so we can construct the file url
+	// using this file's dirname
+	_, filename, _, _ := runtime.Caller(0)
+	testImagesDir := path.Join(path.Dir(filename), "test_images")
+	FakeScriptsFileUrl = "file://" + path.Join(testImagesDir, "sti-fake", ".sti", "bin")
+
 	s.dockerClient, _ = docker.NewClient(DockerSocket)
-	for _, image := range []string{TagCleanBuild, TagIncrementalBuild} {
+	for _, image := range []string{TagCleanBuild, TagCleanBuildUser, TagIncrementalBuild, TagIncrementalBuildUser} {
 		s.dockerClient.RemoveImage(image)
-		s.dockerClient.RemoveImage(image + "-run")
 	}
+
+	go http.ListenAndServe(":23456", http.FileServer(http.Dir(testImagesDir)))
 }
 
 func (s *IntegrationTestSuite) SetUpTest(c *C) {
@@ -77,21 +87,21 @@ func (s *IntegrationTestSuite) TestCleanBuild(c *C) {
 	s.exerciseCleanBuild(c, TagCleanBuild, false, FakeBaseImage, "")
 }
 
+func (s *IntegrationTestSuite) TestCleanBuildUser(c *C) {
+	s.exerciseCleanBuild(c, TagCleanBuildUser, false, FakeUserImage, "")
+}
+
 func (s *IntegrationTestSuite) TestCleanBuildFileScriptsUrl(c *C) {
-	s.exerciseCleanBuild(c, TagCleanBuild, false, FakeBaseImage, FakeScriptsUrl)
+	s.exerciseCleanBuild(c, TagCleanBuild, false, FakeBaseImage, FakeScriptsFileUrl)
 }
 
-func (s *IntegrationTestSuite) TestCleanBuildRun(c *C) {
-	s.exerciseCleanBuild(c, TagCleanBuildRun, false, FakeBaseImage, "")
-}
-
-func (s *IntegrationTestSuite) TestCleanBuildRunUser(c *C) {
-	s.exerciseCleanBuild(c, TagCleanBuildRunUser, false, FakeUserImage, "")
+func (s *IntegrationTestSuite) TestCleanBuildHttpScriptsUrl(c *C) {
+	s.exerciseCleanBuild(c, TagCleanBuild, false, FakeBaseImage, FakeScriptsHttpUrl)
 }
 
 // Test that a build request with a callbackUrl will invoke HTTP endpoint
 func (s *IntegrationTestSuite) TestCleanBuildCallbackInvoked(c *C) {
-	s.exerciseCleanBuild(c, TagCleanBuildRun, true, FakeBaseImage, "")
+	s.exerciseCleanBuild(c, TagCleanBuild, true, FakeBaseImage, "")
 }
 
 func (s *IntegrationTestSuite) exerciseCleanBuild(c *C, tag string, verifyCallback bool, imageName string, scriptsUrl string) {
@@ -150,8 +160,12 @@ func (s *IntegrationTestSuite) exerciseCleanBuild(c *C, tag string, verifyCallba
 }
 
 // Test an incremental build.
-func (s *IntegrationTestSuite) TestIncrementalBuildRun(c *C) {
-	s.exerciseIncrementalBuild(c, TagIncrementalBuildRun)
+func (s *IntegrationTestSuite) TestIncrementalBuild(c *C) {
+	s.exerciseIncrementalBuild(c, TagIncrementalBuild)
+}
+
+func (s *IntegrationTestSuite) TestIncrementalBuildUser(c *C) {
+	s.exerciseIncrementalBuild(c, TagIncrementalBuildUser)
 }
 
 func (s *IntegrationTestSuite) exerciseIncrementalBuild(c *C, tag string) {

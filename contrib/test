@@ -17,6 +17,7 @@ setup_geard_build_env
 # Options parsing
 test_integration=false
 test_opts=""
+geard_home=$(cd `dirname $0`/..; pwd)
 
 while getopts "ao:" o; do
   case "${o}" in
@@ -32,26 +33,28 @@ echo "..done"
 
 rm -f tests.test
 
-go test $(find . -name *_test.go -printf "%h\n" | grep -v /vendor/ | grep -v /tests | xargs echo)
+pushd $geard_home >/dev/null
+  go test $(find . -name *_test.go -printf "%h\n" | grep -v /vendor/ | grep -v /tests | sort | uniq | xargs echo)
+popd >/dev/null
 
 if $test_integration; then
   echo "Building test images"
-  for image_dir in tests/images/*/; do
+  for image_dir in $geard_home/tests/images/*/; do
     pushd $image_dir >/dev/null
-    image_name=$(basename $image_dir)
-    echo " ---> $image_name"
-    docker build -t openshift/$image_name .
+      image_name=$(basename $image_dir)
+      echo " ---> $image_name"
+      docker build -t openshift/$image_name .
     popd >/dev/null
   done
 
   echo -e "\nRunning integration tests\n"
-  
+
   # build the sti images needed for the gear build integration tests
   echo -e "Building sti test images...."
-  pushd sti/test_images
-  ./buildimages.sh 
+  $geard_home/sti/test_images/buildimages.sh
   echo -e "done"
-  popd
   go test -tags integration -c github.com/openshift/geard/tests $test_opts
   sudo ./tests.test -gocheck.v $test_opts
+
+  go test github.com/openshift/geard/sti -integration
 fi

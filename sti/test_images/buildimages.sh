@@ -1,8 +1,13 @@
 #!/bin/sh
-pushd sti-fake
-docker build -t sti_test/sti-fake .
-cd ../sti-fake-user
-docker build -t sti_test/sti-fake-user .
-cd ../sti-fake-broken
-docker build -t sti_test/sti-fake-broken .
+dir=$(dirname $0)
+pushd $dir/sti-fake
+  docker build -t sti_test/sti-fake .
+popd
+
+pushd $dir/sti-fake-user
+  docker build -t sti_test/sti-fake-user .
+popd
+
+pushd $dir/sti-fake-broken
+  docker build -t sti_test/sti-fake-broken .
 popd
