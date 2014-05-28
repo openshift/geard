@@ -45,6 +45,13 @@ if $test_integration; then
   done
 
   echo -e "\nRunning integration tests\n"
+  
+  # build the sti images needed for the gear build integration tests
+  echo -e "Building sti test images...."
+  pushd sti/test_images
+  ./buildimages.sh 
+  echo -e "done"
+  popd
   go test -tags integration -c github.com/openshift/geard/tests $test_opts
   sudo ./tests.test -gocheck.v $test_opts
 fi

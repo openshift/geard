@@ -1,24 +1,23 @@
 // +build integration
-
 package tests
 
 import (
-	"bytes"
-	"encoding/json"
 	"flag"
-	"fmt"
 	"github.com/fsouza/go-dockerclient"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
-	"net/http"
 	"os"
 	"os/exec"
 	"time"
 
 	cjobs "github.com/openshift/geard/containers/jobs"
+	chk "launchpad.net/gocheck"
 )
 
-var buildTests = flag.Bool("build", false, "Include build integration tests")
+var _ = chk.Suite(&BuildIntegrationTestSuite{})
+
+// if set to false, then to run these tests, run "contrib/tests -a -o -build"
+var buildTests = flag.Bool("build", true, "Include build integration tests")
 
 /*
  * The REST API needs a unique request id per HTTP request.
@@ -45,7 +44,7 @@ type BuildIntegrationTestSuite struct {
 }
 
 // Register BuildIntegrationTestSuite with the gocheck suite manager
-var _ = Suite(&BuildIntegrationTestSuite{})
+//var _ = Suite(&BuildIntegrationTestSuite{})
 
 func (s *BuildIntegrationTestSuite) requestId() int {
 	return s.requestIdGen.requestId()
@@ -71,44 +70,45 @@ func (s *BuildIntegrationTestSuite) SetUpTest(c *C) {
 }
 
 // TestXxxx methods are identified as test cases
-func (s *BuildIntegrationTestSuite) TestCleanBuild(c *C) {
+func (s *BuildIntegrationTestSuite) TestBuild(c *C) {
 	extendedParams := cjobs.BuildImageRequest{
 		Tag:       "geard/fake-app",
 		Source:    "git://github.com/pmorie/simple-html",
-		BaseImage: "pmorie/sti-fake",
+		BaseImage: "sti_test/sti-fake",
 		Clean:     true,
 		Verbose:   true,
 	}
 
+	// initial/clean build.
 	s.buildImage(c, extendedParams)
 	s.checkForImage(c, extendedParams.Tag)
 
 	containerId := s.createContainer(c, extendedParams.Tag)
 	defer s.removeContainer(containerId)
 	s.checkBasicBuildState(c, containerId)
+
+	// incremental build
+	extendedParams.Clean = false
+	s.buildImage(c, extendedParams)
+
+	incrementalContainerId := s.createContainer(c, extendedParams.Tag)
+	defer s.removeContainer(incrementalContainerId)
+	s.checkBasicBuildState(c, incrementalContainerId)
+	s.checkIncrementalBuildState(c, incrementalContainerId)
+
 }
 
 func (s *BuildIntegrationTestSuite) buildImage(c *C, extendedParams cjobs.BuildImageRequest) {
-	url := fmt.Sprintf("http://localhost:%s/build-image", s.daemonPort)
-	b, _ := json.Marshal(extendedParams)
-	req, _ := http.NewRequest("POST", url, bytes.NewReader(b))
-	req.Header.Set("Content-Type", "application/json")
-	req.ParseForm()
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	c.Assert(err, IsNil, Commentf("Failed to start build"))
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-
-	c.Logf("Response Body: %s", body)
-	c.Assert(resp.StatusCode, Equals, 202, Commentf("Bad response: %+v Body: %s", resp, body))
+	cmd := exec.Command("/usr/bin/gear", "build", extendedParams.Source, extendedParams.BaseImage, extendedParams.Tag)
+	data, err := cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
 }
 
 func (s *BuildIntegrationTestSuite) checkForImage(c *C, tag string) {
 	_, err := s.dockerClient.InspectImage(tag)
-	c.Assert(err, IsNil, Commentf("Couldn't find built image"))
+	c.Assert(err, IsNil, Commentf("Couldn't find built image %s", tag))
 }
 
 func (s *BuildIntegrationTestSuite) createContainer(c *C, image string) string {
@@ -136,7 +136,7 @@ func (s *BuildIntegrationTestSuite) checkFileExists(c *C, cId string, filePath s
 }
 
 func (s *BuildIntegrationTestSuite) checkBasicBuildState(c *C, cId string) {
-	s.checkFileExists(c, cId, "/sti-fake/prepare-invoked")
+	s.checkFileExists(c, cId, "/sti-fake/assemble-invoked")
 	s.checkFileExists(c, cId, "/sti-fake/run-invoked")
 	s.checkFileExists(c, cId, "/sti-fake/src/index.html")
 }
@@ -144,14 +144,4 @@ func (s *BuildIntegrationTestSuite) checkBasicBuildState(c *C, cId string) {
 func (s *BuildIntegrationTestSuite) checkIncrementalBuildState(c *C, cId string) {
 	s.checkBasicBuildState(c, cId)
 	s.checkFileExists(c, cId, "/sti-fake/save-artifacts-invoked")
-}
-
-func (s *BuildIntegrationTestSuite) checkExtendedBuildState(c *C, cId string) {
-	s.checkFileExists(c, cId, "/sti-fake/prepare-invoked")
-	s.checkFileExists(c, cId, "/sti-fake/run-invoked")
-}
-
-func (s *BuildIntegrationTestSuite) checkIncrementalExtendedBuildState(c *C, cId string) {
-	s.checkExtendedBuildState(c, cId)
-	s.checkFileExists(c, cId, "/sti-fake/src/save-artifacts-invoked")
 }
