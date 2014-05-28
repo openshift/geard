@@ -9,7 +9,8 @@ if [ $ret -ne 0 ] || [ "$FETCH_IMAGES" != "" ]; then
   docker pull openshift/nodejs-0-10-centos
   docker tag openshift/nodejs-0-10-centos nodejs-centos
   docker pull openshift/centos-mongodb
-  gear build https://github.com/smarterclayton/fluentwebmap.git nodejs-centos parks-map-app
+  docker pull pmorie/parks-map-app
+  docker tag pmorie/parks-map-app parks-map-app
 fi
 
 set +x
@@ -28,8 +29,8 @@ if [ "$MULTIHOST" != "" ]; then
   descriptor=$base/deploy_parks_map_instances.json
 fi
 
-gear deploy $descriptor localhost 192.168.205.11
-gear stop 192.168.205.11/parks-backend-{2,3}
+gear deploy $descriptor localhost
+gear stop localhost/parks-backend-{2,3}
 
 $base/wait_for_url.sh "http://localhost:14000/"
 
