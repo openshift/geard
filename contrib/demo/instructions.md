@@ -1,4 +1,4 @@
-These instructions will take you from a clean VM* to a working dockercon demo app.  In future iterations these instructions will handle creating the VMs for demo hosts.
+These instructions will take you from a clean VM* to a working demo app.  In future iterations these instructions will handle creating the VMs for demo hosts.
 
 Libvirt setup
 -------------

@@ -22,10 +22,19 @@ if [ $ret -ne 0 ]; then
   exit 1
 fi
 
-$base/teardown.sh
+units=$(curl -q http://192.168.205.11:43273/containers)
+ret=$?
+if [ $ret -ne 0 ]; then
+  echo "gear daemon on vm2 not responding, make sure the service is running and retry."
+  exit 1
+fi
 
-gear deploy $base/deploy_parks_map.json localhost
-gear stop localhost/parks-backend-{2,3}
+$base/teardown-multi.sh
+
+descriptor=$base/deploy_parks_map_multihost.json
+
+gear deploy $descriptor localhost 192.168.205.11
+gear stop 192.168.205.11/parks-backend-{2,3}
 
 $base/wait_for_url.sh "http://localhost:14000/"
 
