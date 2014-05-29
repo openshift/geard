@@ -3,12 +3,13 @@ package tests
 
 import (
 	"flag"
-	"github.com/fsouza/go-dockerclient"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/fsouza/go-dockerclient"
+	. "launchpad.net/gocheck"
 
 	cjobs "github.com/openshift/geard/containers/jobs"
 	chk "launchpad.net/gocheck"

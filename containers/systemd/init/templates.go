@@ -18,10 +18,13 @@ type ContainerInitScript struct {
 	UseSocketProxy bool
 }
 
-var ContainerInitTemplate = template.Must(template.New("container-init.sh").Parse(`#!/bin/bash
+var ContainerInitTemplate = template.Must(template.New("container-init.sh").Parse(`#!/bin/sh
 {{ if .CreateUser }}
-groupadd -g {{.Gid}} {{.ContainerUser}}
-useradd -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}
+if command -v useradd >/dev/null; then
+	useradd -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}
+else
+	adduser -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}
+fi
 {{ else }}
 old_id=$(id -u {{.ContainerUser}})
 old_gid=$(id -g {{.ContainerUser}})
@@ -34,12 +37,12 @@ for i in $(find / -gid ${old_gid}); do PATH=/bin:/sbin:/usr/bin:/usr/sbin chgrp 
 chown -R {{.Uid}}:{{.Gid}} {{.Volumes}}
 {{ end }}
 {{ if .UseSocketProxy }}
-bash -c 'LISTEN_PID=$$ exec /usr/sbin/systemd-socket-proxyd {{ range .PortPairs }}127.0.0.1:{{ .Internal }}{{ end }}' &
+sh -c 'LISTEN_PID=$$ exec /usr/sbin/systemd-socket-proxyd {{ range .PortPairs }}127.0.0.1:{{ .Internal }}{{ end }}' &
 {{ end }}
-exec su {{.ContainerUser}} -s /bin/bash -c /.container.cmd
+exec su {{.ContainerUser}} -s /bin/sh -c /.container.cmd
 `))
 
-var ContainerCmdTemplate = template.Must(template.New("container-cmd.sh").Parse(`#!/bin/bash
+var ContainerCmdTemplate = template.Must(template.New("container-cmd.sh").Parse(`#!/bin/sh
 exec {{.Command}}
 `))
 
