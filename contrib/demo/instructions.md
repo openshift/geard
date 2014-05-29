@@ -1,9 +1,9 @@
-These instructions will take you from a clean VM* to a working demo app.  In future iterations these instructions will handle creating the VMs for demo hosts.
+These instructions will take you from a clean VM* to a working demo app.
 
 Libvirt setup
 -------------
 
-1. Install Vagrant 1.6.2
+1.  Install Vagrant 1.6.2
 
         $ wget https://dl.bintray.com/mitchellh/vagrant/vagrant_1.6.2_x86_64.rpm
         $ yum -y --nogpgcheck localinstall vagrant_1.6.2_x86_64.rpm
@@ -11,7 +11,7 @@ Libvirt setup
         Installed Version: 1.6.2
         Latest Version: 1.6.2
 
-1. Setup libvirt 
+2.  Setup libvirt 
 
         $ sudo yum install @virtualization
         $ wget http://file.rdu.redhat.com/~decarr/dockercon/libvirt-setup.sh
@@ -20,7 +20,7 @@ Libvirt setup
         $ sudo systemctl start libvirtd.service
         $ sudo systemctl enable libvirtd.service
 
-1. Setup vagrant with libvirt
+3. Setup vagrant with libvirt
 
         $ sudo yum install -y wget tree vim screen mtr nmap telnet tar git
         $ curl -sSL https://get.rvm.io | bash -s stable
@@ -28,24 +28,24 @@ Libvirt setup
         $ gem install nokogiri -v '1.5.11'
         $ vagrant plugin install --plugin-version 0.0.16 vagrant-libvirt
 
-1.  Setup Vagrant Box and review Vagrantfile
+4.  Setup Vagrant Box and review Vagrantfile
 
         vagrant box add --name=atomic --provider=libvirt http://rcm-img06.build.bos.redhat.com/images/releases/snaps/20140522.0/vagrant/rhel-atomic-host-vagrant.box
 
-Assume you have some location to hold Vagrantfile, i.e. ~/dockercon
+    Clone pmorie's fork and check out the `multi-demo` branch:
 
-    $ git clone git://github.com/pmorie/geard
-    $ cd geard
-    $ git checkout demo-multi
-    $ cd contrib/demo
-    $ cat Vagrantfile
+        $ git clone git://github.com/pmorie/geard
+        $ cd geard
+        $ git checkout demo-multi
+        $ cd contrib/demo
+        $ cat Vagrantfile
 
-1.  Pull and start local docker registry
+5.  Pull and start local docker registry
 
         $ docker pull pmorie/geard-demo-registry
         $ docker run -p 5000:5000 pmorie/geard-demo-registry
 
-1.  Start VMs
+6.  Start VMs
 
         $ vagrant up --provider=libvirt
         Bringing machine 'default' up with 'libvirt' provider...
@@ -67,45 +67,42 @@ Assume you have some location to hold Vagrantfile, i.e. ~/dockercon
         ==> default: Waiting for domain to get an IP address...
         ==> default: Waiting for SSH to become available...
 
-If you run into issues, try the following:
+    If you run into issues, try the following:
 
         $ rm -fr ./vagrant
         $ vagrant plugin list
 
-If you have other third-party plug-ins installed, try to remove them.  In particular, we found erors when running the following plug-ins with vagrant-libvirt:
+    If you have other third-party plug-ins installed, try to remove them.  In particular, we found erors when running the following plug-ins with vagrant-libvirt:
 
-    1. vagrant-aws
-    2. vagrant-openshift
+    1.  vagrant-aws
+    2.  vagrant-openshift
 
-Be patient.
+    Be patient. This will bring up two vm instances: `vm1` and `vm2`.  The provisioner on the 
+    initial vagrant up will fetch all required docker images to support the  demo from the local
+    registry, and git clone required content.
 
-This will bring up two vm instances: vm1 and vm2
+7.  SSH access
 
-The provisioner on the initial vagrant up will fetch all required docker images to support the demo, and git clone required content.
+    Validate that you can reach the VMs with ssh:
 
-SSH
+        $ vagrant ssh vm1
+        $ docker images
+        $ cd geard
+        $ git branch
+        * demo-multi
+          master
 
-Validate all is good.
+        $ vagrant ssh vm2
+        $ docker images
+        * demo-multi
+          master
 
-$ vagrant ssh vm1
-$ docker images
-$ cd geard
-$ git branch
-* demo-multi
-master
+    You can now run rpm-ostree commands, etc.  You can also see the vm running by viewing in 
+    virt-manager:
 
-$ vagrant ssh vm2
-$ docker images
-* demo-multi
-master
+        $ virt-manager
 
-You can now run rpm-ostree commands, etc.
-
-You can also see the vm running by viewing in virt-manager:
-
-$ virt-manager
-
-You should see both instances running.
+    You should see be able to see both instances running.
 
 Demo Setup
 ----------
@@ -116,19 +113,21 @@ These instructions assume that you already have a VM with geard and docker.  Bef
 1.  Make sure that port `14000` on the VM is mapped to `14000` on your host machine.
 1.  Make sure that firewalld is stopped if using fedora as the OS for the VM:
 
-    sudo systemctl stop firewalld.service
+        sudo systemctl stop firewalld.service
 
 1.  Next, run the demo setup script:
     
-    cd geard
-    contrib/demo/setup-multi.sh
+        cd geard
+        contrib/demo/setup-multi.sh
 
-This will install the following containers:
+    This will install the following containers:
 
-    parks-backend-{1,2,3}
-    parks-db-1
-    parks-lb-1
+        parks-backend-{1,2,3}
+        parks-db-1
+        parks-lb-1
 
-The setup script will leave `parks-backend-{2,3}` stopped, to be started for scale-up during the demo.  Once the script has run, you should be able to hit the demo from your host in a browser at:
+    The setup script will leave `parks-backend-{2,3}` stopped, to be started for scale-up during 
+    the demo.  Once the script has run, you should be able to hit the demo from your host in a 
+    browser at:
 
     http://localhost:14000
