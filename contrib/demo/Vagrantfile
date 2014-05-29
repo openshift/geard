@@ -40,6 +40,12 @@ if [ ! "$(cat /ostree/repo/config | grep gpg-verify=false)" ]; then
   echo Modifying ostree repo config to use gpg-verify=false
   echo "gpg-verify=false" >> /ostree/repo/config
 fi
+
+if [ ! "$(cat /etc/hosts | grep vm1)" ]; then
+  echo Setting hosts for vm1 and vm2 to explicit IPs
+  echo "192.168.205.10 vm1" >> /etc/hosts
+  echo "192.168.205.11 vm2" >> /etc/hosts
+fi
 SCRIPT
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
