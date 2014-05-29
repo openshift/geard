@@ -1,6 +1,8 @@
 [Unit]
 Description=Gear Provisioning Daemon (geard)
 Documentation=https://github.com/openshift/geard
+After=docker.service
+Requires=docker.service
 
 [Service]
 Type=simple
