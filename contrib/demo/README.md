@@ -111,6 +111,16 @@ Host setup
 
     You should see be able to see both instances running.
 
+8.  If you need to restart machines
+
+$ vagrant halt
+$ vagrant up --provider=libvirt && vagrant provision
+
+Note: 
+The vagrant-libvirt provider does not support vagrant up --provision flag.  The provision step is required
+to work around an issue where the private network interface is not brought up on boot by vagrant controller
+for each VM to communicate.
+
 Demo Setup
 ----------
 

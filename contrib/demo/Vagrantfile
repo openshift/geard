@@ -2,27 +2,39 @@ VAGRANTFILE_API_VERSION = "2"
 
 # TODO: add determination of where a registry is available on the host - fall back to public index if not
 $script = <<SCRIPT
-echo Performing required docker pulls
-gateway=`netstat -rn | grep "^0.0.0.0 " | cut -d " " -f10`
-docker pull $gateway:5000/openshift/centos-haproxy-simple-balancer
-docker tag $gateway:5000/openshift/centos-haproxy-simple-balancer openshift/centos-haproxy-simple-balancer
 
-docker pull $gateway:5000/openshift/nodejs-0-10-centos
-docker tag $gateway:5000/openshift/nodejs-0-10-centos openshift/nodejs-0-10-centos
-docker tag openshift/nodejs-0-10-centos nodejs-centos
+id=$(docker inspect --format="{{.id}}" openshift/centos-haproxy-simple-balancer)
+ret=$?
+if [ $ret -ne 0 ]; then
+  echo Performing required docker pulls
+  gateway=`netstat -rn | grep "^0.0.0.0 " | cut -d " " -f10`
+  docker pull $gateway:5000/openshift/centos-haproxy-simple-balancer
+  docker tag $gateway:5000/openshift/centos-haproxy-simple-balancer openshift/centos-haproxy-simple-balancer
 
-docker pull $gateway:5000/openshift/centos-mongodb
-docker tag $gateway:5000/openshift/centos-mongodb openshift/centos-mongodb
+  docker pull $gateway:5000/openshift/nodejs-0-10-centos
+  docker tag $gateway:5000/openshift/nodejs-0-10-centos openshift/nodejs-0-10-centos
+  docker tag openshift/nodejs-0-10-centos nodejs-centos
 
-docker pull $gateway:5000/openshift/parks-map-app
-docker tag $gateway:5000/openshift/parks-map-app openshift/parks-map-app
-docker tag openshift/parks-map-app parks-map-app
+  docker pull $gateway:5000/openshift/centos-mongodb
+  docker tag $gateway:5000/openshift/centos-mongodb openshift/centos-mongodb
 
-echo Fetching geard code from github
-git clone git://github.com/pmorie/geard
-cd geard
-git checkout demo-multi
-echo Done
+  docker pull $gateway:5000/openshift/parks-map-app
+  docker tag $gateway:5000/openshift/parks-map-app openshift/parks-map-app
+  docker tag openshift/parks-map-app parks-map-app
+fi
+
+if [ ! -d "geard" ]; then
+  echo Fetching geard code from github
+  git clone git://github.com/pmorie/geard
+  cd geard
+  git checkout demo-multi
+fi
+
+if [ ! "$(ifconfig | grep eth1)" ]; then
+  echo Enabling eth1 for private network across VMs
+  ifup eth1 2>/dev/null
+  echo Done
+fi
 SCRIPT
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
@@ -47,18 +59,18 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     libvirt.username = 'root'
   end
 
-  config.vm.define "vm1", primary: true do |config|
+  config.vm.define "vm1" do |config|
     config.vm.network "forwarded_port", guest: 43273, host: 43273
     config.vm.network "forwarded_port", guest: 6060, host: 2225
     config.vm.network "forwarded_port", guest: 14000, host: 14000
-    config.vm.network "private_network", ip: "192.168.205.10"
+    config.vm.network "private_network", ip: "192.168.205.10", libvirt__network_name: "demo"
   end
 
-  config.vm.define "vm2", primary: true do |config|
+  config.vm.define "vm2" do |config|
     config.vm.network "forwarded_port", guest: 43273, host: 53273
     config.vm.network "forwarded_port", guest: 6060, host: 12225
     config.vm.network "forwarded_port", guest: 14000, host: 24000
-    config.vm.network "private_network", ip: "192.168.205.11"
+    config.vm.network "private_network", ip: "192.168.205.11", libvirt__network_name: "demo"
   end
 
 end
