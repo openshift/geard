@@ -4,10 +4,10 @@ demo
 These instructions will take you through setting up vagrant and libvirt and using these tools to 
 setup and execute a geard demo.
 
-1. [Libvirt setup](#libvirt-setup)
+1. [Host setup](#host-setup)
 1. [Demo setup](#demo-setup)
 
-Libvirt setup
+Host setup
 -------------
 
 1.  Install Vagrant 1.6.2
@@ -114,25 +114,17 @@ Libvirt setup
 Demo Setup
 ----------
 
-These instructions assume that you already have a VM with geard and docker.  Before you get started:
+Once the host is set up, you can deploy the demo containers:
 
-1.  Make sure that the docker and geard daemons are running.
-1.  Make sure that port `14000` on the VM is mapped to `14000` on your host machine.
-1.  Make sure that firewalld is stopped if using fedora as the OS for the VM:
+        $ cd geard
+        $ contrib/demo/setup-multi.sh
 
-        sudo systemctl stop firewalld.service
-
-1.  Next, run the demo setup script:
-    
-        cd geard
-        contrib/demo/setup-multi.sh
-
-    This will install the following containers:
+This will install the following containers:
 
         parks-backend-{1,2,3}
         parks-db-1
         parks-lb-1
 
-    The setup script will leave `parks-backend-{2,3}` stopped, to be started for scale-up during 
-    the demo.  Once the script has run, you should be able to hit the demo from your host in a 
-    browser at: `http://localhost:14000`
+The setup script will leave `parks-backend-{2,3}` stopped, to be started for scale-up during 
+the demo.  Once the script has run, you should be able to hit the demo from your host in a 
+browser at: `http://localhost:14000`
