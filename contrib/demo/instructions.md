@@ -40,7 +40,12 @@ Assume you have some location to hold Vagrantfile, i.e. ~/dockercon
     $ cd contrib/demo
     $ cat Vagrantfile
 
-5.  Start VM
+1.  Pull and start local docker registry
+
+        $ docker pull pmorie/geard-demo-registry
+        $ docker run -p 5000:5000 pmorie/geard-demo-registry
+
+1.  Start VMs
 
         $ vagrant up --provider=libvirt
         Bringing machine 'default' up with 'libvirt' provider...

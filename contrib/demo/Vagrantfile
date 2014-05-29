@@ -1,15 +1,24 @@
 VAGRANTFILE_API_VERSION = "2"
 
+# TODO: add determination of where a registry is available on the host - fall back to public index if not
 $script = <<SCRIPT
 echo Performing required docker pulls
-docker pull openshift/centos-haproxy-simple-balancer
-docker pull openshift/nodejs-0-10-centos
-docker pull openshift/centos-mongodb
-docker pull pmorie/parks-map-app
+gateway=`netstat -rn | grep "^0.0.0.0 " | cut -d " " -f10`
+docker pull $gateway:5000/openshift/centos-haproxy-simple-balancer
+docker tag $gateway:5000/openshift/centos-haproxy-simple-balancer openshift/centos-haproxy-simple-balancer
+
+docker pull $gateway:5000/openshift/nodejs-0-10-centos
+docker tag $gateway:5000/openshift/nodejs-0-10-centos openshift/nodejs-0-10-centos
 docker tag openshift/nodejs-0-10-centos nodejs-centos
-docker tag pmorie/parks-map-app parks-map-app
-echo Docker pulls done
-echo Fetch from github
+
+docker pull $gateway:5000/openshift/centos-mongodb
+docker tag $gateway:5000/openshift/centos-mongodb openshift/centos-mongodb
+
+docker pull $gateway:5000/openshift/parks-map-app
+docker tag $gateway:5000/openshift/parks-map-app openshift/parks-map-app
+docker tag openshift/parks-map-app parks-map-app
+
+echo Fetching geard code from github
 git clone git://github.com/pmorie/geard
 cd geard
 git checkout demo-multi
