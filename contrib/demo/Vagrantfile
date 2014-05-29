@@ -35,6 +35,11 @@ if [ ! "$(ifconfig | grep eth1)" ]; then
   ifup eth1 2>/dev/null
   echo Done
 fi
+
+if [ ! "$(cat /ostree/repo/config | grep gpg-verify=false)" ]; then
+  echo Modifying ostree repo config to use gpg-verify=false
+  echo "gpg-verify=false" >> /ostree/repo/config
+fi
 SCRIPT
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
