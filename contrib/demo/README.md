@@ -135,6 +135,4 @@ These instructions assume that you already have a VM with geard and docker.  Bef
 
     The setup script will leave `parks-backend-{2,3}` stopped, to be started for scale-up during 
     the demo.  Once the script has run, you should be able to hit the demo from your host in a 
-    browser at:
-
-    http://localhost:14000
+    browser at: `http://localhost:14000`
