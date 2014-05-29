@@ -79,7 +79,8 @@ Host setup
         $ rm -fr ./vagrant
         $ vagrant plugin list
 
-    If you have other third-party plug-ins installed, try to remove them.  In particular, we found erors when running the following plug-ins with vagrant-libvirt:
+    If you have other third-party plug-ins installed, try to remove them.  In particular, we found
+    errors when running the following plug-ins with vagrant-libvirt:
 
     1.  vagrant-aws
     2.  vagrant-openshift
@@ -111,15 +112,20 @@ Host setup
 
     You should see be able to see both instances running.
 
-8.  If you need to restart machines
+8.  OSTree Upgrade
 
-$ vagrant halt
-$ vagrant up --provider=libvirt && vagrant provision
+    Next, we need to update to the latest packages.  On both VMs, run the following:
 
-Note: 
-The vagrant-libvirt provider does not support vagrant up --provision flag.  The provision step is required
-to work around an issue where the private network interface is not brought up on boot by vagrant controller
-for each VM to communicate.
+        $ rpm-ostree upgrade
+
+    Then reboot the VMs:
+
+        $ vagrant halt
+        $ vagrant up --provider=libvirt && vagrant provision
+
+    Note: The `vagrant-libvirt` provider does not support the `vagrant up --provision` flag.  The 
+    provision step is required to work around an issue where the private network interface is not
+    brought up on boot by vagrant controller for each VM to communicate.
 
 Demo Setup
 ----------

@@ -46,6 +46,8 @@ if [ ! "$(cat /etc/hosts | grep vm1)" ]; then
   echo "192.168.205.10 vm1" >> /etc/hosts
   echo "192.168.205.11 vm2" >> /etc/hosts
 fi
+
+sudo setenforce 0
 SCRIPT
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
