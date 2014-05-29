@@ -1,4 +1,11 @@
-These instructions will take you from a clean VM* to a working demo app.
+demo
+====
+
+These instructions will take you through setting up vagrant and libvirt and using these tools to 
+setup and execute a geard demo.
+
+1. [Libvirt setup](#libvirt-setup)
+1. [Demo setup](#demo-setup)
 
 Libvirt setup
 -------------
