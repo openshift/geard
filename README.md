@@ -94,7 +94,7 @@ Here are the supported container actions on the agent - these should map cleanly
 
 *   Tail the logs for a container (will end after 30 seconds)
 
-        $ curl "http://localhost:43273/container/my-sample-service/log"
+        $ curl -H "Accept: text/plain;stream=true" "http://localhost:43273/container/my-sample-service/log"
 
 *   List all installed containers (for one or more servers)
 
