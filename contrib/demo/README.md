@@ -127,6 +127,14 @@ Host setup
     provision step is required to work around an issue where the private network interface is not
     brought up on boot by vagrant controller for each VM to communicate.
 
+9.  Cockpit
+
+    After running `vagrant up`, cockpit should be started and available at: `http://localhost:11001`.
+    Use the following credentials:
+
+        user: root
+        pw: <empty>
+
 Demo Setup
 ----------
 
