@@ -115,7 +115,7 @@ func switchnsExec(args []string) {
 			fmt.Printf("Couldn't get identifier from user: %v\n", u)
 			os.Exit(2)
 		}
-		runCommandInContainer(containerId.ContainerFor(), []string{"/bin/bash", "-l"}, []string{})
+		runCommandInContainer(containerId.ContainerFor(), []string{"/bin/sh", "-l"}, []string{})
 	}
 }
 
