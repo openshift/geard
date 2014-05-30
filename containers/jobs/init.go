@@ -46,17 +46,29 @@ func initializeTargets() error {
 	return nil
 }
 
-func initializeSlices() error {
-	for _, name := range []string{
-		"container",
-		"container-small",
-	} {
-		parent := "container"
-		if name == "container" {
-			parent = ""
-		}
+const (
+	DefaultSlice string = "container-small"
+)
 
-		if err := systemd.InitializeSystemdFile(systemd.SliceType, name, csystemd.SliceUnitTemplate, csystemd.SliceUnit{name, parent}, false); err != nil {
+var (
+	sliceUnits = []csystemd.SliceUnit{
+		{"container", "", "512M"},
+		{DefaultSlice, "container", "512M"},
+		{"container-large", "container", "1G"},
+	}
+)
+
+func ListSliceNames() []string {
+	names := []string{}
+	for _, unit := range sliceUnits {
+		names = append(names, unit.Name)
+	}
+	return names
+}
+
+func initializeSlices() error {
+	for _, unit := range sliceUnits {
+		if err := systemd.InitializeSystemdFile(systemd.SliceType, unit.Name, csystemd.SliceUnitTemplate, unit, false); nil != err {
 			return err
 		}
 	}
