@@ -45,6 +45,7 @@ if [ ! "$(cat /etc/hosts | grep vm1)" ]; then
   echo "Adding host entries for VMs"
   echo "192.168.205.10 atomic-1" >> /etc/hosts
   echo "192.168.205.11 atomic-2" >> /etc/hosts
+  echo "$gateway testrepo" >> /etc/hosts
 fi
 
 echo "Starting cockpit"

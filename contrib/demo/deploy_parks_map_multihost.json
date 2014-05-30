@@ -59,7 +59,7 @@
       "Id": "parks-lb-1",
       "Image": "openshift/centos-haproxy-simple-balancer",
       "From": "lb",
-      "On": "vm1",
+      "On": "atomic-1",
       "Ports": [
         {
           "Internal": 80,
@@ -72,7 +72,7 @@
       "Id": "parks-backend-1",
       "Image": "parks-map-app",
       "From": "backend",
-      "On": "vm1",
+      "On": "atomic-1",
       "Ports": [
         {
           "Internal": 3000,
@@ -88,7 +88,7 @@
       "Id": "parks-backend-2",
       "Image": "parks-map-app",
       "From": "backend",
-      "On": "vm2",
+      "On": "atomic-2",
       "Ports": [
         {
           "Internal": 3000,
@@ -104,7 +104,7 @@
       "Id": "parks-backend-3",
       "Image": "parks-map-app",
       "From": "backend",
-      "On": "vm2",
+      "On": "atomic-2",
       "Ports": [
         {
           "Internal": 3000,
@@ -120,7 +120,7 @@
       "Id": "parks-db-1",
       "Image": "openshift/centos-mongodb",
       "From": "db",
-      "On": "vm1",
+      "On": "atomic-1",
       "Ports": [
         {
           "Internal": 27017,

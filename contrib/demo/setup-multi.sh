@@ -2,17 +2,6 @@
 
 base=$(dirname $0)
 
-id=$(docker inspect --format="{{.id}}" openshift/centos-haproxy-simple-balancer)
-ret=$?
-if [ $ret -ne 0 ] || [ "$FETCH_IMAGES" != "" ]; then
-  docker pull openshift/centos-haproxy-simple-balancer
-  docker pull openshift/nodejs-0-10-centos
-  docker tag openshift/nodejs-0-10-centos nodejs-centos
-  docker pull openshift/centos-mongodb
-  docker pull pmorie/parks-map-app
-  docker tag pmorie/parks-map-app parks-map-app
-fi
-
 set +x
 
 units=$(curl -q http://localhost:43273/containers)

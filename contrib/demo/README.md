@@ -55,7 +55,10 @@ Host setup
 6.  Pull and start shipyard
 
         $ docker pull shipyard/deploy
-        $ docker run -i -t -v /var/run/docker.sock:/docker.sock shipyard/deploy setup
+        $ docker pull shipyard/redis
+        $ docker run -i -t -v /var/run/docker.sock:/docker.sock shipyard/deploy setup\
+
+    The `docker pull` commands may take quite a long time to run.
 
 7.  Start VMs
 
