@@ -33,6 +33,7 @@ Host setup
         $ curl -sSL https://get.rvm.io | bash -s stable
         $ sudo yum install -y libvirt-devel libxslt-devel libxml2-devel
         $ gem install nokogiri -v '1.5.11'
+        # Make sure that vagrant isn't installed as a gem. If it is, then uninstall it.
         $ vagrant plugin install --plugin-version 0.0.16 vagrant-libvirt
 
 4.  Setup Vagrant Box and review Vagrantfile
