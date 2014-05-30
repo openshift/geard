@@ -52,7 +52,12 @@ Host setup
         $ docker pull pmorie/geard-demo-registry
         $ docker run -p 5000:5000 pmorie/geard-demo-registry
 
-6.  Start VMs
+6.  Pull and start shipyard
+
+        $ docker pull shipyard/deploy
+        $ docker run -i -t -v /var/run/docker.sock:/docker.sock shipyard/deploy setup
+
+7.  Start VMs
 
         $ vagrant up --provider=libvirt
         Bringing machine 'default' up with 'libvirt' provider...
@@ -89,7 +94,7 @@ Host setup
     the initial vagrant up will fetch all required docker images to support the  demo from the local
     registry, and git clone required content.
 
-7.  SSH access
+8.  SSH access
 
     Validate that you can reach the VMs with ssh:
 
@@ -112,7 +117,7 @@ Host setup
 
     You should see be able to see both instances running.
 
-8.  OSTree Upgrade
+9.  OSTree Upgrade
 
     Next, we need to update to the latest packages.  On both VMs, run the following:
 
@@ -127,7 +132,7 @@ Host setup
     provision step is required to work around an issue where the private network interface is not
     brought up on boot by vagrant controller for each VM to communicate.
 
-9.  Cockpit
+10.  Cockpit
 
     After running `vagrant up`, cockpit should be started and available at: `http://localhost:11001`.
     Use the following credentials:
