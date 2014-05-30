@@ -47,6 +47,9 @@ if [ ! "$(cat /etc/hosts | grep vm1)" ]; then
   echo "192.168.205.11 atomic-2" >> /etc/hosts
 fi
 
+echo "Starting cockpit"
+sudo systemctl start cockpit
+
 sudo setenforce 0
 SCRIPT
 
@@ -76,6 +79,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.network "forwarded_port", guest: 43273, host: 43273
     config.vm.network "forwarded_port", guest: 6060, host: 2225
     config.vm.network "forwarded_port", guest: 14000, host: 14000
+    config.vm.network "forwarded_port", guest: 1001, host: 11001
     config.vm.network "private_network", ip: "192.168.205.10", libvirt__network_name: "demo"
   end
 
@@ -83,6 +87,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.network "forwarded_port", guest: 43273, host: 53273
     config.vm.network "forwarded_port", guest: 6060, host: 12225
     config.vm.network "forwarded_port", guest: 14000, host: 24000
+    config.vm.network "forwarded_port", guest: 1001, host: 21001
     config.vm.network "private_network", ip: "192.168.205.11", libvirt__network_name: "demo"
   end
 
