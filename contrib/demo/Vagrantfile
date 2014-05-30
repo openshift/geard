@@ -41,11 +41,27 @@ if [ ! "$(cat /ostree/repo/config | grep gpg-verify=false)" ]; then
   echo "gpg-verify=false" >> /ostree/repo/config
 fi
 
-if [ ! "$(cat /etc/hosts | grep vm1)" ]; then
+if [ ! "$(cat /etc/hosts | grep atomic-1)" ]; then
   echo "Adding host entries for VMs"
   echo "192.168.205.10 atomic-1" >> /etc/hosts
   echo "192.168.205.11 atomic-2" >> /etc/hosts
   echo "$gateway testrepo" >> /etc/hosts
+fi
+
+echo "Setting root password"
+passwd <<EOF
+atomic2014
+atomic2014
+EOF
+
+if [ "$1" == "atomic-1" ]; then
+  echo "Setting hostname on atomic-1"
+  hostname atomic-1
+fi
+
+if [ "$1" == "atomic-2" ]; then
+  echo "Setting hostname on atomic-2"
+  hostname atomic-2
 fi
 
 echo "Starting cockpit"
@@ -57,7 +73,6 @@ SCRIPT
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box = "atomic"
   config.vm.provision "shell", inline: $script
-
   config.vm.synced_folder './', '/vagrant', type: 'rsync', disabled: true
 
   config.vm.provider :virtualbox do |v|
@@ -77,6 +92,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   end
 
   config.vm.define "atomic-1" do |config|
+    config.vm.provision "shell", inline: $script, args: "atomic-1"
     config.vm.network "forwarded_port", guest: 43273, host: 43273
     config.vm.network "forwarded_port", guest: 6060, host: 2225
     config.vm.network "forwarded_port", guest: 14000, host: 14000
@@ -85,6 +101,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   end
 
   config.vm.define "atomic-2" do |config|
+    config.vm.provision "shell", inline: $script, args: "atomic-2"
     config.vm.network "forwarded_port", guest: 43273, host: 53273
     config.vm.network "forwarded_port", guest: 6060, host: 12225
     config.vm.network "forwarded_port", guest: 14000, host: 24000
