@@ -1,20 +1,15 @@
 package sti
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/fsouza/go-dockerclient"
 )
@@ -41,6 +36,7 @@ type BuildResult STIResult
 // An error represents a failure performing the build rather than a failure
 // of the build itself.  Callers should check the Success field of the result
 // to determine whether a build succeeded or not.
+//
 func Build(req BuildRequest) (*BuildResult, error) {
 	h, err := newHandler(req.Request)
 	if err != nil {
@@ -58,58 +54,8 @@ func Build(req BuildRequest) (*BuildResult, error) {
 	return result, err
 }
 
-// Usage processes a build request by starting the container and executing
-// the assemble script with a "-h" argument to print usage information
-// for the script.
-func Usage(req BuildRequest) (*BuildResult, error) {
-	h, err := newHandler(req.Request)
-	if err != nil {
-		return nil, err
-	}
-	var result *BuildResult
-	result, err = h.usage(req)
-	return result, err
-}
-
-func executeCallback(callbackUrl string, result *BuildResult) {
-	buf := new(bytes.Buffer)
-	writer := bufio.NewWriter(buf)
-	for _, message := range result.Messages {
-		fmt.Fprintln(writer, message)
-	}
-	writer.Flush()
-
-	d := map[string]interface{}{
-		"payload": buf.String(),
-		"success": result.Success,
-	}
-
-	jsonBuffer := new(bytes.Buffer)
-	writer = bufio.NewWriter(jsonBuffer)
-	jsonWriter := json.NewEncoder(writer)
-	jsonWriter.Encode(d)
-	writer.Flush()
-
-	var resp *http.Response
-	var err error
-
-	for retries := 0; retries < 3; retries++ {
-		resp, err = http.Post(callbackUrl, "application/json", jsonBuffer)
-		if err != nil {
-			errorMessage := fmt.Sprintf("Unable to invoke callback: %s", err.Error())
-			result.Messages = append(result.Messages, errorMessage)
-		}
-		if resp != nil {
-			if resp.StatusCode >= 300 {
-				errorMessage := fmt.Sprintf("Callback returned with error code: %d", resp.StatusCode)
-				result.Messages = append(result.Messages, errorMessage)
-			}
-			break
-		}
-	}
-}
-
 func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
+
 	if req.WorkingDir == "tempdir" {
 		var err error
 		req.WorkingDir, err = ioutil.TempDir("", "sti")
@@ -122,29 +68,52 @@ func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
 	workingTmpDir := filepath.Join(req.WorkingDir, "tmp")
 	dirs := []string{"tmp", "scripts", "defaultScripts"}
 	for _, v := range dirs {
-		err := os.Mkdir(filepath.Join(req.WorkingDir, v), 0700)
-		if err != nil {
+		if err := os.Mkdir(filepath.Join(req.WorkingDir, v), 0700); err != nil {
 			return nil, err
 		}
 	}
 
+	var wg sync.WaitGroup
+
+	downloadAsync := func(scriptUrl *url.URL, targetFile string) {
+		defer wg.Done()
+		if err := downloadFile(scriptUrl, targetFile, h.verbose); err != nil {
+			log.Printf("Failed to download '%s' (%s)", scriptUrl, err)
+		}
+	}
+
 	if req.ScriptsUrl != "" {
-		h.downloadScripts(req.ScriptsUrl, filepath.Join(req.WorkingDir, "scripts"))
+		for f, u := range h.prepareScriptDownload(req.WorkingDir+"/scripts", req.ScriptsUrl) {
+			wg.Add(1)
+			go downloadAsync(u, f)
+		}
 	}
 
 	defaultUrl, err := h.getDefaultUrl(req, req.BaseImage)
 	if err != nil {
 		return nil, err
 	}
+
 	if defaultUrl != "" {
-		h.downloadScripts(defaultUrl, filepath.Join(req.WorkingDir, "defaultScripts"))
+		for f, u := range h.prepareScriptDownload(req.WorkingDir+"/defaultScripts", defaultUrl) {
+			wg.Add(1)
+			go downloadAsync(u, f)
+		}
 	}
 
 	targetSourceDir := filepath.Join(req.WorkingDir, "src")
-	err = h.prepareSourceDir(req.Source, targetSourceDir, req.Ref)
-	if err != nil {
-		return nil, err
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err = h.prepareSourceDir(req.Source, targetSourceDir, req.Ref); err != nil {
+			fmt.Printf("ERROR: Unable to fetch the application source.\n")
+		}
+	}()
+
+	// Wait for the scripts and the source code download to finish.
+	//
+	wg.Wait()
+
 	incremental := !req.Clean
 
 	if incremental {
@@ -185,39 +154,6 @@ func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
 	}
 
 	return h.buildDeployableImage(req, req.BaseImage, req.WorkingDir, incremental)
-}
-
-func (h requestHandler) usage(req BuildRequest) (*BuildResult, error) {
-	if req.WorkingDir == "tempdir" {
-		var err error
-		req.WorkingDir, err = ioutil.TempDir("", "sti")
-		if err != nil {
-			return nil, fmt.Errorf("Error creating temporary directory '%s': %s\n", req.WorkingDir, err.Error())
-		}
-		defer os.Remove(req.WorkingDir)
-	}
-
-	dirs := []string{"scripts", "defaultScripts"}
-	for _, v := range dirs {
-		err := os.Mkdir(filepath.Join(req.WorkingDir, v), 0700)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if req.ScriptsUrl != "" {
-		h.downloadScripts(req.ScriptsUrl, filepath.Join(req.WorkingDir, "scripts"))
-	}
-
-	defaultUrl, err := h.getDefaultUrl(req, req.BaseImage)
-	if err != nil {
-		return nil, err
-	}
-	if defaultUrl != "" {
-		h.downloadScripts(defaultUrl, filepath.Join(req.WorkingDir, "defaultScripts"))
-	}
-
-	return h.buildDeployableImage(req, req.BaseImage, req.WorkingDir, false)
 }
 
 func (h requestHandler) getDefaultUrl(req BuildRequest, image string) (string, error) {
@@ -263,109 +199,26 @@ func (h requestHandler) determineScriptPath(contextDir string, script string) st
 	return ""
 }
 
-// SchemeReaders create an io.Reader from the given url.
-type SchemeReader func(*url.URL) (io.ReadCloser, error)
+// Turn the script name into proper URL
+//
+func (h requestHandler) prepareScriptDownload(targetDir, baseUrl string) map[string]*url.URL {
 
-var schemeReaders = map[string]SchemeReader{
-	"http":  readerFromHttpUrl,
-	"https": readerFromHttpUrl,
-	"file":  readerFromFileUrl,
-}
-
-// Attempts to download scripts from baseUrl to targetDir by apppending
-// known script filenames to baseUrl and delegating the io.Reader
-// aquisition to a SchemeReader. Failures are ignored per-file.
-func (h requestHandler) downloadScripts(baseUrl, targetDir string) error {
 	os.MkdirAll(targetDir, 0700)
+
 	files := []string{"save-artifacts", "assemble", "run"}
+	urls := make(map[string]*url.URL)
 
 	for _, file := range files {
-		u, err := url.Parse(baseUrl + "/" + file)
-
-		sr := schemeReaders[u.Scheme]
-
-		if sr == nil {
-			log.Printf("Skipping file %s due to unsupported scheme %s\n", file, u.Scheme)
+		url, err := url.Parse(baseUrl + "/" + file)
+		if err != nil {
+			log.Printf("[WARN] Unable to parse script URL: %n\n", baseUrl+"/"+file)
 			continue
 		}
 
-		reader, err := sr(u)
-
-		if err != nil {
-			log.Printf("Skipping file %s due to read error: %s\n", file, err)
-			continue
-		}
-		defer reader.Close()
-
-		targetFile := path.Join(targetDir, file)
-		out, err := os.Create(targetFile)
-		defer out.Close()
-
-		if err != nil {
-			defer os.Remove(targetFile)
-			log.Printf("Skipping file %s because the target file %s couldn't be created: %s\n", file, targetFile, err)
-			continue
-		}
-
-		_, err = io.Copy(out, reader)
-
-		if err != nil {
-			defer os.Remove(targetFile)
-			log.Printf("Skipping file %s due to error copying from source: %s\n", file, err)
-		}
-
-		log.Printf("Downloaded script from %s\n", u.String())
-	}
-	return nil
-}
-
-// This SchemeReader can produce an io.Reader from an http/https URL.
-func readerFromHttpUrl(url *url.URL) (io.ReadCloser, error) {
-	resp, err := http.Get(url.String())
-	if err != nil {
-		if resp != nil {
-			defer resp.Body.Close()
-		}
-		return nil, err
-	}
-	if resp.StatusCode == 200 || resp.StatusCode == 201 {
-		return resp.Body, nil
-	} else {
-		return nil, fmt.Errorf("Failed to retrieve %s, response code %d", url.String(), resp.StatusCode)
-	}
-}
-
-// This SchemeReader can produce an io.Reader from a file URL.
-func readerFromFileUrl(url *url.URL) (io.ReadCloser, error) {
-	return os.Open(url.Path)
-}
-
-func selinuxEnabled() bool {
-	path, err := exec.LookPath("selinuxenabled")
-	if err == nil {
-		cmd := exec.Command(path)
-		err = cmd.Run()
-		if err == nil {
-			return true
-		}
+		urls[targetDir+"/"+file] = url
 	}
 
-	return false
-}
-
-func chcon(label, path string) error {
-	if selinuxEnabled() {
-		chconPath, err := exec.LookPath("chcon")
-		if err == nil {
-			chconCmd := exec.Command(chconPath, label, path)
-			err = chconCmd.Run()
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return urls
 }
 
 func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir string, path string, contextDir string) error {
@@ -486,7 +339,7 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 
 func (h requestHandler) prepareSourceDir(source, targetSourceDir, ref string) error {
 	if validCloneSpec(source, h.verbose) {
-		log.Printf("---> Downloading %s to directory %s", source, targetSourceDir)
+		log.Printf("Downloading %s to directory %s\n", source, targetSourceDir)
 		err := gitClone(source, targetSourceDir)
 		if err != nil {
 			if h.verbose {
