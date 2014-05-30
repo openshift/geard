@@ -85,22 +85,22 @@ Host setup
     1.  vagrant-aws
     2.  vagrant-openshift
 
-    Be patient. This will bring up two vm instances: `vm1` and `vm2`.  The provisioner on the 
-    initial vagrant up will fetch all required docker images to support the  demo from the local
+    Be patient. This will bring up two vm instances: `atomic-1` and `atomic-2`.  The provisioner on
+    the initial vagrant up will fetch all required docker images to support the  demo from the local
     registry, and git clone required content.
 
 7.  SSH access
 
     Validate that you can reach the VMs with ssh:
 
-        $ vagrant ssh vm1
+        $ vagrant ssh atomic-1
         $ docker images
         $ cd geard
         $ git branch
         * demo-multi
           master
 
-        $ vagrant ssh vm2
+        $ vagrant ssh atomic-2
         $ docker images
         * demo-multi
           master

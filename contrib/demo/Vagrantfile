@@ -72,14 +72,14 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     libvirt.username = 'root'
   end
 
-  config.vm.define "vm1" do |config|
+  config.vm.define "atomic-1" do |config|
     config.vm.network "forwarded_port", guest: 43273, host: 43273
     config.vm.network "forwarded_port", guest: 6060, host: 2225
     config.vm.network "forwarded_port", guest: 14000, host: 14000
     config.vm.network "private_network", ip: "192.168.205.10", libvirt__network_name: "demo"
   end
 
-  config.vm.define "vm2" do |config|
+  config.vm.define "atomic-2" do |config|
     config.vm.network "forwarded_port", guest: 43273, host: 53273
     config.vm.network "forwarded_port", guest: 6060, host: 12225
     config.vm.network "forwarded_port", guest: 14000, host: 24000
