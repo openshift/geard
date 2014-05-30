@@ -3,7 +3,7 @@ VAGRANTFILE_API_VERSION = "2"
 # TODO: add determination of where a registry is available on the host - fall back to public index if not
 $script = <<SCRIPT
 
-id=$(docker inspect --format="{{.id}}" openshift/centos-haproxy-simple-balancer)
+id=$(docker inspect --format="{{.id}}" openshift/centos-haproxy-simple-balancer 2> /dev/null)
 ret=$?
 if [ $ret -ne 0 ]; then
   echo Performing required docker pulls
@@ -24,27 +24,27 @@ if [ $ret -ne 0 ]; then
 fi
 
 if [ ! -d "geard" ]; then
-  echo Fetching geard code from github
+  echo "Fetching geard code"
   git clone git://github.com/pmorie/geard
   cd geard
-  git checkout demo-multi
+  git checkout demo-multi 2>&1
 fi
 
 if [ ! "$(ifconfig | grep eth1)" ]; then
-  echo Enabling eth1 for private network across VMs
+  echo "Enabling eth1 for private network across VMs"
   ifup eth1 2>/dev/null
   echo Done
 fi
 
 if [ ! "$(cat /ostree/repo/config | grep gpg-verify=false)" ]; then
-  echo Modifying ostree repo config to use gpg-verify=false
+  echo "Modifying ostree repo config to use gpg-verify=false"
   echo "gpg-verify=false" >> /ostree/repo/config
 fi
 
 if [ ! "$(cat /etc/hosts | grep vm1)" ]; then
-  echo Setting hosts for vm1 and vm2 to explicit IPs
-  echo "192.168.205.10 vm1" >> /etc/hosts
-  echo "192.168.205.11 vm2" >> /etc/hosts
+  echo "Adding host entries for VMs"
+  echo "192.168.205.10 atomic-1" >> /etc/hosts
+  echo "192.168.205.11 atomic-2" >> /etc/hosts
 fi
 
 sudo setenforce 0
