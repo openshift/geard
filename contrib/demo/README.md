@@ -136,7 +136,10 @@ Host setup
     Use the following credentials:
 
         user: root
-        pw: <empty>
+        password: atomic2014
+
+    Once you have logged into cockpit, click the 'Add server' button on the right-hand side of the
+    page.  Enter `atomic-2` for the hostname and leave `login with my current credentials` checked.
 
 Demo Setup
 ----------
