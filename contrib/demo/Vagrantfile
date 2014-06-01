@@ -49,7 +49,7 @@ if [ ! "$(cat /etc/hosts | grep atomic-1)" ]; then
 fi
 
 echo "Setting root password"
-passwd <<EOF
+passwd 2> /dev/null <<EOF
 atomic2014
 atomic2014
 EOF
