@@ -38,7 +38,7 @@ Host setup
 
 4.  Setup Vagrant Box and review Vagrantfile
 
-        vagrant box add --name=atomic --provider=libvirt http://rcm-img06.build.bos.redhat.com/images/releases/snaps/20140522.0/vagrant/rhel-atomic-host-vagrant.box
+        vagrant box add --name=atomic --provider=libvirt http://download.eng.bos.redhat.com/rcm-guest/staging/walters/images/snaps/20140531.1/vagrant-libvirt/rhel-atomic-host.box
 
     Clone pmorie's fork and check out the `multi-demo` branch:
 
@@ -113,6 +113,7 @@ Host setup
 
     You should see be able to see both instances running.
 
+<!---
 8.  OSTree Upgrade
 
     Next, we need to update to the latest packages.  On both VMs, run the following:
@@ -127,8 +128,9 @@ Host setup
     Note: The `vagrant-libvirt` provider does not support the `vagrant up --provision` flag.  The 
     provision step is required to work around an issue where the private network interface is not
     brought up on boot by vagrant controller for each VM to communicate.
+-->
 
-9.  Cockpit
+8.  Cockpit
 
     After running `vagrant up`, cockpit should be started and available at: `http://localhost:11001`.
     Use the following credentials:
