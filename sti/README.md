@@ -82,12 +82,6 @@ the workflow is as follows:
 Note the invocation of the `save-artifacts` script; this script is responsible for moving build
 dependencies to `/tmp/artifacts`
 
-
-go-sti
-======
-
-This is the golang implementation of the source-to-images tool.
-
 Dependencies
 ------------
 
@@ -174,7 +168,6 @@ the following ordering:
 1. A script found at the --scripts URL
 1. A script found in the application source `.sti/bin` directory
 1. A script found at the default image URL (STI_SCRIPTS_URL)
-
 
 Build from a git ref
 --------------------
