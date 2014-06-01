@@ -72,7 +72,6 @@ SCRIPT
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box = "atomic"
-  config.vm.provision "shell", inline: $script
   config.vm.synced_folder './', '/vagrant', type: 'rsync', disabled: true
 
   config.vm.provider :virtualbox do |v|
