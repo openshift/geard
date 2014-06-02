@@ -160,29 +160,36 @@ func (s *IntegrationTestSuite) exerciseCleanBuild(c *C, tag string, verifyCallba
 }
 
 // Test an incremental build.
-func (s *IntegrationTestSuite) TestIncrementalBuild(c *C) {
-	s.exerciseIncrementalBuild(c, TagIncrementalBuild)
+func (s *IntegrationTestSuite) TestIncrementalBuildAndRemovePreviousImage(c *C) {
+	s.exerciseIncrementalBuild(c, TagIncrementalBuild, true)
+}
+
+func (s *IntegrationTestSuite) TestIncrementalBuildAndKeepPreviousImage(c *C) {
+	s.exerciseIncrementalBuild(c, TagIncrementalBuild, true)
 }
 
 func (s *IntegrationTestSuite) TestIncrementalBuildUser(c *C) {
-	s.exerciseIncrementalBuild(c, TagIncrementalBuildUser)
+	s.exerciseIncrementalBuild(c, TagIncrementalBuildUser, true)
 }
 
-func (s *IntegrationTestSuite) exerciseIncrementalBuild(c *C, tag string) {
+func (s *IntegrationTestSuite) exerciseIncrementalBuild(c *C, tag string, removePreviousImage bool) {
 	req := BuildRequest{
 		Request: Request{
 			WorkingDir:   s.tempDir,
 			DockerSocket: DockerSocket,
 			Verbose:      true,
 			BaseImage:    FakeBaseImage},
-		Source: TestSource,
-		Tag:    tag,
-		Clean:  true,
-		Writer: os.Stdout}
+		Source:              TestSource,
+		Tag:                 tag,
+		Clean:               true,
+		RemovePreviousImage: removePreviousImage,
+		Writer:              os.Stdout}
 
 	resp, err := Build(req)
 	c.Assert(err, IsNil, Commentf("Sti build failed"))
 	c.Assert(resp.Success, Equals, true, Commentf("Sti build failed"))
+
+	previousImageId := resp.ImageID
 
 	os.Remove(s.tempDir)
 	s.tempDir, _ = ioutil.TempDir("", "go-sti-integration")
@@ -197,6 +204,13 @@ func (s *IntegrationTestSuite) exerciseIncrementalBuild(c *C, tag string) {
 	containerId := s.createContainer(c, tag)
 	defer s.removeContainer(containerId)
 	s.checkIncrementalBuildState(c, containerId)
+
+	_, err = s.dockerClient.InspectImage(previousImageId)
+	if removePreviousImage {
+		c.Assert(err, Not(IsNil), Commentf("Previous image %s not deleted", previousImageId))
+	} else {
+		c.Assert(err, IsNil, Commentf("Coudln't find previous image %s", previousImageId))
+	}
 }
 
 // Support methods

@@ -26,17 +26,21 @@ const (
 
 type BuildRequest struct {
 	Request
-	Source      string
-	Ref         string
-	Tag         string
-	Clean       bool
-	Environment map[string]string
-	Writer      io.Writer
-	CallbackUrl string
-	ScriptsUrl  string
+	Source              string
+	Ref                 string
+	Tag                 string
+	Clean               bool
+	RemovePreviousImage bool
+	Environment         map[string]string
+	Writer              io.Writer
+	CallbackUrl         string
+	ScriptsUrl          string
 }
 
-type BuildResult STIResult
+type BuildResult struct {
+	STIResult
+	ImageID string
+}
 
 // Build processes a BuildRequest and returns a *BuildResult and an error.
 // An error represents a failure performing the build rather than a failure
@@ -700,7 +704,9 @@ func (h requestHandler) buildDeployableImage(req BuildRequest, image string, con
 	if req.Tag == "" {
 		// this was just a request for assemble usage, so return without committing
 		// a new runnable image.
-		return &BuildResult{true, nil}, nil
+		return &BuildResult{
+			STIResult: STIResult{true, nil},
+			ImageID:   ""}, nil
 	}
 	config = docker.Config{Image: image, Env: cmdEnv}
 	if overrideRun {
@@ -711,6 +717,16 @@ func (h requestHandler) buildDeployableImage(req BuildRequest, image string, con
 	}
 	if hasUser {
 		config.User = user
+	}
+
+	previousImageId := ""
+	if incremental && req.RemovePreviousImage {
+		imageMetadata, err := h.dockerClient.InspectImage(req.Tag)
+		if err == nil {
+			previousImageId = imageMetadata.ID
+		} else {
+			log.Printf("Error retrieving previous image's metadata: %s\n", err.Error())
+		}
 	}
 
 	if h.verbose {
@@ -726,5 +742,15 @@ func (h requestHandler) buildDeployableImage(req BuildRequest, image string, con
 		log.Printf("Built image: %+v\n", builtImage)
 	}
 
-	return &BuildResult{true, nil}, nil
+	if incremental && req.RemovePreviousImage && previousImageId != "" {
+		log.Printf("Removing previously-tagged image %s\n", previousImageId)
+		err = h.dockerClient.RemoveImage(previousImageId)
+		if err != nil {
+			log.Printf("Unable to remove previous image: %s\n", err.Error())
+		}
+	}
+
+	return &BuildResult{
+		STIResult: STIResult{true, nil},
+		ImageID:   builtImage.ID}, nil
 }

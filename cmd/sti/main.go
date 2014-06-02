@@ -104,6 +104,7 @@ func Execute() {
 		},
 	}
 	buildCmd.Flags().BoolVar(&(buildReq.Clean), "clean", false, "Perform a clean build")
+	buildCmd.Flags().BoolVar(&(buildReq.RemovePreviousImage), "rm", false, "Remove the previous image during incremental builds")
 	buildCmd.Flags().StringVar(&(req.WorkingDir), "dir", "tempdir", "Directory where generated Dockerfiles and other support scripts are created")
 	buildCmd.Flags().StringVarP(&envString, "env", "e", "", "Specify an environment var NAME=VALUE,NAME2=VALUE2,...")
 	buildCmd.Flags().StringVarP(&(buildReq.Ref), "ref", "r", "", "Specify a ref to check-out")
