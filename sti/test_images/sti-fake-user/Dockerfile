@@ -1,8 +1,8 @@
 FROM sti_test/sti-fake
 
 RUN mkdir -p /sti-fake && \
-    groupadd -r fakeuser -f -g 433 && \
-    useradd -u 431 -r -g fakeuser -d /sti-fake -s /sbin/nologin -c "Fake User" fakeuser && \
+    addgroup -g 433 fakeuser && \
+    adduser -D -u 431 -h /sti-fake -s /sbin/nologin fakeuser
     chown -R fakeuser:fakeuser /sti-fake
 
 USER fakeuser
