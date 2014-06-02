@@ -6,7 +6,7 @@
       "Count":1,
       "Image":"openshift/centos-haproxy-simple-balancer",
       "PublicPorts":[
-        {"Internal":80,"External":14000}
+        {"Internal":8080,"External":14000}
       ],
       "Links":[
         {
