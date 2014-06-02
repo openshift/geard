@@ -1,7 +1,5 @@
 // +build selinux
 
-package library
-
 /*
  The selinux package is a go bindings to libselinux required to add selinux
  support to docker.
@@ -11,6 +9,7 @@ package library
  Used some ideas/code from the go-ini packages https://github.com/vaughan0
  By Vaughan Newton
 */
+package library
 
 // #cgo pkg-config: libselinux
 // #include <selinux/selinux.h>
