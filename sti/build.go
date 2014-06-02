@@ -66,7 +66,7 @@ func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Error creating temporary directory '%s': %s\n", req.WorkingDir, err.Error())
 		}
-		defer os.Remove(req.WorkingDir)
+		defer RemoveDirectory(req.WorkingDir, h.verbose)
 	}
 
 	workingTmpDir := filepath.Join(req.WorkingDir, "tmp")

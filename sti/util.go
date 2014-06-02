@@ -221,3 +221,14 @@ func executeCallback(callbackUrl string, result *BuildResult) {
 		}
 	}
 }
+
+func RemoveDirectory(dir string, verbose bool) {
+	if verbose {
+		log.Printf("Removing directory '%s'\n", dir)
+	}
+
+	err := os.RemoveAll(dir)
+	if err != nil {
+		log.Printf("Error removing directory '%s': %s\n", dir, err.Error())
+	}
+}

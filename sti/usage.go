@@ -23,7 +23,7 @@ func Usage(req BuildRequest) (*BuildResult, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Error creating temporary directory '%s': %s\n", req.WorkingDir, err.Error())
 		}
-		defer os.Remove(req.WorkingDir)
+		defer RemoveDirectory(req.WorkingDir, req.Verbose)
 	}
 
 	dirs := []string{"scripts", "defaultScripts"}
