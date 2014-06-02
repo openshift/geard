@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -407,7 +409,11 @@ func (s *IntegrationTestSuite) TestSimpleInstallWithEnv(c *chk.C) {
 
 	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
 
-	cmd := exec.Command("/usr/bin/gear", "install", EnvImage, hostContainerId, "--env-file=deployment/fixtures/simple.env", "--start")
+	// get the full path to this .go file so we can get the correct path to the
+	// simple.env file
+	_, filename, _, _ := runtime.Caller(0)
+	envFile := path.Join(path.Dir(filename), "..", "deployment", "fixtures", "simple.env")
+	cmd := exec.Command("/usr/bin/gear", "install", EnvImage, hostContainerId, "--env-file="+envFile, "--start")
 	data, err := cmd.CombinedOutput()
 	c.Log(cmd.Args)
 	c.Log(string(data))

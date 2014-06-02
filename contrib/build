@@ -33,7 +33,7 @@ function build_geard_service() {
 # Performs a local go install of geard.
 function build_local() {
   if ! $skip_go_get; then
-    echo "Downloading build dependencies"  
+    echo "Downloading build dependencies"
     # these packages should not be vendored
     echo " "
     echo "Note: Packages downloaded by go get at this point may need to be vendored."
@@ -62,7 +62,7 @@ function build_local() {
     echo "------------------------------------------"
     echo "Building ${artifact}${cc_message}..."
     echo "------------------------------------------"
-    
+
     if ! $enable_optimizations; then
       local flags=("-N -l")
     fi
@@ -74,7 +74,7 @@ function build_local() {
       echo -e "===> Success"
     fi
   done
-  
+
   if ! $build_success; then
     echo -e "\nExiting due to build failures." 1>&2
     exit 2

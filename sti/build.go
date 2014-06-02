@@ -297,7 +297,7 @@ func (h requestHandler) determineScriptPath(contextDir string, script string) st
 }
 
 // SchemeReaders create an io.Reader from the given url.
-type SchemeReader func(*url.URL) (io.Reader, error)
+type SchemeReader func(*url.URL) (io.ReadCloser, error)
 
 var schemeReaders = map[string]SchemeReader{
 	"http":  readerFromHttpUrl,
@@ -328,6 +328,7 @@ func (h requestHandler) downloadScripts(baseUrl, targetDir string) error {
 			log.Printf("Skipping file %s due to read error: %s\n", file, err)
 			continue
 		}
+		defer reader.Close()
 
 		targetFile := path.Join(targetDir, file)
 		out, err := os.Create(targetFile)
@@ -352,10 +353,12 @@ func (h requestHandler) downloadScripts(baseUrl, targetDir string) error {
 }
 
 // This SchemeReader can produce an io.Reader from an http/https URL.
-func readerFromHttpUrl(url *url.URL) (io.Reader, error) {
+func readerFromHttpUrl(url *url.URL) (io.ReadCloser, error) {
 	resp, err := http.Get(url.String())
 	if err != nil {
-		defer resp.Body.Close()
+		if resp != nil {
+			defer resp.Body.Close()
+		}
 		return nil, err
 	}
 	if resp.StatusCode == 200 || resp.StatusCode == 201 {
@@ -366,7 +369,7 @@ func readerFromHttpUrl(url *url.URL) (io.Reader, error) {
 }
 
 // This SchemeReader can produce an io.Reader from a file URL.
-func readerFromFileUrl(url *url.URL) (io.Reader, error) {
+func readerFromFileUrl(url *url.URL) (io.ReadCloser, error) {
 	return os.Open(url.Path)
 }
 

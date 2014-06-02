@@ -4,8 +4,11 @@ package tests
 import (
 	"flag"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
+	"path"
+	"runtime"
 	"time"
 
 	"github.com/fsouza/go-dockerclient"
@@ -64,6 +67,17 @@ func (s *BuildIntegrationTestSuite) SetUpSuite(c *C) {
 	if s.daemonPort == "" {
 		s.daemonPort = "43273"
 	}
+
+	// get the full path to this .go file so we can get the correct path
+	// to the test_images directory
+	_, filename, _, _ := runtime.Caller(0)
+	testImagesDir := path.Join(path.Dir(filename), "..", "sti", "test_images")
+
+	// Need to serve the scripts from localhost so any potential changes to the
+	// scripts are made available for integration testing.
+	//
+	// Port 23456 must match the port used in the fake image Dockerfiles
+	go http.ListenAndServe(":23456", http.FileServer(http.Dir(testImagesDir)))
 }
 
 func (s *BuildIntegrationTestSuite) SetUpTest(c *C) {
