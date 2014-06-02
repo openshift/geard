@@ -56,12 +56,14 @@ The on disk structure of geard is exploratory at the moment.  The major componen
       slices/
         container.slice        # default slice
         container-small.slice  # more limited slice
+        container-large.slice  # additional resource slice
 
-        All slice units are created in this directory.  At the moment, the two slices are defaults and are created
+        All slice units are created in this directory.  At the moment, the three slices are defaults and are created
         on first startup of the process, enabled, then started.  More advanced cgroup settings must be configured
         after creation, which is outside the scope of this prototype.
 
-        All containers are created in the "container-small" slice at the moment.
+        The container slice can be set during installation using the --slice command line option. The default slice is
+        'container-small'.
 
       env/
         contents/
