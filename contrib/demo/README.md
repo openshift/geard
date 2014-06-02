@@ -140,21 +140,3 @@ Host setup
 
     Once you have logged into cockpit, click the 'Add server' button on the right-hand side of the
     page.  Enter `atomic-2` for the hostname and leave `login with my current credentials` checked.
-
-Demo Setup
-----------
-
-Once the host is set up, you can deploy the demo containers:
-
-        $ cd geard
-        $ contrib/demo/setup-multi.sh
-
-This will install the following containers:
-
-        parks-backend-{1,2,3}
-        parks-db-1
-        parks-lb-1
-
-The setup script will leave `parks-backend-{2,3}` stopped, to be started for scale-up during 
-the demo.  Once the script has run, you should be able to hit the demo from your host in a 
-browser at: `http://localhost:14000`
