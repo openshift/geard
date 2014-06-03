@@ -25,9 +25,8 @@ fi
 
 if [ ! -d "geard" ]; then
   echo "Fetching geard code"
-  git clone git://github.com/pmorie/geard
+  git clone git://github.com/openshift/geard
   cd geard
-  git checkout demo-multi 2>&1
 fi
 
 if [ ! "$(ifconfig | grep eth1)" ]; then
