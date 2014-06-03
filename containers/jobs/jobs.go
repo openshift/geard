@@ -184,6 +184,10 @@ type DeleteContainerRequest struct {
 	Id containers.Identifier
 }
 
+type GetEnvironmentRequest struct {
+	Id containers.Identifier
+}
+
 type PutEnvironmentRequest struct {
 	containers.EnvironmentDescription
 }

@@ -86,7 +86,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 	}
 
 	// allocate and reserve ports for this container
-	reserved, erra := port.AtomicReserveExternalPorts(unitVersionPath, req.Ports, existingPorts)
+	reserved, erra := portReserver.AtomicReserveExternalPorts(unitVersionPath, req.Ports, existingPorts)
 	if erra != nil {
 		log.Printf("install_container: Unable to reserve external ports: %+v", erra)
 		resp.Failure(ErrContainerCreateFailedPortsReserved)

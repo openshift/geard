@@ -19,13 +19,13 @@ import (
 	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/deployment"
 	"github.com/openshift/geard/dispatcher"
-	"github.com/spf13/cobra"
-	// "github.com/openshift/geard/encrypted"
+	"github.com/openshift/geard/encrypted"
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/sti"
 	"github.com/openshift/geard/transport"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -55,6 +55,7 @@ var (
 	writeAccess bool
 	hostIp      string
 
+	quiet      bool
 	insecure   bool
 	timeout    int64
 	listenAddr string
@@ -75,7 +76,6 @@ var conf = http.HttpConfiguration{
 
 func init() {
 	log.SetFlags(0)
-	defaultTransport.Set("http")
 }
 
 // Parse the command line arguments and invoke one of the support subcommands.
@@ -212,6 +212,7 @@ func Execute() {
 		Long:  "Shows the equivalent of 'systemctl list-units ctr-<name>' for each installed container",
 		Run:   listUnits,
 	}
+	listUnitsCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Return only the id of each unit")
 	gcmd.AddCommand(gearCmd, listUnitsCmd, false)
 
 	gcmd.ExtendCommands(gearCmd, false)
@@ -802,7 +803,18 @@ func listUnits(cmd *cobra.Command, args []string) {
 		}
 	}
 	combined.Sort()
-	combined.WriteTableTo(os.Stdout)
+	if quiet {
+		for i := range combined.Containers {
+			c := &combined.Containers[i]
+			if c.Server != "" {
+				fmt.Fprintf(os.Stdout, "%s/%s\n", c.Server, c.Id)
+			} else {
+				fmt.Fprintf(os.Stdout, "%s\n", c.Id)
+			}
+		}
+	} else {
+		combined.WriteTableTo(os.Stdout)
+	}
 	if len(errors) > 0 {
 		for i := range errors {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", errors[i])
@@ -825,27 +837,26 @@ func purge(cmd *cobra.Command, args []string) {
 	}.StreamAndExit()
 }
 
-// func createToken(cmd *cobra.Command, args []string) {
-// 	if len(args) != 2 {
-// 		gcmd.Fail(1, "Valid arguments: <type> <content_id>")
-// 	}
+func createToken(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		gcmd.Fail(1, "Valid arguments: <content>")
+	}
 
-// 	if keyPath == "" {
-// 		gcmd.Fail(1, "You must specify --key-path to create a token")
-// 	}
-// 	config, err := encrypted.NewTokenConfiguration(filepath.Join(keyPath, "client"), filepath.Join(keyPath, "server.pub"))
-// 	if err != nil {
-// 		gcmd.Fail(1, "Unable to load token configuration: %s", err.Error())
-// 	}
+	if keyPath == "" {
+		gcmd.Fail(1, "You must specify --key-path to create a token")
+	}
+	config, err := encrypted.NewTokenConfiguration(filepath.Join(keyPath, "client"), filepath.Join(keyPath, "server.pub"))
+	if err != nil {
+		gcmd.Fail(1, "Unable to load token configuration: %s", err.Error())
+	}
 
-// 	job := &cjobs.ContentRequest{Locator: args[1], Type: args[0]}
-// 	value, err := config.Sign(job, "key", expiresAt)
-// 	if err != nil {
-// 		gcmd.Fail(1, "Unable to sign this request: %s", err.Error())
-// 	}
-// 	fmt.Printf("%s", value)
-// 	os.Exit(0)
-// }
+	value, err := config.Sign(args[0], "key", expiresAt)
+	if err != nil {
+		gcmd.Fail(1, "Unable to sign this request: %s", err.Error())
+	}
+	fmt.Printf("%s", value)
+	os.Exit(0)
+}
 
 func transportAndHosts(args ...string) (transport.Transport, gcmd.Locators) {
 	t := defaultTransport.Get()

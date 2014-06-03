@@ -7,8 +7,17 @@ import (
 
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 )
+
+type PortReserver interface {
+	AtomicReserveExternalPorts(path string, ports, existing port.PortPairs) (port.PortPairs, error)
+	ReleaseExternalPorts(ports port.PortPairs) error
+}
+
+// TODO: inject me into job implementations
+var portReserver PortReserver
 
 // Return a job extension that casts requests directly to jobs
 // TODO: Move implementation out of request object and into a
@@ -40,6 +49,9 @@ func initContainers() error {
 	if err := InitializeData(); err != nil {
 		return err
 	}
+	allocator := port.NewPortAllocator(config.ContainerBasePath(), 4000, 60000)
+	go allocator.Run()
+	portReserver = &port.PortReservation{allocator}
 	return nil
 }
 

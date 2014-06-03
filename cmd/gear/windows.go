@@ -10,9 +10,13 @@ import (
 	"github.com/openshift/geard/http"
 	sshcmd "github.com/openshift/geard/ssh/cmd"
 	sshhttp "github.com/openshift/geard/ssh/http"
+	"github.com/openshift/geard/transport"
 )
 
 func init() {
+	transport.RegisterTransport("http", &http.HttpTransport{})
+	defaultTransport.Set("http")
+
 	a := &gitcmd.Command{&defaultTransport.TransportFlag}
 	cmd.AddCommandExtension(a.RegisterCreateRepo, false)
 

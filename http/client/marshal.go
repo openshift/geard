@@ -1,4 +1,4 @@
-package http
+package client
 
 import (
 	"errors"
@@ -17,6 +17,12 @@ type DefaultRequest struct {
 
 func (h *DefaultRequest) SetServer(server string) {
 	h.Server = server
+}
+func (h *DefaultRequest) Streamable() bool {
+	return true
+}
+func (h *DefaultRequest) HttpApiVersion() string {
+	return "1"
 }
 func (h *DefaultRequest) MarshalHttpRequestBody(w io.Writer) error {
 	return nil

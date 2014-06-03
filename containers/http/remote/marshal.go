@@ -1,13 +1,13 @@
-package http
+package remote
 
 import (
 	"encoding/json"
 	"errors"
 	"io"
-	nethttp "net/http"
+	"net/http"
 
 	cjobs "github.com/openshift/geard/containers/jobs"
-	"github.com/openshift/geard/http"
+	"github.com/openshift/geard/http/client"
 	"github.com/openshift/geard/port"
 )
 
@@ -20,7 +20,7 @@ func (h *HttpInstallContainerRequest) MarshalHttpRequestBody(w io.Writer) error 
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(h)
 }
-func (h *HttpInstallContainerRequest) UnmarshalHttpResponse(headers nethttp.Header, r io.Reader, mode http.ResponseContentMode) (interface{}, error) {
+func (h *HttpInstallContainerRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader, mode client.ResponseContentMode) (interface{}, error) {
 	if r == nil {
 		pending := make(map[string]interface{})
 		if s := headers.Get("X-" + cjobs.PendingPortMappingName); s != "" {
@@ -51,7 +51,7 @@ func (h *HttpLinkContainersRequest) MarshalHttpRequestBody(w io.Writer) error {
 }
 
 // Apply the "label" from the job to the response
-func (h *HttpListContainersRequest) UnmarshalHttpResponse(headers nethttp.Header, r io.Reader, mode http.ResponseContentMode) (interface{}, error) {
+func (h *HttpListContainersRequest) UnmarshalHttpResponse(headers http.Header, r io.Reader, mode client.ResponseContentMode) (interface{}, error) {
 	if r == nil {
 		return nil, errors.New("Unexpected empty response body to HttpListContainersRequest")
 	}

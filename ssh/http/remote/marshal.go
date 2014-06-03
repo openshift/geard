@@ -1,4 +1,4 @@
-package http
+package remote
 
 import (
 	"encoding/json"

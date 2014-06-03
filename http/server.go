@@ -3,7 +3,6 @@
 package http
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"mime"
@@ -12,29 +11,24 @@ import (
 
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/dispatcher"
+	"github.com/openshift/geard/http/client"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/go-json-rest"
 )
-
-func ApiVersion() string {
-	return "1"
-}
 
 type HttpConfiguration struct {
 	Docker     config.DockerConfiguration
 	Dispatcher *dispatcher.Dispatcher
 }
 
-type JobHandler func(*jobs.JobContext, *rest.Request) (interface{}, error)
-
-type HttpJobHandler interface {
-	RemoteJob
-	Handler(conf *HttpConfiguration) JobHandler
+type HttpContext struct {
+	jobs.JobContext
+	ApiVersion string
 }
 
-type HttpStreamable interface {
-	Streamable() bool
-}
+type JobHandler func(*HttpConfiguration, *HttpContext, *rest.Request) (interface{}, error)
+
+type ExtensionMap map[client.RemoteJob]JobHandler
 
 func (conf *HttpConfiguration) Handler() (http.Handler, error) {
 	handler := rest.ResourceHandler{
@@ -43,18 +37,22 @@ func (conf *HttpConfiguration) Handler() (http.Handler, error) {
 		EnableGzip:               false,
 	}
 
-	handlers := []HttpJobHandler{}
+	handlers := make(ExtensionMap)
 
 	for _, ext := range extensions {
 		routes := ext.Routes()
-		for j := range routes {
-			handlers = append(handlers, routes[j])
+		for key := range routes {
+			handlers[key] = routes[key]
 		}
 	}
 
-	routes := make([]rest.Route, len(handlers))
-	for i := range handlers {
-		routes[i] = conf.jobRestHandler(handlers[i])
+	routes := make([]rest.Route, 0, len(handlers))
+	for key := range handlers {
+		routes = append(routes, rest.Route{
+			key.HttpMethod(),
+			key.HttpPath(),
+			conf.handleWithMethod(handlers[key]),
+		})
 	}
 
 	if err := handler.SetRoutes(routes...); err != nil {
@@ -66,28 +64,11 @@ func (conf *HttpConfiguration) Handler() (http.Handler, error) {
 	return &handler, nil
 }
 
-func (conf *HttpConfiguration) jobRestHandler(handler HttpJobHandler) rest.Route {
-	return rest.Route{
-		handler.HttpMethod(),
-		handler.HttpPath(),
-		conf.handleWithMethod(handler.Handler(conf)),
-	}
-}
-
 func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.ResponseWriter, *rest.Request) {
 	return func(w *rest.ResponseWriter, r *rest.Request) {
-		match := r.Header.Get("If-Match")
-		segments := strings.Split(match, ",")
-		for i := range segments {
-			if strings.HasPrefix(segments[i], "api=") {
-				if segments[i][4:] != ApiVersion() {
-					http.Error(w, fmt.Sprintf("Current API version %s does not match requested %s", ApiVersion(), segments[i][4:]), http.StatusPreconditionFailed)
-					return
-				}
-			}
-		}
+		context := &HttpContext{}
 
-		context := &jobs.JobContext{}
+		context.ApiVersion = r.Header.Get("X-Api-Version")
 
 		requestId := r.Header.Get("X-Request-Id")
 		if requestId == "" {
@@ -102,7 +83,7 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 		}
 
 		// parse the incoming request into an object
-		jobRequest, errh := method(context, r)
+		jobRequest, errh := method(conf, context, r)
 		if errh != nil {
 			serveRequestError(w, apiRequestError{errh, errh.Error(), http.StatusBadRequest})
 			return
@@ -123,9 +104,9 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 		}
 
 		// setup the appropriate mode
-		mode := ResponseJson
+		mode := client.ResponseJson
 		if acceptHeader == "text/plain" {
-			mode = ResponseTable
+			mode = client.ResponseTable
 		}
 		canStream := didClientRequestStreamableResponse(acceptHeader)
 		response := NewHttpJobResponse(w.ResponseWriter, !canStream, mode)

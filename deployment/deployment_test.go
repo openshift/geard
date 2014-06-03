@@ -19,7 +19,7 @@ import (
 	"github.com/openshift/geard/transport"
 )
 
-var loopbackTransport = http.NewHttpTransport()
+var loopbackTransport = &http.HttpTransport{}
 var localTransport = transport.Local
 var localhost transport.Locator
 var noHosts PlacementStrategy = SimplePlacement(transport.Locators{})

@@ -1,4 +1,4 @@
-package http
+package client
 
 import (
 	"encoding/json"
@@ -6,25 +6,31 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/transport"
 )
 
 const DefaultHttpPort = "43273"
 
-type RemoteLocator interface {
-	ToURL() *url.URL
+type ResponseContentMode int
+
+const (
+	ResponseJson ResponseContentMode = iota
+	ResponseTable
+)
+
+type HttpFailureResponse struct {
+	Message string
+	Data    interface{} `json:"Data,omitempty"`
 }
 
 type RemoteJob interface {
 	HttpMethod() string
 	HttpPath() string
+	HttpApiVersion() string
 }
 type RemoteExecutable interface {
 	RemoteJob
@@ -33,81 +39,15 @@ type RemoteExecutable interface {
 	MarshalHttpRequestBody(io.Writer) error
 	UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error)
 }
-type ServerAware interface {
-	SetServer(string)
+type HttpStreamable interface {
+	Streamable() bool
 }
 
-type HttpTransport struct {
-	client *http.Client
+type HttpClient struct {
+	Client http.Client
 }
 
-func NewHttpTransport() *HttpTransport {
-	return &HttpTransport{&http.Client{}}
-}
-
-func (h *HttpTransport) LocatorFor(value string) (transport.Locator, error) {
-	return transport.NewHostLocator(value)
-}
-
-func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j interface{}) (job jobs.Job, err error) {
-	baseUrl, errl := urlForLocator(locator)
-	if errl != nil {
-		err = errors.New("The provided host is not valid '" + locator.String() + "': " + errl.Error())
-		return
-	}
-	httpJob, errh := HttpJobFor(j)
-	if errh == jobs.ErrNoJobForRequest {
-		err = transport.ErrNotTransportable
-		return
-	}
-	if errh != nil {
-		err = errh
-		return
-	}
-	if serverAware, ok := httpJob.(ServerAware); ok {
-		serverAware.SetServer(baseUrl.Host)
-	}
-
-	job = jobs.JobFunction(func(res jobs.Response) {
-		if err := h.ExecuteRemote(baseUrl, httpJob, res); err != nil {
-			res.Failure(err)
-		}
-	})
-	return
-}
-
-func urlForLocator(locator transport.Locator) (*url.URL, error) {
-	base := locator.String()
-	if strings.Contains(base, ":") {
-		host, port, err := net.SplitHostPort(base)
-		if err != nil {
-			return nil, err
-		}
-		if port == "" {
-			base = net.JoinHostPort(host, DefaultHttpPort)
-		}
-	} else {
-		base = net.JoinHostPort(base, DefaultHttpPort)
-	}
-	return &url.URL{Scheme: "http", Host: base}, nil
-}
-
-func HttpJobFor(job interface{}) (exc RemoteExecutable, err error) {
-	for _, ext := range extensions {
-		req, errr := ext.HttpJobFor(job)
-		if errr == jobs.ErrNoJobForRequest {
-			continue
-		}
-		if errr != nil {
-			return nil, errr
-		}
-		return req, nil
-	}
-	err = jobs.ErrNoJobForRequest
-	return
-}
-
-func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, res jobs.Response) error {
+func (h *HttpClient) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, res jobs.Response) error {
 	reader, writer := io.Pipe()
 	httpreq, errn := http.NewRequest(job.HttpMethod(), baseUrl.String(), reader)
 	if errn != nil {
@@ -124,7 +64,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 
 	req := httpreq
 	req.Header.Set("X-Request-Id", id.String())
-	req.Header.Set("If-Match", "api="+ApiVersion())
+	req.Header.Set("X-Api-Version", job.HttpApiVersion())
 
 	if streamable, ok := job.(HttpStreamable); ok && streamable.Streamable() {
 		req.Header.Set("Accept", "application/json;stream=true")
@@ -144,7 +84,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 		}
 	}()
 
-	resp, err := h.client.Do(req)
+	resp, err := h.Client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -193,7 +133,7 @@ func (h *HttpTransport) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, re
 	default:
 		if isJson {
 			decoder := json.NewDecoder(resp.Body)
-			data := httpFailureResponse{}
+			data := HttpFailureResponse{}
 			if err := decoder.Decode(&data); err != nil {
 				return err
 			}
