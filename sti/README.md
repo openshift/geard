@@ -117,11 +117,11 @@ Building a Deployable Image
     Available Flags:
          --callbackUrl="": Specify a URL to invoke via HTTP POST upon build completion
          --clean=false: Perform a clean build
-         --dir="tempdir": Directory where generated Dockerfiles and other support scripts are created
      -e, --env="": Specify an environment var NAME=VALUE,NAME2=VALUE2,...
      -r, --ref="": Specify a ref to check-out
-     -s, --scripts="": Specify a URL for the assemble, run, and save-artifacts scripts
-     -R, --runtime="": Set the runtime image to use
+         --rm=false: Remove the previous image during incremental builds
+         --savetempdir=false: Save the temporary directory used by STI instead of deleting it
+     -s, --scripts="": Specify a URL for the assemble and run scripts
      -U, --url="unix:///var/run/docker.sock": Set the url of the docker socket to use
          --verbose=false: Enable verbose output
 

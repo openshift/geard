@@ -50,7 +50,6 @@ var (
 
 	deploymentPath string
 
-	buildReq    sti.BuildRequest
 	keyFile     string
 	writeAccess bool
 	hostIp      string
@@ -63,6 +62,8 @@ var (
 
 	version string
 )
+
+var buildReq = &sti.STIRequest{}
 
 var conf = http.HttpConfiguration{
 	Dispatcher: &dispatcher.Dispatcher{
@@ -136,7 +137,6 @@ func Execute() {
 		Run:   buildImage,
 	}
 	buildCmd.Flags().BoolVar(&(buildReq.Clean), "clean", false, "Perform a clean build")
-	buildCmd.Flags().StringVar(&(buildReq.WorkingDir), "dir", "tempdir", "Directory where generated Dockerfiles and other support scripts are created")
 	buildCmd.Flags().StringVarP(&(buildReq.Ref), "ref", "r", "", "Specify a ref to check-out")
 	buildCmd.Flags().BoolVar(&(buildReq.Verbose), "verbose", false, "Enable verbose output")
 	buildCmd.Flags().StringVar(&(buildReq.CallbackUrl), "callbackUrl", "", "Specify a URL to invoke via HTTP POST upon build completion")
@@ -506,16 +506,6 @@ func buildImage(cmd *cobra.Command, args []string) {
 	buildReq.Writer = os.Stdout
 	buildReq.DockerSocket = conf.Docker.Socket
 	buildReq.Environment = environment.Description.Map()
-
-	if buildReq.WorkingDir == "tempdir" {
-		var err error
-		buildReq.WorkingDir, err = ioutil.TempDir("", "sti")
-		if err != nil {
-			fmt.Println(err.Error())
-			return
-		}
-		defer os.Remove(buildReq.WorkingDir)
-	}
 
 	res, err := sti.Build(buildReq)
 	if err != nil {
