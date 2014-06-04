@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	gcmd "github.com/openshift/geard/cmd"
@@ -62,6 +63,8 @@ var (
 	defaultTransport LocalTransportFlag
 
 	version string
+
+	systemdSlice string
 )
 
 var conf = http.HttpConfiguration{
@@ -119,6 +122,7 @@ func Execute() {
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
+	installImageCmd.Flags().StringVar(&systemdSlice, "slice", cjobs.DefaultSlice, "systemd slice to use. default: "+cjobs.DefaultSlice)
 	gcmd.AddCommand(gearCmd, installImageCmd, false)
 
 	deleteCmd := &cobra.Command{
@@ -436,6 +440,20 @@ func deployContainers(cmd *cobra.Command, args []string) {
 }
 
 func installImage(cmd *cobra.Command, args []string) {
+	names := []string{}
+	found := false
+	for _, name := range cjobs.ListSliceNames() {
+		names = append(names, name)
+		if systemdSlice == name {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		gcmd.Fail(1, fmt.Sprintf("%s is not a valid systemd slice. Must be one of [%s]", systemdSlice, strings.Join(names, ", ")))
+	}
+
 	if err := environment.ExtractVariablesFrom(&args, true); err != nil {
 		gcmd.Fail(1, err.Error())
 	}
@@ -476,6 +494,7 @@ func installImage(cmd *cobra.Command, args []string) {
 				Ports:        *portPairs.Get().(*port.PortPairs),
 				Environment:  &environment.Description,
 				NetworkLinks: networkLinks.NetworkLinks,
+				SystemdSlice: systemdSlice,
 			}
 			return &r
 		},
