@@ -13,5 +13,5 @@ func RegisterRouter(parent *cobra.Command) {
 	parent.AddCommand(testCmd)
 }
 
-func test(cmd *cobra.Command, args []string) {
+func test(c *cobra.Command, args []string) {
 }

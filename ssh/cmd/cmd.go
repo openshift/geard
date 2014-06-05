@@ -10,29 +10,25 @@ import (
 	"os/user"
 	"path/filepath"
 
-	. "github.com/openshift/geard/cmd"
+	"github.com/openshift/geard/cmd"
+	cloc "github.com/openshift/geard/containers/locator"
 	sshkey "github.com/openshift/geard/pkg/ssh-public-key"
 	"github.com/openshift/geard/ssh"
 	"github.com/openshift/geard/ssh/jobs"
 	"github.com/openshift/geard/transport"
 )
 
-var (
-	keyFile string
-	handler serializeContainerPermission
-)
-
 // Implements the default container permission serialization
 type serializeContainerPermission struct{}
 
-func (c *serializeContainerPermission) CreatePermission(cmd *cobra.Command, id string) (*jobs.KeyPermission, error) {
+func (p *serializeContainerPermission) CreatePermission(c *cobra.Command, id string) (*jobs.KeyPermission, error) {
 	return jobs.NewKeyPermission(ssh.ContainerPermissionType, id)
 }
-func (c *serializeContainerPermission) DefineFlags(cmd *cobra.Command) {
+func (p *serializeContainerPermission) DefineFlags(c *cobra.Command) {
 }
 
 func init() {
-	AddPermissionCommand(ResourceTypeContainer, &handler)
+	AddPermissionCommand(cloc.ResourceTypeContainer, &serializeContainerPermission{})
 }
 
 func RegisterAuthorizedKeys(parent *cobra.Command) {
@@ -45,76 +41,78 @@ func RegisterAuthorizedKeys(parent *cobra.Command) {
 	parent.AddCommand(keysForUserCmd)
 }
 
-func keysForUser(cmd *cobra.Command, args []string) {
+func keysForUser(c *cobra.Command, args []string) {
 	if len(args) != 1 {
-		Fail(1, "Valid arguments: <login name>\n")
+		cmd.Fail(1, "Valid arguments: <login name>\n")
 	}
 
 	u, err := user.Lookup(args[0])
 	if err != nil {
-		Fail(2, "Unable to lookup user")
+		cmd.Fail(2, "Unable to lookup user")
 	}
 
 	if err := ssh.GenerateAuthorizedKeysFor(u, false, false); err != nil {
-		Fail(1, "Unable to generate authorized_keys file: %s", err.Error())
+		cmd.Fail(1, "Unable to generate authorized_keys file: %s", err.Error())
 	}
 }
 
-type Command struct {
+type CommandContext struct {
 	Transport *transport.TransportFlag
+
+	keyFile string
 }
 
-func (e *Command) RegisterAddKeys(parent *cobra.Command) {
+func (ctx *CommandContext) RegisterAddKeys(parent *cobra.Command) {
 	addKeysCmd := &cobra.Command{
 		Use:   "add-keys <id>...",
 		Short: "Set keys for SSH access to a resource",
 		Long:  "Upload the provided public keys and enable SSH access to the specified resources.",
-		Run:   e.addSshKeys,
+		Run:   ctx.addSshKeys,
 	}
-	addKeysCmd.Flags().StringVar(&keyFile, "key-file", "", "read input from file specified matching sshd AuthorizedKeysFile format")
+	addKeysCmd.Flags().StringVar(&ctx.keyFile, "key-file", "", "read input from file specified matching sshd AuthorizedKeysFile format")
 	defineFlags(addKeysCmd)
 	parent.AddCommand(addKeysCmd)
 }
 
-func (e *Command) addSshKeys(cmd *cobra.Command, args []string) {
+func (ctx *CommandContext) addSshKeys(c *cobra.Command, args []string) {
 	// validate that arguments for locators are passsed
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <id> ...")
+		cmd.Fail(1, "Valid arguments: <id> ...")
 	}
 
-	t := e.Transport.Get()
+	t := ctx.Transport.Get()
 
 	// args... are locators for repositories or containers
-	ids, err := NewResourceLocators(t, ResourceTypeContainer, args...)
+	ids, err := cmd.NewResourceLocators(t, cloc.ResourceTypeContainer, args...)
 	if err != nil {
-		Fail(1, "You must pass 1 or more valid names: %s", err.Error())
+		cmd.Fail(1, "You must pass 1 or more valid names: %s", err.Error())
 	}
 
-	keys, err := readAuthorizedKeysFile(keyFile)
+	keys, err := readAuthorizedKeysFile(ctx.keyFile)
 	if err != nil {
-		Fail(1, "Unable to read authorized keys file: %s", err.Error())
+		cmd.Fail(1, "Unable to read authorized keys file: %s", err.Error())
 	}
 
 	allPerms := make(map[string]*jobs.KeyPermission)
 	for i := range ids {
-		resourceType := ids[i].(*ResourceLocator).Type
+		resourceType := ids[i].(*cmd.ResourceLocator).Type
 		if permissionHandlers == nil {
-			Fail(1, "The type '%s' is not supported by this command", resourceType)
+			cmd.Fail(1, "The type '%s' is not supported by this command", resourceType)
 		}
 		h, ok := permissionHandlers[resourceType]
 		if !ok {
-			Fail(1, "The type '%s' is not supported by this command", resourceType)
+			cmd.Fail(1, "The type '%s' is not supported by this command", resourceType)
 		}
-		perm, err := h.CreatePermission(cmd, ids[i].(*ResourceLocator).Id)
+		perm, err := h.CreatePermission(c, ids[i].(*cmd.ResourceLocator).Id)
 		if err != nil {
-			Fail(1, err.Error())
+			cmd.Fail(1, err.Error())
 		}
 		allPerms[ids[i].Identity()] = perm
 	}
 
-	Executor{
+	cmd.Executor{
 		On: ids,
-		Group: func(on ...Locator) JobRequest {
+		Group: func(on ...cmd.Locator) cmd.JobRequest {
 			permissions := []jobs.KeyPermission{}
 			for i := range on {
 				permissions = append(permissions, *allPerms[on[i].Identity()])

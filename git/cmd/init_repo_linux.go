@@ -21,7 +21,7 @@ func RegisterInitRepo(parent *cobra.Command) {
 	parent.AddCommand(initRepoCmd)
 }
 
-func initRepository(cmd *cobra.Command, args []string) {
+func initRepository(c *cobra.Command, args []string) {
 	if len(args) < 1 || len(args) > 2 {
 		Fail(1, "Valid arguments: <repo_id> [<repo_url>]\n")
 	}

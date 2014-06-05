@@ -8,8 +8,8 @@ import (
 )
 
 type PermissionCommandHandler interface {
-	DefineFlags(cmd *cobra.Command)
-	CreatePermission(cmd *cobra.Command, id string) (*jobs.KeyPermission, error)
+	DefineFlags(c *cobra.Command)
+	CreatePermission(c *cobra.Command, id string) (*jobs.KeyPermission, error)
 }
 
 var permissionHandlers map[cmd.ResourceType]PermissionCommandHandler
@@ -21,11 +21,11 @@ func AddPermissionCommand(name cmd.ResourceType, handler PermissionCommandHandle
 	permissionHandlers[name] = handler
 }
 
-func defineFlags(cmd *cobra.Command) {
+func defineFlags(c *cobra.Command) {
 	if permissionHandlers == nil {
 		return
 	}
 	for _, handler := range permissionHandlers {
-		handler.DefineFlags(cmd)
+		handler.DefineFlags(c)
 	}
 }

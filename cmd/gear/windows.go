@@ -4,7 +4,9 @@ package main
 
 import (
 	"github.com/openshift/geard/cmd"
+	ctrcmd "github.com/openshift/geard/containers/cmd"
 	chttp "github.com/openshift/geard/containers/http"
+	"github.com/openshift/geard/git"
 	gitcmd "github.com/openshift/geard/git/cmd"
 	githttp "github.com/openshift/geard/git/http"
 	"github.com/openshift/geard/http"
@@ -17,11 +19,17 @@ func init() {
 	transport.RegisterTransport("http", &http.HttpTransport{})
 	defaultTransport.Set("http")
 
-	a := &gitcmd.Command{&defaultTransport.TransportFlag}
+	ctx := ctrcmd.CommandContext{Transport: &defaultTransport.TransportFlag, Insecure: &insecure}
+	cmd.AddCommandExtension(ctx.RegisterLocal, true)
+	cmd.AddCommandExtension(ctx.RegisterRemote, false)
+
+	a := &gitcmd.CommandContext{&defaultTransport.TransportFlag}
 	cmd.AddCommandExtension(a.RegisterCreateRepo, false)
 
+	sshcmd.AddPermissionCommand(git.ResourceTypeRepository, &gitcmd.PermissionCommandContext{})
+
 	cmd.AddCommandExtension(sshcmd.RegisterAuthorizedKeys, true)
-	b := &sshcmd.Command{&defaultTransport.TransportFlag}
+	b := &sshcmd.CommandContext{Transport: &defaultTransport.TransportFlag}
 	cmd.AddCommandExtension(b.RegisterAddKeys, false)
 
 	http.AddHttpExtension(&chttp.HttpExtension{})

@@ -3,6 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
+
+	"github.com/openshift/geard/cmd"
+	cloc "github.com/openshift/geard/containers/locator"
 	"github.com/openshift/geard/deployment"
 	"github.com/openshift/geard/transport"
 )
@@ -30,15 +33,15 @@ func ExtractContainerLocatorsFromDeployment(t transport.Transport, path string, 
 	return nil
 }
 
-func LocatorsForDeploymentInstances(t transport.Transport, instances deployment.InstanceRefs) (Locators, error) {
-	locators := make(Locators, 0, len(instances))
+func LocatorsForDeploymentInstances(t transport.Transport, instances deployment.InstanceRefs) (cmd.Locators, error) {
+	locators := make(cmd.Locators, 0, len(instances))
 	for _, instance := range instances {
 		if instance.On != nil {
 			locator, err := t.LocatorFor(*instance.On)
 			if err != nil {
-				return Locators{}, err
+				return cmd.Locators{}, err
 			}
-			resource := &ResourceLocator{ResourceTypeContainer, string(instance.Id), locator}
+			resource := &cmd.ResourceLocator{cloc.ResourceTypeContainer, string(instance.Id), locator}
 			locators = append(locators, resource)
 		}
 	}

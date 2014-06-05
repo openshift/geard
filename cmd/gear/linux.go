@@ -5,9 +5,11 @@ package main
 import (
 	cleancmd "github.com/openshift/geard/cleanup/cmd"
 	"github.com/openshift/geard/cmd"
+	ctrcmd "github.com/openshift/geard/containers/cmd"
 	chttp "github.com/openshift/geard/containers/http"
 	cjobs "github.com/openshift/geard/containers/jobs"
 	initcmd "github.com/openshift/geard/containers/systemd/init"
+	"github.com/openshift/geard/git"
 	gitcmd "github.com/openshift/geard/git/cmd"
 	githttp "github.com/openshift/geard/git/http"
 	gitjobs "github.com/openshift/geard/git/jobs"
@@ -24,12 +26,20 @@ func init() {
 	transport.RegisterTransport("http", &http.HttpTransport{})
 	defaultTransport.Set("http")
 
+	cmd.AddCommandExtension(registerHttpDaemonCommands, true)
+
+	ctx := ctrcmd.CommandContext{Transport: &defaultTransport.TransportFlag, Insecure: &insecure}
+	cmd.AddCommandExtension(ctx.RegisterLocal, true)
+	cmd.AddCommandExtension(ctx.RegisterRemote, false)
+
 	cmd.AddCommandExtension(gitcmd.RegisterInitRepo, true)
-	a := &gitcmd.Command{&defaultTransport.TransportFlag}
+	a := &gitcmd.CommandContext{&defaultTransport.TransportFlag}
 	cmd.AddCommandExtension(a.RegisterCreateRepo, false)
 
+	sshcmd.AddPermissionCommand(git.ResourceTypeRepository, &gitcmd.PermissionCommandContext{})
+
 	cmd.AddCommandExtension(sshcmd.RegisterAuthorizedKeys, true)
-	b := &sshcmd.Command{&defaultTransport.TransportFlag}
+	b := &sshcmd.CommandContext{Transport: &defaultTransport.TransportFlag}
 	cmd.AddCommandExtension(b.RegisterAddKeys, false)
 
 	cmd.AddCommandExtension(cleancmd.RegisterCleanup, true)
