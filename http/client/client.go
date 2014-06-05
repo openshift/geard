@@ -25,6 +25,8 @@ const (
 type HttpFailureResponse struct {
 	Message string
 	Data    interface{} `json:"Data,omitempty"`
+	// FIXME: default error reporter can include this
+	Error string `json:"Error,omitempty"`
 }
 
 type RemoteJob interface {
@@ -136,6 +138,9 @@ func (h *HttpClient) ExecuteRemote(baseUrl *url.URL, job RemoteExecutable, res j
 			data := HttpFailureResponse{}
 			if err := decoder.Decode(&data); err != nil {
 				return err
+			}
+			if data.Message == "" && data.Error != "" {
+				data.Message = fmt.Sprintf("The server did not respond correctly to the request: %s", data.Error)
 			}
 			res.Failure(jobs.SimpleError{jobs.ResponseError, data.Message})
 			return nil

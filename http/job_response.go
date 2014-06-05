@@ -130,7 +130,7 @@ func (s *httpJobResponse) Failure(err error) {
 	s.failed = true
 
 	code := http.StatusInternalServerError
-	response := client.HttpFailureResponse{err.Error(), nil}
+	response := client.HttpFailureResponse{err.Error(), nil, ""}
 	s.response.Header().Set("Content-Type", "application/json")
 
 	if e, ok := err.(jobs.JobError); ok {

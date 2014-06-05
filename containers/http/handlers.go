@@ -22,6 +22,7 @@ func (h *HttpExtension) Routes() http.ExtensionMap {
 		&remote.HttpContainerLogRequest{}:       HandleContainerLogRequest,
 		&remote.HttpContainerStatusRequest{}:    HandleContainerStatusRequest,
 		&remote.HttpListContainerPortsRequest{}: HandleContainerPortsRequest,
+		&remote.HttpPurgeContainersRequest{}:    HandlePurgeContainersRequest,
 
 		&remote.HttpStartContainerRequest{}:   HandleStartContainerRequest,
 		&remote.HttpStopContainerRequest{}:    HandleStopContainerRequest,
@@ -45,31 +46,25 @@ func (h *HttpExtension) HttpJobFor(job interface{}) (exc client.RemoteExecutable
 }
 
 func HandleRunContainerRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
-	data := cjobs.RunContainerRequest{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
+	data := &cjobs.RunContainerRequest{}
+	if err := decodeBody(r, data); err != nil {
+		return nil, err
 	}
 	data.Name = context.Id.String()
 	if err := data.Check(); err != nil {
 		return nil, err
 	}
-	return &data, nil
+	return data, nil
 }
 
 func HandleInstallContainerRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
-	data := cjobs.InstallContainerRequest{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
 	id, errg := containers.NewIdentifier(r.PathParam("id"))
 	if errg != nil {
 		return nil, errg
+	}
+	data := &cjobs.InstallContainerRequest{}
+	if err := decodeBody(r, data); err != nil {
+		return nil, err
 	}
 	data.Id = id
 	data.RequestIdentifier = context.Id
@@ -77,7 +72,7 @@ func HandleInstallContainerRequest(conf *http.HttpConfiguration, context *http.H
 	if err := data.Check(); err != nil {
 		return nil, err
 	}
-	return &data, nil
+	return data, nil
 }
 
 func HandleDeleteContainerRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
@@ -86,6 +81,10 @@ func HandleDeleteContainerRequest(conf *http.HttpConfiguration, context *http.Ht
 		return nil, errg
 	}
 	return &cjobs.DeleteContainerRequest{Id: id}, nil
+}
+
+func HandlePurgeContainersRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
+	return &cjobs.PurgeContainersRequest{}, nil
 }
 
 func HandleListContainersRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
@@ -105,9 +104,7 @@ func HandleContainerLogRequest(conf *http.HttpConfiguration, context *http.HttpC
 	if errg != nil {
 		return nil, errg
 	}
-	return &cjobs.ContainerLogRequest{
-		id,
-	}, nil
+	return &cjobs.ContainerLogRequest{id}, nil
 }
 
 func HandleContainerStatusRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
@@ -123,9 +120,7 @@ func HandleContainerPortsRequest(conf *http.HttpConfiguration, context *http.Htt
 	if errg != nil {
 		return nil, errg
 	}
-	return &cjobs.ContainerPortsRequest{
-		id,
-	}, nil
+	return &cjobs.ContainerPortsRequest{id}, nil
 }
 
 func HandleStartContainerRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
@@ -141,7 +136,12 @@ func HandleStopContainerRequest(conf *http.HttpConfiguration, context *http.Http
 	if errg != nil {
 		return nil, errg
 	}
-	return &cjobs.StoppedContainerStateRequest{id}, nil
+	data := &cjobs.StoppedContainerStateRequest{}
+	if err := decodeAndCheck(r, data); err != nil {
+		return nil, err
+	}
+	data.Id = id
+	return data, nil
 }
 
 func HandleRestartContainerRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
@@ -154,17 +154,13 @@ func HandleRestartContainerRequest(conf *http.HttpConfiguration, context *http.H
 
 func HandleBuildImageRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
 	data := &cjobs.BuildImageRequest{}
-	if r.Body != nil {
-		dec := json.NewDecoder(r.Body)
-		if err := dec.Decode(data); err != nil && err != io.EOF {
-			return nil, err
-		}
+	if err := decodeBody(r, data); err != nil {
+		return nil, err
 	}
 	data.Name = context.Id.String()
 	if err := data.Check(); err != nil {
 		return nil, err
 	}
-
 	return data, nil
 }
 
@@ -181,19 +177,11 @@ func HandlePutEnvironmentRequest(conf *http.HttpConfiguration, context *http.Htt
 	if errg != nil {
 		return nil, errg
 	}
-
 	data := containers.EnvironmentDescription{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-	if err := data.Check(); err != nil {
+	if err := decodeAndCheck(r, &data); err != nil {
 		return nil, err
 	}
 	data.Id = id
-
 	return &cjobs.PutEnvironmentRequest{data}, nil
 }
 
@@ -202,38 +190,48 @@ func HandlePatchEnvironmentRequest(conf *http.HttpConfiguration, context *http.H
 	if errg != nil {
 		return nil, errg
 	}
-
 	data := containers.EnvironmentDescription{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(&data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-	if err := data.Check(); err != nil {
+	if err := decodeAndCheck(r, &data); err != nil {
 		return nil, err
 	}
 	data.Id = id
-
 	return &cjobs.PatchEnvironmentRequest{data}, nil
 }
 
 func HandleLinkContainersRequest(conf *http.HttpConfiguration, context *http.HttpContext, r *rest.Request) (interface{}, error) {
 	data := &containers.ContainerLinks{}
-	if r.Body != nil {
-		dec := json.NewDecoder(limitedBodyReader(r))
-		if err := dec.Decode(data); err != nil && err != io.EOF {
-			return nil, err
-		}
-	}
-
-	if err := data.Check(); err != nil {
+	if err := decodeAndCheck(r, data); err != nil {
 		return nil, err
 	}
-
 	return &cjobs.LinkContainersRequest{ContainerLinks: data}, nil
 }
 
 func limitedBodyReader(r *rest.Request) io.Reader {
 	return io.LimitReader(r.Body, 100*1024)
+}
+
+type check interface {
+	Check() error
+}
+
+func decodeBody(r *rest.Request, into interface{}) error {
+	if r.Body != nil {
+		dec := json.NewDecoder(limitedBodyReader(r))
+		if err := dec.Decode(into); err != nil && err != io.EOF {
+			return err
+		}
+	}
+	return nil
+}
+
+func decodeAndCheck(r *rest.Request, into interface{}) error {
+	if err := decodeBody(r, into); err != nil {
+		return err
+	}
+	if c, ok := into.(check); ok {
+		if err := c.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

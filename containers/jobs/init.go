@@ -79,8 +79,6 @@ func disableAllUnits() {
 
 	for _, path := range []string{
 		filepath.Join(config.ContainerBasePath(), "units"),
-		filepath.Join(config.ContainerBasePath(), "slices"),
-		filepath.Join(config.ContainerBasePath(), "targets"),
 	} {
 		filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 			if os.IsNotExist(err) {

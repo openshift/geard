@@ -50,6 +50,7 @@ type CommandContext struct {
 
 	quiet   bool
 	timeout int64
+	noWait  bool
 }
 
 // Parse the command line arguments and invoke one of the support subcommands.
@@ -143,11 +144,12 @@ func (ctx *CommandContext) RegisterRemote(parent *cobra.Command) {
 	parent.AddCommand(startCmd)
 
 	stopCmd := &cobra.Command{
-		Use:   "stop <name>...",
+		Use:   "stop <name>... [--no-wait]",
 		Short: "Invoke systemd to stop a container",
-		Long:  ``,
+		Long:  "Stop the specified container.  Waits for the container to stop unless --no-wait is specified",
 		Run:   ctx.stopContainer,
 	}
+	stopCmd.Flags().BoolVarP(&(ctx.noWait), "no-wait", "n", false, "Do not wait for the container to stop")
 	parent.AddCommand(stopCmd)
 
 	restartCmd := &cobra.Command{
@@ -263,8 +265,8 @@ func (ctx *CommandContext) deployContainers(c *cobra.Command, args []string) {
 				}
 			},
 			Output: os.Stdout,
-			OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.JobRequest) {
-				fmt.Fprintf(w, "==> Deleted %s", string(job.(*cjobs.DeleteContainerRequest).Id))
+			OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.RequestedJob) {
+				fmt.Fprintf(w, "==> Deleted %s", string(job.Request.(*cjobs.DeleteContainerRequest).Id))
 			},
 			Transport: t,
 		}.Stream()
@@ -294,8 +296,8 @@ func (ctx *CommandContext) deployContainers(c *cobra.Command, args []string) {
 				NetworkLinks: &links,
 			}
 		},
-		OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.JobRequest) {
-			installJob := job.(*cjobs.InstallContainerRequest)
+		OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.RequestedJob) {
+			installJob := job.Request.(*cjobs.InstallContainerRequest)
 			instance, _ := changes.Instances.Find(installJob.Id)
 			if pairs, ok := installJob.PortMappingsFrom(r.Pending); ok {
 				if !instance.Ports.Update(pairs) {
@@ -554,8 +556,8 @@ func (ctx *CommandContext) deleteContainer(c *cobra.Command, args []string) {
 			}
 		},
 		Output: os.Stdout,
-		OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.JobRequest) {
-			fmt.Fprintf(w, "Deleted %s", string(job.(*cjobs.DeleteContainerRequest).Id))
+		OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.RequestedJob) {
+			fmt.Fprintf(w, "Deleted %s", string(job.Request.(*cjobs.DeleteContainerRequest).Id))
 		},
 		Transport: t,
 	}.StreamAndExit()
@@ -586,8 +588,8 @@ func (ctx *CommandContext) linkContainers(c *cobra.Command, args []string) {
 			return &cjobs.LinkContainersRequest{links}
 		},
 		Output: os.Stdout,
-		OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.JobRequest) {
-			fmt.Fprintf(w, "Links set on %s\n", job.(*cjobs.LinkContainersRequest).ContainerLinks.String())
+		OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.RequestedJob) {
+			fmt.Fprintf(w, "Links set on %s\n", job.Request.(*cjobs.LinkContainersRequest).ContainerLinks.String())
 		},
 		Transport: t,
 	}.StreamAndExit()
@@ -637,7 +639,8 @@ func (ctx *CommandContext) stopContainer(c *cobra.Command, args []string) {
 		On: ids,
 		Serial: func(on cmd.Locator) cmd.JobRequest {
 			return &cjobs.StoppedContainerStateRequest{
-				Id: cloc.AsIdentifier(on),
+				Id:   cloc.AsIdentifier(on),
+				Wait: !ctx.noWait,
 			}
 		},
 		Output:    os.Stdout,
@@ -764,7 +767,10 @@ func (ctx *CommandContext) purge(c *cobra.Command, args []string) {
 		Group: func(on ...cmd.Locator) cmd.JobRequest {
 			return &cjobs.PurgeContainersRequest{}
 		},
-		Output:    os.Stdout,
+		Output: os.Stdout,
+		OnSuccess: func(r *cmd.CliJobResponse, w io.Writer, job cmd.RequestedJob) {
+			fmt.Fprintf(w, "Stopped and removed all containers from %s", job.Locator.TransportLocator().String())
+		},
 		Transport: t,
 	}.StreamAndExit()
 }

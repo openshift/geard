@@ -3,10 +3,12 @@
 package http
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"mime"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"github.com/openshift/geard/config"
@@ -92,6 +94,9 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 		// find the job implementation for that request
 		job, errj := jobs.JobFor(jobRequest)
 		if errj != nil {
+			if errj == jobs.ErrNoJobForRequest {
+				serveRequestError(w, apiRequestError{errj, fmt.Sprintf("The requested job %s has no registered implementation", reflect.TypeOf(jobRequest)), http.StatusBadRequest})
+			}
 			serveRequestError(w, apiRequestError{errj, errj.Error(), http.StatusBadRequest})
 			return
 		}

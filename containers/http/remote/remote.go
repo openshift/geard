@@ -30,6 +30,8 @@ func HttpJobFor(job interface{}) (exc client.RemoteExecutable, err error) {
 		exc = &HttpLinkContainersRequest{LinkContainersRequest: *j}
 	case *cjobs.ListContainersRequest:
 		exc = &HttpListContainersRequest{ListContainersRequest: *j}
+	case *cjobs.PurgeContainersRequest:
+		exc = &HttpPurgeContainersRequest{PurgeContainersRequest: *j}
 	default:
 		err = jobs.ErrNoJobForRequest
 	}
@@ -213,3 +215,11 @@ type HttpLinkContainersRequest struct {
 
 func (h *HttpLinkContainersRequest) HttpMethod() string { return "POST" }
 func (h *HttpLinkContainersRequest) HttpPath() string   { return "/containers/links" }
+
+type HttpPurgeContainersRequest struct {
+	cjobs.PurgeContainersRequest
+	client.DefaultRequest
+}
+
+func (h *HttpPurgeContainersRequest) HttpMethod() string { return "DELETE" }
+func (h *HttpPurgeContainersRequest) HttpPath() string   { return "/containers" }

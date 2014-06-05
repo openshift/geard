@@ -119,7 +119,8 @@ type StartedContainerStateRequest struct {
 }
 
 type StoppedContainerStateRequest struct {
-	Id containers.Identifier
+	Id   containers.Identifier
+	Wait bool
 }
 
 type RestartContainerRequest struct {

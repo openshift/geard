@@ -154,6 +154,17 @@ func (j *StoppedContainerStateRequest) Execute(resp jobs.Response) {
 		return
 	}
 
+	if !j.Wait {
+		err := systemd.Connection().StopUnitJob(unitName, "replace")
+		if err != nil {
+			log.Print("alter_container_state: Failed to queue a restart ", err)
+			resp.Failure(ErrContainerStopFailed)
+		}
+		w := resp.SuccessWithWrite(jobs.ResponseAccepted, false, false)
+		fmt.Fprintf(w, "Container %s is stopping\n", j.Id)
+		return
+	}
+
 	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 
 	done := make(chan time.Time)

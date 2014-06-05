@@ -8,4 +8,5 @@ import (
 
 func (p *PurgeContainersRequest) Execute(res jobs.Response) {
 	Clean()
+	res.Success(jobs.ResponseOk)
 }
