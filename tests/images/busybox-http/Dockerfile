@@ -1,4 +1,4 @@
-FROM busybox
+FROM mrunalp/busybox
 
 RUN mkdir -p /usr/mock/source
 
