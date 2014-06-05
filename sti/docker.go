@@ -2,46 +2,9 @@ package sti
 
 import (
 	"log"
-	"os"
 
 	"github.com/fsouza/go-dockerclient"
 )
-
-// Request contains essential fields for any request: a Configuration, a base image, and an
-// optional runtime image.
-type Request struct {
-	BaseImage string
-
-	DockerSocket  string
-	DockerTimeout int
-	WorkingDir    string
-	Verbose       bool
-}
-
-// requestHandler encapsulates dependencies needed to fulfill requests.
-type requestHandler struct {
-	dockerClient *docker.Client
-	verbose      bool
-}
-
-type STIResult struct {
-	Success  bool
-	Messages []string
-}
-
-// Returns a new handler for a given request.
-func newHandler(req Request) (*requestHandler, error) {
-	if req.Verbose {
-		log.Printf("Using docker socket: %s\n", req.DockerSocket)
-	}
-
-	dockerClient, err := docker.NewClient(req.DockerSocket)
-	if err != nil {
-		return nil, ErrDockerConnectionFailed
-	}
-
-	return &requestHandler{dockerClient, req.Verbose}, nil
-}
 
 // Determines whether the supplied image is in the local registry.
 func (h requestHandler) isImageInLocalRegistry(imageName string) (bool, error) {
@@ -59,14 +22,13 @@ func (h requestHandler) isImageInLocalRegistry(imageName string) (bool, error) {
 // Pull an image into the local registry
 func (h requestHandler) checkAndPull(imageName string) (*docker.Image, error) {
 	image, err := h.dockerClient.InspectImage(imageName)
-	if err != nil {
+	if err != nil && err != docker.ErrNoSuchImage {
+		//TODO should this be a different error?
 		return nil, ErrPullImageFailed
 	}
 
 	if image == nil {
-		if h.verbose {
-			log.Printf("Pulling image %s\n", imageName)
-		}
+		log.Printf("Pulling image %s\n", imageName)
 
 		err = h.dockerClient.PullImage(docker.PullImageOptions{Repository: imageName}, docker.AuthConfiguration{})
 		if err != nil {
@@ -77,7 +39,7 @@ func (h requestHandler) checkAndPull(imageName string) (*docker.Image, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else if h.verbose {
+	} else if h.request.Verbose {
 		log.Printf("Image %s available locally\n", imageName)
 	}
 
@@ -120,14 +82,4 @@ func (h requestHandler) commitContainer(id, tag string) error {
 	// TODO: commit message / author?
 	_, err := h.dockerClient.CommitContainer(docker.CommitContainerOptions{Container: id, Repository: tag})
 	return err
-}
-
-// If image is not present locally, pull it from Docker registry
-func (h requestHandler) pullImage(image string) (*docker.Image, error) {
-	log.Printf("Image %s was not found locally, pulling it from Docker registry", image)
-	err := h.dockerClient.PullImage(docker.PullImageOptions{Repository: image, OutputStream: os.Stdout}, docker.AuthConfiguration{})
-	if err != nil {
-		return nil, err
-	}
-	return h.dockerClient.InspectImage(image)
 }

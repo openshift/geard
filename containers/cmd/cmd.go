@@ -46,7 +46,7 @@ type CommandContext struct {
 
 	deploymentPath string
 
-	buildReq sti.BuildRequest
+	buildReq sti.STIRequest
 
 	quiet   bool
 	timeout int64
@@ -99,7 +99,6 @@ func (ctx *CommandContext) RegisterRemote(parent *cobra.Command) {
 	}
 	buildCmd.Flags().StringVarP(&(ctx.dockerSocket), "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
 	buildCmd.Flags().BoolVar(&(ctx.buildReq.Clean), "clean", false, "Perform a clean build")
-	buildCmd.Flags().StringVar(&(ctx.buildReq.WorkingDir), "dir", "tempdir", "Directory where generated Dockerfiles and other support scripts are created")
 	buildCmd.Flags().StringVarP(&(ctx.buildReq.Ref), "ref", "r", "", "Specify a ref to check-out")
 	buildCmd.Flags().BoolVar(&(ctx.buildReq.Verbose), "verbose", false, "Enable verbose output")
 	buildCmd.Flags().StringVar(&(ctx.buildReq.CallbackUrl), "callbackUrl", "", "Specify a URL to invoke via HTTP POST upon build completion")
@@ -443,17 +442,7 @@ func (ctx *CommandContext) buildImage(c *cobra.Command, args []string) {
 	buildReq.DockerSocket = ctx.dockerSocket
 	buildReq.Environment = ctx.environment.Description.Map()
 
-	if buildReq.WorkingDir == "tempdir" {
-		var err error
-		buildReq.WorkingDir, err = ioutil.TempDir("", "sti")
-		if err != nil {
-			fmt.Println(err.Error())
-			return
-		}
-		defer os.Remove(buildReq.WorkingDir)
-	}
-
-	res, err := sti.Build(*buildReq)
+	res, err := sti.Build(buildReq)
 	if err != nil {
 		fmt.Printf("An error occured: %s\n", err.Error())
 		return

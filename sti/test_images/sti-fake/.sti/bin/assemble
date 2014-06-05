@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cp -ad /tmp/src /sti-fake/
+cp -Rf /tmp/src /sti-fake/
 touch /sti-fake/assemble-invoked
 
 if [ -e /tmp/artifacts/save-artifacts-invoked ]; then
