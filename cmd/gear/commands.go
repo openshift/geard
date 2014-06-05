@@ -61,6 +61,8 @@ var (
 	defaultTransport LocalTransportFlag
 
 	version string
+
+	systemdSlice string
 )
 
 var buildReq = &sti.STIRequest{}
@@ -81,7 +83,6 @@ func init() {
 
 // Parse the command line arguments and invoke one of the support subcommands.
 func Execute() {
-
 	gearCmd := &cobra.Command{
 		Use:   "gear",
 		Short: "Gear(d) is a tool for installing Docker containers to systemd",
@@ -120,6 +121,7 @@ func Execute() {
 	installImageCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&environment.Description.Id), "env-id", "", "An optional identifier for the environment being set")
+	installImageCmd.Flags().StringVar(&systemdSlice, "slice", cjobs.DefaultSlice, "systemd slice to use. default: "+cjobs.DefaultSlice)
 	gcmd.AddCommand(gearCmd, installImageCmd, false)
 
 	deleteCmd := &cobra.Command{
@@ -476,6 +478,7 @@ func installImage(cmd *cobra.Command, args []string) {
 				Ports:        *portPairs.Get().(*port.PortPairs),
 				Environment:  &environment.Description,
 				NetworkLinks: networkLinks.NetworkLinks,
+				SystemdSlice: systemdSlice,
 			}
 			return &r
 		},

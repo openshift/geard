@@ -21,5 +21,6 @@ var (
 	ErrDeleteContainerFailed   = jobs.SimpleError{jobs.ResponseError, "Unable to delete the container."}
 
 	ErrContainerCreateFailed              = jobs.SimpleError{jobs.ResponseError, "Unable to create container."}
+	ErrContainerCreateFailedInvalidSlice  = jobs.SimpleError{jobs.ResponseError, "Provided systemd slice is not installed on system."}
 	ErrContainerCreateFailedPortsReserved = jobs.SimpleError{jobs.ResponseError, "Unable to create container: some ports could not be reserved."}
 )

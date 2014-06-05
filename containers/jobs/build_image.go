@@ -45,6 +45,15 @@ func (j *BuildImageRequest) Execute(resp jobs.Response) {
 		return
 	}
 
+	slice := DefaultSlice
+	systemd.IsUnitProperty(conn, j.BaseImage+".service", func(properties map[string]interface{}) bool {
+		value, ok := properties["Slice"]
+		if ok {
+			slice = value.(string)
+		}
+		return ok
+	})
+
 	if err := conn.Subscribe(); err != nil {
 		log.Print("job_build_image:", err)
 		fmt.Fprintf(w, "Unable to watch start status", errc)
@@ -112,7 +121,7 @@ func (j *BuildImageRequest) Execute(resp jobs.Response) {
 		dbus.PropExecStart(startCmd, true),
 		dbus.PropDescription(unitDescription),
 		dbus.PropRemainAfterExit(true),
-		dbus.PropSlice("container-small.slice"),
+		dbus.PropSlice(slice),
 	)
 
 	if err != nil {
