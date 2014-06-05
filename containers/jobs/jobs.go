@@ -76,9 +76,6 @@ type InstallContainerRequest struct {
 
 	// Should the container be started by default
 	Started bool
-
-	// name of systemd slice unit to associate with container
-	SystemdSlice string
 }
 
 func (req *InstallContainerRequest) Check() error {
