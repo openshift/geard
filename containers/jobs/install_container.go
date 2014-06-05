@@ -121,12 +121,14 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 		}
 	}
 
+	slice := "container-small"
+
 	// write the definition unit file
 	args := csystemd.ContainerUnit{
 		Id:       id,
 		Image:    req.Image,
 		PortSpec: portSpec,
-		Slice:    req.SystemdSlice + ".slice",
+		Slice:    slice + ".slice",
 
 		Isolate: req.Isolate,
 

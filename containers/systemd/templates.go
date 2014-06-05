@@ -155,9 +155,8 @@ WantedBy={{.WantedBy}}
 `))
 
 type SliceUnit struct {
-	Name         string
-	Parent       string
-	MemoryLimit  string
+	Name   string
+	Parent string
 }
 
 var SliceUnitTemplate = template.Must(template.New("unit.slice").Parse(`
@@ -167,7 +166,7 @@ Description=Container slice {{.Name}}
 [Slice]
 CPUAccounting=yes
 MemoryAccounting=yes
-MemoryLimit={{.MemoryLimit}}
+MemoryLimit=512M
 {{ if .Parent }}Slice={{.Parent}}{{ end }}
 
 [Install]
