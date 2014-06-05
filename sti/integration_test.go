@@ -21,7 +21,6 @@ func Test(t *testing.T) { TestingT(t) }
 
 type IntegrationTestSuite struct {
 	dockerClient *docker.Client
-	tempDir      string
 }
 
 // Register IntegrationTestSuite with the gocheck suite manager and add support for 'go test' flags,
@@ -77,7 +76,6 @@ func (s *IntegrationTestSuite) SetUpSuite(c *C) {
 }
 
 func (s *IntegrationTestSuite) SetUpTest(c *C) {
-	s.tempDir, _ = ioutil.TempDir("/tmp", "go-sti-integration")
 }
 
 // TestXxxx methods are identified as test cases
@@ -133,18 +131,16 @@ func (s *IntegrationTestSuite) exerciseCleanBuild(c *C, tag string, verifyCallba
 		callbackUrl = ts.URL
 	}
 
-	req := BuildRequest{
-		Request: Request{
-			WorkingDir:   s.tempDir,
-			DockerSocket: DockerSocket,
-			Verbose:      true,
-			BaseImage:    imageName},
-		Source:      TestSource,
-		Tag:         tag,
-		Clean:       true,
-		Writer:      os.Stdout,
-		CallbackUrl: callbackUrl,
-		ScriptsUrl:  scriptsUrl}
+	req := &STIRequest{
+		DockerSocket: DockerSocket,
+		Verbose:      true,
+		BaseImage:    imageName,
+		Source:       TestSource,
+		Tag:          tag,
+		Clean:        true,
+		Writer:       os.Stdout,
+		CallbackUrl:  callbackUrl,
+		ScriptsUrl:   scriptsUrl}
 
 	resp, err := Build(req)
 
@@ -156,7 +152,7 @@ func (s *IntegrationTestSuite) exerciseCleanBuild(c *C, tag string, verifyCallba
 	s.checkForImage(c, tag)
 	containerId := s.createContainer(c, tag)
 	defer s.removeContainer(containerId)
-	s.checkBasicBuildState(c, containerId)
+	s.checkBasicBuildState(c, containerId, resp.WorkingDir)
 }
 
 // Test an incremental build.
@@ -173,12 +169,10 @@ func (s *IntegrationTestSuite) TestIncrementalBuildUser(c *C) {
 }
 
 func (s *IntegrationTestSuite) exerciseIncrementalBuild(c *C, tag string, removePreviousImage bool) {
-	req := BuildRequest{
-		Request: Request{
-			WorkingDir:   s.tempDir,
-			DockerSocket: DockerSocket,
-			Verbose:      true,
-			BaseImage:    FakeBaseImage},
+	req := &STIRequest{
+		DockerSocket:        DockerSocket,
+		Verbose:             true,
+		BaseImage:           FakeBaseImage,
 		Source:              TestSource,
 		Tag:                 tag,
 		Clean:               true,
@@ -191,9 +185,6 @@ func (s *IntegrationTestSuite) exerciseIncrementalBuild(c *C, tag string, remove
 
 	previousImageId := resp.ImageID
 
-	os.Remove(s.tempDir)
-	s.tempDir, _ = ioutil.TempDir("", "go-sti-integration")
-	req.WorkingDir = s.tempDir
 	req.Clean = false
 
 	resp, err = Build(req)
@@ -203,11 +194,11 @@ func (s *IntegrationTestSuite) exerciseIncrementalBuild(c *C, tag string, remove
 	s.checkForImage(c, tag)
 	containerId := s.createContainer(c, tag)
 	defer s.removeContainer(containerId)
-	s.checkIncrementalBuildState(c, containerId)
+	s.checkIncrementalBuildState(c, containerId, resp.WorkingDir)
 
 	_, err = s.dockerClient.InspectImage(previousImageId)
 	if removePreviousImage {
-		c.Assert(err, Not(IsNil), Commentf("Previous image %s not deleted", previousImageId))
+		c.Assert(err, NotNil, Commentf("Previous image %s not deleted", previousImageId))
 	} else {
 		c.Assert(err, IsNil, Commentf("Coudln't find previous image %s", previousImageId))
 	}
@@ -243,13 +234,17 @@ func (s *IntegrationTestSuite) checkFileExists(c *C, cId string, filePath string
 	c.Assert(res, Equals, true, Commentf("Couldn't find file %s in container %s", filePath, cId))
 }
 
-func (s *IntegrationTestSuite) checkBasicBuildState(c *C, cId string) {
+func (s *IntegrationTestSuite) checkBasicBuildState(c *C, cId string, workingDir string) {
 	s.checkFileExists(c, cId, "/sti-fake/assemble-invoked")
 	s.checkFileExists(c, cId, "/sti-fake/run-invoked")
 	s.checkFileExists(c, cId, "/sti-fake/src/index.html")
+
+	_, err := os.Stat(workingDir)
+	c.Assert(err, NotNil)                      // workingDir shouldn't exist, so err should be non-nil
+	c.Assert(os.IsNotExist(err), Equals, true) // err should be IsNotExist
 }
 
-func (s *IntegrationTestSuite) checkIncrementalBuildState(c *C, cId string) {
-	s.checkBasicBuildState(c, cId)
+func (s *IntegrationTestSuite) checkIncrementalBuildState(c *C, cId string, workingDir string) {
+	s.checkBasicBuildState(c, cId, workingDir)
 	s.checkFileExists(c, cId, "/sti-fake/save-artifacts-invoked")
 }

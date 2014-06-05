@@ -3,7 +3,6 @@ package sti
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
@@ -18,8 +17,14 @@ const (
 	SVirtSandboxFileLabel = "system_u:object_r:svirt_sandbox_file_t:s0"
 )
 
-type BuildRequest struct {
-	Request
+// Request contains essential fields for any request: a Configuration, a base image, and an
+// optional runtime image.
+type STIRequest struct {
+	BaseImage           string
+	DockerSocket        string
+	DockerTimeout       int
+	Verbose             bool
+	PreserveWorkingDir  bool
 	Source              string
 	Ref                 string
 	Tag                 string
@@ -29,87 +34,355 @@ type BuildRequest struct {
 	Writer              io.Writer
 	CallbackUrl         string
 	ScriptsUrl          string
+
+	incremental bool
+	usage       bool
+	workingDir  string
 }
 
-type BuildResult struct {
-	STIResult
-	ImageID string
+// requestHandler encapsulates dependencies needed to fulfill requests.
+type requestHandler struct {
+	dockerClient *docker.Client
+	request      *STIRequest
 }
 
-// Build processes a BuildRequest and returns a *BuildResult and an error.
+type STIResult struct {
+	Success    bool
+	Messages   []string
+	WorkingDir string
+	ImageID    string
+}
+
+// Returns a new handler for a given request.
+func newHandler(req *STIRequest) (*requestHandler, error) {
+	if req.Verbose {
+		log.Printf("Using docker socket: %s\n", req.DockerSocket)
+	}
+
+	dockerClient, err := docker.NewClient(req.DockerSocket)
+	if err != nil {
+		return nil, ErrDockerConnectionFailed
+	}
+
+	return &requestHandler{dockerClient, req}, nil
+}
+
+// Build processes a Request and returns a *Result and an error.
 // An error represents a failure performing the build rather than a failure
 // of the build itself.  Callers should check the Success field of the result
 // to determine whether a build succeeded or not.
 //
-func Build(req BuildRequest) (*BuildResult, error) {
-	h, err := newHandler(req.Request)
+func Build(req *STIRequest) (result *STIResult, err error) {
+	h, err := newHandler(req)
 	if err != nil {
 		return nil, err
 	}
 
-	var result *BuildResult
-
-	result, err = h.build(req)
-
-	if req.CallbackUrl != "" {
-		executeCallback(req.CallbackUrl, result)
+	h.request.workingDir, err = createWorkingDirectory()
+	if err != nil {
+		return nil, err
+	}
+	if h.request.PreserveWorkingDir {
+		log.Printf("Temporary directory '%s' will be saved, not deleted\n", h.request.workingDir)
+	} else {
+		defer removeDirectory(h.request.workingDir, h.request.Verbose)
 	}
 
-	return result, err
-}
-
-func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
-
-	if req.WorkingDir == "tempdir" {
-		var err error
-		req.WorkingDir, err = ioutil.TempDir("", "sti")
-		if err != nil {
-			return nil, fmt.Errorf("Error creating temporary directory '%s': %s\n", req.WorkingDir, err.Error())
-		}
-		defer os.Remove(req.WorkingDir)
+	result = &STIResult{
+		Success:    false,
+		WorkingDir: h.request.workingDir,
 	}
 
-	workingTmpDir := filepath.Join(req.WorkingDir, "tmp")
 	dirs := []string{"tmp", "scripts", "defaultScripts"}
 	for _, v := range dirs {
-		if err := os.Mkdir(filepath.Join(req.WorkingDir, v), 0700); err != nil {
+		err := os.Mkdir(filepath.Join(h.request.workingDir, v), 0700)
+		if err != nil {
 			return nil, err
 		}
 	}
 
-	var wg sync.WaitGroup
-
-	downloadAsync := func(scriptUrl *url.URL, targetFile string) {
-		defer wg.Done()
-		if err := downloadFile(scriptUrl, targetFile, h.verbose); err != nil {
-			log.Printf("Failed to download '%s' (%s)", scriptUrl, err)
-		}
-	}
-
-	if req.ScriptsUrl != "" {
-		for f, u := range h.prepareScriptDownload(req.WorkingDir+"/scripts", req.ScriptsUrl) {
-			wg.Add(1)
-			go downloadAsync(u, f)
-		}
-	}
-
-	defaultUrl, err := h.getDefaultUrl(req, req.BaseImage)
+	err = h.downloadScripts()
 	if err != nil {
 		return nil, err
 	}
 
-	if defaultUrl != "" {
-		for f, u := range h.prepareScriptDownload(req.WorkingDir+"/defaultScripts", defaultUrl) {
-			wg.Add(1)
-			go downloadAsync(u, f)
+	if !h.request.usage {
+		err = h.determineIncremental()
+		if err != nil {
+			return nil, err
+		}
+		if h.request.incremental {
+			log.Printf("Existing image for tag %s detected for incremental build.\n", h.request.Tag)
+		} else {
+			log.Println("Clean build will be performed")
+		}
+
+		if h.request.Verbose {
+			log.Printf("Performing source build from %s\n", h.request.Source)
+		}
+
+		if h.request.incremental {
+			err = h.saveArtifacts()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	targetSourceDir := filepath.Join(req.WorkingDir, "src")
+	messages, imageID, err := h.buildInternal()
+	result.Messages = messages
+	result.ImageID = imageID
+	if err == nil {
+		result.Success = true
+	}
+
+	if h.request.CallbackUrl != "" {
+		executeCallback(h.request.CallbackUrl, result)
+	}
+
+	return result, nil
+}
+
+func (h requestHandler) buildInternal() (messages []string, imageID string, err error) {
+	volumeMap := make(map[string]struct{})
+	volumeMap["/tmp/src"] = struct{}{}
+	volumeMap["/tmp/scripts"] = struct{}{}
+	volumeMap["/tmp/defaultScripts"] = struct{}{}
+	if h.request.incremental {
+		volumeMap["/tmp/artifacts"] = struct{}{}
+	}
+
+	if h.request.Verbose {
+		log.Printf("Using image name %s", h.request.BaseImage)
+	}
+
+	// get info about the specified image
+	imageMetadata, err := h.checkAndPull(h.request.BaseImage)
+
+	assemblePath := h.determineScriptPath("assemble")
+	if assemblePath == "" {
+		err = fmt.Errorf("No assemble script found in provided url, application source, or default image url. Aborting.")
+		return
+	}
+
+	runPath := h.determineScriptPath("run")
+	overrideRun := runPath != ""
+
+	if h.request.Verbose {
+		log.Printf("Using run script from %s", runPath)
+		log.Printf("Using assemble script from %s", assemblePath)
+	}
+
+	user := ""
+	if imageMetadata.Config != nil {
+		user = imageMetadata.Config.User
+	}
+
+	hasUser := (user != "")
+	if hasUser && h.request.Verbose {
+		log.Printf("Image has username %s", user)
+	}
+
+	var cmd []string
+	if hasUser {
+		// run setup commands as root, then switch to container user
+		// to execute the assemble script.
+		cmd = []string{"/.container.init/init.sh"}
+		volumeMap["/.container.init"] = struct{}{}
+	} else if h.request.usage {
+		// invoke assemble script with usage argument
+		log.Println("Assemble script usage requested, invoking assemble script help")
+		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " -h"}
+	} else {
+		// normal assemble invocation
+		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " && mkdir -p /opt/sti/bin && cp " + runPath + " /opt/sti/bin && chmod 700 /opt/sti/bin/run"}
+	}
+
+	config := docker.Config{User: "root", Image: h.request.BaseImage, Cmd: cmd, Volumes: volumeMap}
+
+	var cmdEnv []string
+	if len(h.request.Environment) > 0 {
+		for key, val := range h.request.Environment {
+			cmdEnv = append(cmdEnv, key+"="+val)
+		}
+		config.Env = cmdEnv
+	}
+	if h.request.Verbose {
+		log.Printf("Creating container using config: %+v\n", config)
+	}
+
+	container, err := h.dockerClient.CreateContainer(docker.CreateContainerOptions{Name: "", Config: &config})
+	if err != nil {
+		return
+	}
+	defer h.removeContainer(container.ID)
+
+	binds := []string{filepath.Join(h.request.workingDir, "src") + ":/tmp/src"}
+	binds = append(binds, filepath.Join(h.request.workingDir, "defaultScripts")+":/tmp/defaultScripts")
+	binds = append(binds, filepath.Join(h.request.workingDir, "scripts")+":/tmp/scripts")
+	if h.request.incremental {
+		binds = append(binds, filepath.Join(h.request.workingDir, "artifacts")+":/tmp/artifacts")
+	}
+
+	if hasUser {
+		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ".container.init")
+		err = os.MkdirAll(containerInitDir, 0700)
+		if err != nil {
+			return
+		}
+
+		err = chcon(SVirtSandboxFileLabel, containerInitDir)
+		if err != nil {
+			err = fmt.Errorf("unable to set SELinux context: %s", err.Error())
+			return
+		}
+
+		buildScriptPath := filepath.Join(containerInitDir, "init.sh")
+		var buildScript *os.File
+		buildScript, err = os.OpenFile(buildScriptPath, os.O_CREATE|os.O_RDWR, 0700)
+		if err != nil {
+			return
+		}
+
+		templateFiller := struct {
+			User         string
+			Incremental  bool
+			AssemblePath string
+			RunPath      string
+			Usage        bool
+		}{user, h.request.incremental, assemblePath, runPath, h.request.Tag == ""}
+
+		err = buildTemplate.Execute(buildScript, templateFiller)
+		if err != nil {
+			return
+		}
+		buildScript.Close()
+
+		binds = append(binds, containerInitDir+":/.container.init")
+	}
+
+	hostConfig := docker.HostConfig{Binds: binds}
+	if h.request.Verbose {
+		log.Printf("Starting container with config: %+v\n", hostConfig)
+	}
+
+	err = h.dockerClient.StartContainer(container.ID, &hostConfig)
+	if err != nil {
+		return
+	}
+
+	attachOpts := docker.AttachToContainerOptions{
+		Container:    container.ID,
+		OutputStream: os.Stdout,
+		ErrorStream:  os.Stdout,
+		Stream:       true,
+		Stdout:       true,
+		Stderr:       true,
+		Logs:         true}
+
+	err = h.dockerClient.AttachToContainer(attachOpts)
+	if err != nil {
+		log.Println("Couldn't attach to container")
+	}
+
+	exitCode, err := h.dockerClient.WaitContainer(container.ID)
+	if err != nil {
+		return
+	}
+
+	if exitCode != 0 {
+		err = ErrBuildFailed
+		return
+	}
+
+	if h.request.usage {
+		// this was just a request for assemble usage, so return without committing
+		// a new runnable image.
+		return
+	}
+
+	config = docker.Config{Image: h.request.BaseImage, Env: cmdEnv}
+	if overrideRun {
+		config.Cmd = []string{"/opt/sti/bin/run"}
+	} else {
+		config.Cmd = imageMetadata.Config.Cmd
+		config.Entrypoint = imageMetadata.Config.Entrypoint
+	}
+	if hasUser {
+		config.User = user
+	}
+
+	previousImageId := ""
+	if h.request.incremental && h.request.RemovePreviousImage {
+		imageMetadata, err := h.dockerClient.InspectImage(h.request.Tag)
+		if err == nil {
+			previousImageId = imageMetadata.ID
+		} else {
+			log.Printf("Error retrieving previous image's metadata: %s\n", err.Error())
+		}
+	}
+
+	if h.request.Verbose {
+		log.Printf("Commiting container with config: %+v\n", config)
+	}
+
+	builtImage, err := h.dockerClient.CommitContainer(docker.CommitContainerOptions{Container: container.ID, Repository: h.request.Tag, Run: &config})
+	if err != nil {
+		err = ErrBuildFailed
+		return
+	}
+
+	if h.request.Verbose {
+		log.Printf("Built image: %+v\n", builtImage)
+	}
+
+	if h.request.incremental && h.request.RemovePreviousImage && previousImageId != "" {
+		log.Printf("Removing previously-tagged image %s\n", previousImageId)
+		err = h.dockerClient.RemoveImage(previousImageId)
+		if err != nil {
+			log.Printf("Unable to remove previous image: %s\n", err.Error())
+		}
+	}
+
+	return
+}
+
+func (h requestHandler) downloadScripts() error {
+	var wg sync.WaitGroup
+
+	downloadAsync := func(scriptUrl *url.URL, targetFile string) {
+		defer wg.Done()
+		err := downloadFile(scriptUrl, targetFile, h.request.Verbose)
+		if err != nil {
+			log.Printf("Failed to download '%s' (%s)\n", scriptUrl, err.Error())
+		}
+	}
+
+	if h.request.ScriptsUrl != "" {
+		for file, url := range h.prepareScriptDownload(h.request.workingDir+"/scripts", h.request.ScriptsUrl) {
+			wg.Add(1)
+			go downloadAsync(url, file)
+		}
+	}
+
+	defaultUrl, err := h.getDefaultUrl()
+	if err != nil {
+		return fmt.Errorf("Unable to retrieve the default STI scripts URL: %s", err.Error())
+	}
+
+	if defaultUrl != "" {
+		for file, url := range h.prepareScriptDownload(h.request.workingDir+"/defaultScripts", defaultUrl) {
+			wg.Add(1)
+			go downloadAsync(url, file)
+		}
+	}
+
+	targetSourceDir := filepath.Join(h.request.workingDir, "src")
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err = h.prepareSourceDir(req.Source, targetSourceDir, req.Ref); err != nil {
+		err = h.prepareSourceDir(h.request.Source, targetSourceDir, h.request.Ref)
+		if err != nil {
 			fmt.Printf("ERROR: Unable to fetch the application source.\n")
 		}
 	}()
@@ -118,50 +391,34 @@ func (h requestHandler) build(req BuildRequest) (*BuildResult, error) {
 	//
 	wg.Wait()
 
-	incremental := !req.Clean
+	return nil
+}
+
+func (h requestHandler) determineIncremental() error {
+	var err error
+	incremental := !h.request.Clean
 
 	if incremental {
 		// can only do incremental build if runtime image exists
-		var err error
-		incremental, err = h.isImageInLocalRegistry(req.Tag)
+		incremental, err = h.isImageInLocalRegistry(h.request.Tag)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 	if incremental {
 		// check if a save-artifacts script exists in anything provided to the build
 		// without it, we cannot do incremental builds
-		incremental = h.determineScriptPath(req.WorkingDir, "save-artifacts") != ""
+		incremental = h.determineScriptPath("save-artifacts") != ""
 	}
 
-	if incremental {
-		log.Printf("Existing image for tag %s detected for incremental build.\n", req.Tag)
-	} else {
-		log.Println("Clean build will be performed")
-	}
+	h.request.incremental = incremental
 
-	if h.verbose {
-		log.Printf("Performing source build from %s\n", req.Source)
-	}
-
-	if incremental {
-		artifactTmpDir := filepath.Join(req.WorkingDir, "artifacts")
-		err = os.Mkdir(artifactTmpDir, 0700)
-		if err != nil {
-			return nil, err
-		}
-
-		err = h.saveArtifacts(req, req.Tag, workingTmpDir, artifactTmpDir, req.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return h.buildDeployableImage(req, req.BaseImage, req.WorkingDir, incremental)
+	return nil
 }
 
-func (h requestHandler) getDefaultUrl(req BuildRequest, image string) (string, error) {
-	imageMetadata, err := h.dockerClient.InspectImage(image)
+func (h requestHandler) getDefaultUrl() (string, error) {
+	image := h.request.BaseImage
+	imageMetadata, err := h.checkAndPull(image)
 	if err != nil {
 		return "", err
 	}
@@ -174,28 +431,30 @@ func (h requestHandler) getDefaultUrl(req BuildRequest, image string) (string, e
 			break
 		}
 	}
-	if h.verbose {
+	if h.request.Verbose {
 		log.Printf("Image contains default script url %s", defaultScriptsUrl)
 	}
 	return defaultScriptsUrl, nil
 }
 
-func (h requestHandler) determineScriptPath(contextDir string, script string) string {
+func (h requestHandler) determineScriptPath(script string) string {
+	contextDir := h.request.workingDir
+
 	if _, err := os.Stat(filepath.Join(contextDir, "scripts", script)); err == nil {
 		// if the invoker provided a script via a url, prefer that.
-		if h.verbose {
+		if h.request.Verbose {
 			log.Printf("Using %s script from user provided url", script)
 		}
 		return filepath.Join("/tmp", "scripts", script)
 	} else if _, err := os.Stat(filepath.Join(contextDir, "src", ".sti", "bin", script)); err == nil {
 		// if they provided one in the app source, that is preferred next
-		if h.verbose {
+		if h.request.Verbose {
 			log.Printf("Using %s script from application source", script)
 		}
 		return filepath.Join("/tmp", "src", ".sti", "bin", script)
 	} else if _, err := os.Stat(filepath.Join(contextDir, "defaultScripts", script)); err == nil {
 		// lowest priority: script provided by default url reference in the image.
-		if h.verbose {
+		if h.request.Verbose {
 			log.Printf("Using %s script from image default url", script)
 		}
 		return filepath.Join("/tmp", "defaultScripts", script)
@@ -204,7 +463,6 @@ func (h requestHandler) determineScriptPath(contextDir string, script string) st
 }
 
 // Turn the script name into proper URL
-//
 func (h requestHandler) prepareScriptDownload(targetDir, baseUrl string) map[string]*url.URL {
 
 	os.MkdirAll(targetDir, 0700)
@@ -225,32 +483,47 @@ func (h requestHandler) prepareScriptDownload(targetDir, baseUrl string) map[str
 	return urls
 }
 
-func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir string, path string, contextDir string) error {
-	if h.verbose {
-		log.Printf("Saving build artifacts from image %s to path %s\n", image, path)
+func (h requestHandler) saveArtifacts() error {
+	artifactTmpDir := filepath.Join(h.request.workingDir, "artifacts")
+	err := os.Mkdir(artifactTmpDir, 0700)
+	if err != nil {
+		return err
+	}
+
+	image := h.request.Tag
+
+	if h.request.Verbose {
+		log.Printf("Saving build artifacts from image %s to path %s\n", image, artifactTmpDir)
 	}
 
 	imageMetadata, err := h.dockerClient.InspectImage(image)
 	if err != nil {
 		return err
 	}
-	saveArtifactsScriptPath := h.determineScriptPath(req.WorkingDir, "save-artifacts")
+
+	saveArtifactsScriptPath := h.determineScriptPath("save-artifacts")
+
 	user := imageMetadata.Config.User
 	hasUser := (user != "")
-	log.Printf("Artifact image hasUser=%t, user is %s", hasUser, user)
+	if h.request.Verbose {
+		log.Printf("Artifact image hasUser=%t, user is %s\n", hasUser, user)
+	}
+
 	volumeMap := make(map[string]struct{})
 	volumeMap["/tmp/artifacts"] = struct{}{}
 	volumeMap["/tmp/src"] = struct{}{}
 	volumeMap["/tmp/scripts"] = struct{}{}
 	volumeMap["/tmp/defaultScripts"] = struct{}{}
+
 	cmd := []string{"/bin/sh", "-c", "chmod 777 " + saveArtifactsScriptPath + " && " + saveArtifactsScriptPath}
+
 	if hasUser {
 		volumeMap["/.container.init"] = struct{}{}
 		cmd = []string{"/.container.init/init.sh"}
 	}
 
 	config := docker.Config{User: "root", Image: image, Cmd: cmd, Volumes: volumeMap}
-	if h.verbose {
+	if h.request.Verbose {
 		log.Printf("Creating container using config: %+v\n", config)
 	}
 	container, err := h.dockerClient.CreateContainer(docker.CreateContainerOptions{Name: "", Config: &config})
@@ -259,24 +532,24 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 	}
 	defer h.removeContainer(container.ID)
 
-	binds := []string{path + ":/tmp/artifacts"}
-	binds = append(binds, filepath.Join(contextDir, "src")+":/tmp/src")
-	binds = append(binds, filepath.Join(contextDir, "defaultScripts")+":/tmp/defaultScripts")
-	binds = append(binds, filepath.Join(contextDir, "scripts")+":/tmp/scripts")
+	binds := []string{artifactTmpDir + ":/tmp/artifacts"}
+	binds = append(binds, filepath.Join(h.request.workingDir, "src")+":/tmp/src")
+	binds = append(binds, filepath.Join(h.request.workingDir, "defaultScripts")+":/tmp/defaultScripts")
+	binds = append(binds, filepath.Join(h.request.workingDir, "scripts")+":/tmp/scripts")
 
 	if hasUser {
 		// TODO: add custom errors?
-		if h.verbose {
+		if h.request.Verbose {
 			log.Println("Creating stub file")
 		}
-		stubFile, err := os.OpenFile(filepath.Join(path, ".stub"), os.O_CREATE|os.O_RDWR, 0666)
+		stubFile, err := os.OpenFile(filepath.Join(artifactTmpDir, ".stub"), os.O_CREATE|os.O_RDWR, 0666)
 		if err != nil {
 			return err
 		}
 		defer stubFile.Close()
 
-		containerInitDir := filepath.Join(tmpDir, ".container.init")
-		if h.verbose {
+		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ".container.init")
+		if h.request.Verbose {
 			log.Printf("Creating dir %+v\n", containerInitDir)
 		}
 		err = os.MkdirAll(containerInitDir, 0700)
@@ -290,7 +563,7 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 		}
 
 		initScriptPath := filepath.Join(containerInitDir, "init.sh")
-		if h.verbose {
+		if h.request.Verbose {
 			log.Printf("Writing %+v\n", initScriptPath)
 		}
 		initScript, err := os.OpenFile(initScriptPath, os.O_CREATE|os.O_RDWR, 0766)
@@ -311,7 +584,7 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}
-	if h.verbose {
+	if h.request.Verbose {
 		log.Printf("Starting container with host config %+v\n", hostConfig)
 	}
 	err = h.dockerClient.StartContainer(container.ID, &hostConfig)
@@ -332,7 +605,7 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 	}
 
 	if exitCode != 0 {
-		if h.verbose {
+		if h.request.Verbose {
 			log.Printf("Exit code: %d", exitCode)
 		}
 		return ErrSaveArtifactsFailed
@@ -342,11 +615,11 @@ func (h requestHandler) saveArtifacts(req BuildRequest, image string, tmpDir str
 }
 
 func (h requestHandler) prepareSourceDir(source, targetSourceDir, ref string) error {
-	if validCloneSpec(source, h.verbose) {
+	if validCloneSpec(source, h.request.Verbose) {
 		log.Printf("Downloading %s to directory %s\n", source, targetSourceDir)
 		err := gitClone(source, targetSourceDir)
 		if err != nil {
-			if h.verbose {
+			if h.request.Verbose {
 				log.Printf("Git clone failed: %+v", err)
 			}
 
@@ -354,11 +627,11 @@ func (h requestHandler) prepareSourceDir(source, targetSourceDir, ref string) er
 		}
 
 		if ref != "" {
-			if h.verbose {
+			if h.request.Verbose {
 				log.Printf("Checking out ref %s", ref)
 			}
 
-			err := gitCheckout(targetSourceDir, ref, h.verbose)
+			err := gitCheckout(targetSourceDir, ref, h.request.Verbose)
 			if err != nil {
 				return err
 			}
@@ -369,208 +642,4 @@ func (h requestHandler) prepareSourceDir(source, targetSourceDir, ref string) er
 	}
 
 	return nil
-}
-
-func (h requestHandler) buildDeployableImage(req BuildRequest, image string, contextDir string, incremental bool) (*BuildResult, error) {
-	volumeMap := make(map[string]struct{})
-	volumeMap["/tmp/src"] = struct{}{}
-	volumeMap["/tmp/scripts"] = struct{}{}
-	volumeMap["/tmp/defaultScripts"] = struct{}{}
-	if incremental {
-		volumeMap["/tmp/artifacts"] = struct{}{}
-	}
-
-	if h.verbose {
-		log.Printf("Using image name %s", image)
-	}
-	imageMetadata, err := h.dockerClient.InspectImage(image)
-
-	if err == docker.ErrNoSuchImage {
-		imageMetadata, err = h.pullImage(image)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	runPath := h.determineScriptPath(req.WorkingDir, "run")
-	assemblePath := h.determineScriptPath(req.WorkingDir, "assemble")
-	overrideRun := runPath != ""
-
-	if h.verbose {
-		log.Printf("Using run script from %s", runPath)
-		log.Printf("Using assemble script from %s", assemblePath)
-	}
-
-	user := ""
-	if imageMetadata.Config != nil {
-		user = imageMetadata.Config.User
-	}
-
-	hasUser := (user != "")
-	if hasUser {
-		if h.verbose {
-			log.Printf("Image has username %s", user)
-		}
-	}
-
-	if assemblePath == "" {
-		return nil, fmt.Errorf("No assemble script found in provided url, application source, or default image url.  Aborting.")
-	}
-
-	var cmd []string
-	if hasUser {
-		// run setup commands as root, then switch to container user
-		// to execute the assemble script.
-		cmd = []string{"/.container.init/init.sh"}
-		volumeMap["/.container.init"] = struct{}{}
-	} else if req.Tag == "" {
-		// invoke assemble script with usage argument
-		log.Printf("Assemble script usage requested, invoking assemble script help")
-		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " -h"}
-	} else {
-		// normal assemble invocation
-		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " && mkdir -p /opt/sti/bin && cp " + runPath + " /opt/sti/bin && chmod 700 /opt/sti/bin/run"}
-	}
-
-	config := docker.Config{User: "root", Image: image, Cmd: cmd, Volumes: volumeMap}
-
-	var cmdEnv []string
-	if len(req.Environment) > 0 {
-		for key, val := range req.Environment {
-			cmdEnv = append(cmdEnv, key+"="+val)
-		}
-		config.Env = cmdEnv
-	}
-	if h.verbose {
-		log.Printf("Creating container using config: %+v\n", config)
-	}
-
-	container, err := h.dockerClient.CreateContainer(docker.CreateContainerOptions{Name: "", Config: &config})
-	if err != nil {
-		return nil, err
-	}
-	defer h.removeContainer(container.ID)
-
-	binds := []string{
-		filepath.Join(contextDir, "src") + ":/tmp/src",
-	}
-	binds = append(binds, filepath.Join(contextDir, "defaultScripts")+":/tmp/defaultScripts")
-	binds = append(binds, filepath.Join(contextDir, "scripts")+":/tmp/scripts")
-	if incremental {
-		binds = append(binds, filepath.Join(contextDir, "artifacts")+":/tmp/artifacts")
-	}
-	if hasUser {
-		containerInitDir := filepath.Join(req.WorkingDir, "tmp", ".container.init")
-		err := os.MkdirAll(containerInitDir, 0700)
-		if err != nil {
-			return nil, err
-		}
-
-		err = chcon(SVirtSandboxFileLabel, containerInitDir)
-		if err != nil {
-			return nil, fmt.Errorf("unable to set SELinux context: %s", err.Error())
-		}
-
-		buildScriptPath := filepath.Join(containerInitDir, "init.sh")
-		buildScript, err := os.OpenFile(buildScriptPath, os.O_CREATE|os.O_RDWR, 0700)
-		if err != nil {
-			return nil, err
-		}
-
-		templateFiller := struct {
-			User         string
-			Incremental  bool
-			AssemblePath string
-			RunPath      string
-			Usage        bool
-		}{user, incremental, assemblePath, runPath, req.Tag == ""}
-
-		err = buildTemplate.Execute(buildScript, templateFiller)
-		if err != nil {
-			return nil, err
-		}
-		buildScript.Close()
-
-		binds = append(binds, containerInitDir+":/.container.init")
-	}
-
-	hostConfig := docker.HostConfig{Binds: binds}
-	if h.verbose {
-		log.Printf("Starting container with config: %+v\n", hostConfig)
-	}
-
-	err = h.dockerClient.StartContainer(container.ID, &hostConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	attachOpts := docker.AttachToContainerOptions{Container: container.ID, OutputStream: os.Stdout,
-		ErrorStream: os.Stdout, Stream: true, Stdout: true, Stderr: true, Logs: true}
-	err = h.dockerClient.AttachToContainer(attachOpts)
-	if err != nil {
-		log.Printf("Couldn't attach to container")
-	}
-
-	exitCode, err := h.dockerClient.WaitContainer(container.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	if exitCode != 0 {
-		return nil, ErrBuildFailed
-	}
-
-	if req.Tag == "" {
-		// this was just a request for assemble usage, so return without committing
-		// a new runnable image.
-		return &BuildResult{
-			STIResult: STIResult{true, nil},
-			ImageID:   ""}, nil
-	}
-	config = docker.Config{Image: image, Env: cmdEnv}
-	if overrideRun {
-		config.Cmd = []string{"/opt/sti/bin/run"}
-	} else {
-		config.Cmd = imageMetadata.Config.Cmd
-		config.Entrypoint = imageMetadata.Config.Entrypoint
-	}
-	if hasUser {
-		config.User = user
-	}
-
-	previousImageId := ""
-	if incremental && req.RemovePreviousImage {
-		imageMetadata, err := h.dockerClient.InspectImage(req.Tag)
-		if err == nil {
-			previousImageId = imageMetadata.ID
-		} else {
-			log.Printf("Error retrieving previous image's metadata: %s\n", err.Error())
-		}
-	}
-
-	if h.verbose {
-		log.Printf("Commiting container with config: %+v\n", config)
-	}
-
-	builtImage, err := h.dockerClient.CommitContainer(docker.CommitContainerOptions{Container: container.ID, Repository: req.Tag, Run: &config})
-	if err != nil {
-		return nil, ErrBuildFailed
-	}
-
-	if h.verbose {
-		log.Printf("Built image: %+v\n", builtImage)
-	}
-
-	if incremental && req.RemovePreviousImage && previousImageId != "" {
-		log.Printf("Removing previously-tagged image %s\n", previousImageId)
-		err = h.dockerClient.RemoveImage(previousImageId)
-		if err != nil {
-			log.Printf("Unable to remove previous image: %s\n", err.Error())
-		}
-	}
-
-	return &BuildResult{
-		STIResult: STIResult{true, nil},
-		ImageID:   builtImage.ID}, nil
 }

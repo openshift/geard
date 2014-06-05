@@ -184,7 +184,7 @@ func imageHasEntryPoint(image *docker.Image) bool {
 	return found
 }
 
-func executeCallback(callbackUrl string, result *BuildResult) {
+func executeCallback(callbackUrl string, result *STIResult) {
 	buf := new(bytes.Buffer)
 	writer := bufio.NewWriter(buf)
 	for _, message := range result.Messages {
@@ -220,4 +220,24 @@ func executeCallback(callbackUrl string, result *BuildResult) {
 			break
 		}
 	}
+}
+
+func removeDirectory(dir string, verbose bool) {
+	if verbose {
+		log.Printf("Removing directory '%s'\n", dir)
+	}
+
+	err := os.RemoveAll(dir)
+	if err != nil {
+		log.Printf("Error removing directory '%s': %s\n", dir, err.Error())
+	}
+}
+
+func createWorkingDirectory() (directory string, err error) {
+	directory, err = ioutil.TempDir("", "sti")
+	if err != nil {
+		return "", fmt.Errorf("Error creating temporary directory '%s': %s\n", directory, err.Error())
+	}
+
+	return directory, err
 }
