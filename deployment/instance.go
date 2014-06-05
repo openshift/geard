@@ -21,6 +21,8 @@ type Instance struct {
 	// The mapping of internal, external, and remote ports
 	Ports PortMappings `json:"Ports,omitempty"`
 
+	Notify bool
+
 	// Was this instance added.
 	add bool
 	// Is this instance flagged for removal

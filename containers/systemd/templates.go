@@ -18,6 +18,8 @@ type ContainerUnit struct {
 	User     string
 	ReqId    string
 
+	Notify bool
+
 	HomeDir         string
 	RunDir          string
 	EnvironmentPath string
@@ -45,6 +47,14 @@ TimeoutStartSec=5m
 {{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
 {{end}}
 
+{{define "COMMON_NOTIFY_SERVICE"}}
+[Service]
+Type=notify
+TimeoutStartSec=5m
+{{ if .Slice }}Slice={{.Slice}}{{ end }}
+{{ if .EnvironmentPath }}EnvironmentFile={{.EnvironmentPath}}{{ end }}
+{{end}}
+
 {{define "COMMON_CONTAINER"}}
 [Install]
 WantedBy=container.target
@@ -57,6 +67,29 @@ X-ContainerRequestId={{.ReqId}}
 X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 {{range .PortPairs}}X-PortMapping={{.Internal}}:{{.External}}
 {{end}}
+{{end}}
+
+{{/* A unit that lets the container notify systemd when it is 'ready' */}}
+{{define "NOTIFY"}}
+{{template "COMMON_UNIT" .}}
+{{template "COMMON_NOTIFY_SERVICE" .}}
+# Create data container
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint true "{{.Image}}"'
+ExecStartPre=-/usr/bin/docker rm "{{.Id}}"
+{{ if .Isolate }}# Initialize user and volumes
+ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"{{ end }}
+ExecStart=/usr/bin/docker-notify --rm --name "{{.Id}}" \
+          --volumes-from "{{.Id}}-data" \
+          {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
+          -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
+          {{ if .Isolate }} -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro -v {{.RunDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
+          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
+# Set links (requires container have a name)
+ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
+ExecReload=-/usr/bin/docker stop "{{.Id}}"
+ExecReload=-/usr/bin/docker rm "{{.Id}}"
+ExecStop=-/usr/bin/docker stop "{{.Id}}"
+{{template "COMMON_CONTAINER" .}}
 {{end}}
 
 {{/* A unit that lets docker own the container processes and only integrates via API */}}

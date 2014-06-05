@@ -208,10 +208,11 @@ func (d *Deployment) createInstances(c *Container) error {
 			return err
 		}
 		instance := &Instance{
-			Id:    id,
-			From:  c.Name,
-			Image: c.Image,
-			Ports: newPortMappings(c.PublicPorts),
+			Id:     id,
+			From:   c.Name,
+			Image:  c.Image,
+			Notify: c.Notify,
+			Ports:  newPortMappings(c.PublicPorts),
 
 			container: c,
 			add:       true,
@@ -250,6 +251,7 @@ type Container struct {
 	Image       string
 	PublicPorts port.PortPairs `json:"PublicPorts,omitempty"`
 	Links       Links          `json:"Links,omitempty"`
+	Notify      bool
 
 	Count    int
 	Affinity string `json:"Affinity,omitempty"`
