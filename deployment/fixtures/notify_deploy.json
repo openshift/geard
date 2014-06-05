@@ -1,0 +1,16 @@
+{
+  "containers":[
+    {
+      "name":"web",
+      "count":1,
+      "image":"openshift/busybox-http-app",
+      "notify": true,
+      "publicports":[
+        {"internal":8080,"external":0}
+      ],
+      "links":[
+        {"to":"web"}
+      ]
+    }
+  ]
+}
