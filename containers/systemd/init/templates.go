@@ -39,7 +39,7 @@ chown -R {{.Uid}}:{{.Gid}} {{.Volumes}}
 {{ if .UseSocketProxy }}
 sh -c 'LISTEN_PID=$$ exec /usr/sbin/systemd-socket-proxyd {{ range .PortPairs }}127.0.0.1:{{ .Internal }}{{ end }}' &
 {{ end }}
-exec su {{.ContainerUser}} -s /.container.cmd
+exec su {{.ContainerUser}} -s /.container.init/container-cmd.sh
 `))
 
 var ContainerCmdTemplate = template.Must(template.New("container-cmd.sh").Parse(`#!/bin/sh
