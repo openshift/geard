@@ -1,7 +1,0 @@
-#!/bin/sh
-
-echo "Serving /usr/mock/source/index.html on port 8080..."
-
-while true; do
-  nc -l -p 8080 < /usr/mock/source/index.html;
-done
