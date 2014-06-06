@@ -72,8 +72,8 @@ ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" \
           --volumes-from "{{.Id}}-data" \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
           -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
-          {{ if .Isolate }} -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro -v {{.RunDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
-          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
+          {{ if .Isolate }} -v {{.RunDir}}:/.container.init:ro -u root {{end}} \
+          "{{.Image}}" {{ if .Isolate }} /.container.init/container-init.sh {{ end }}
 # Set links (requires container have a name)
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 ExecReload=-/usr/bin/docker stop "{{.Id}}"
@@ -95,8 +95,8 @@ ExecStart=/usr/bin/docker run --rm --foreground \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
           {{.PortSpec}} {{.RunSpec}} \
           --name "{{.Id}}" --volumes-from "{{.Id}}-data" \
-          {{ if .Isolate }} -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro -v {{.RunDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
-          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
+          {{ if .Isolate }} -v {{.RunDir}}:/.container.init:ro -u root {{end}} \
+          "{{.Image}}" {{ if .Isolate }} /.container.init/container-init.sh {{ end }}
 # Set links (requires container have a name)
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{template "COMMON_CONTAINER" .}}
@@ -115,11 +115,10 @@ ExecStart=/usr/bin/docker run \
             {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
             -a stdout -a stderr {{.RunSpec}} \
             --env LISTEN_FDS \
-            -v {{.RunDir}}/container-init.sh:/.container.init:ro \
-            -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro \
+            -v {{.RunDir}}:/.container.init:ro \
             -v /usr/sbin/systemd-socket-proxyd:/usr/sbin/systemd-socket-proxyd:ro \
             -u root -f --rm \
-            "{{.Image}}" /.container.init
+            "{{.Image}}" /.container.init/container-init.sh
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{template "COMMON_CONTAINER" .}}
 X-SocketActivated={{.SocketActivationType}}
@@ -155,9 +154,9 @@ WantedBy={{.WantedBy}}
 `))
 
 type SliceUnit struct {
-	Name         string
-	Parent       string
-	MemoryLimit  string
+	Name        string
+	Parent      string
+	MemoryLimit string
 }
 
 var SliceUnitTemplate = template.Must(template.New("unit.slice").Parse(`

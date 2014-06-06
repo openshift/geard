@@ -15,6 +15,8 @@ import (
 
 const (
 	SVirtSandboxFileLabel = "system_u:object_r:svirt_sandbox_file_t:s0"
+	ContainerInitDirName  = ".sti.init"
+	ContainerInitDirPath  = "/" + ContainerInitDirName
 )
 
 // Request contains essential fields for any request: a Configuration, a base image, and an
@@ -187,8 +189,8 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 	if hasUser {
 		// run setup commands as root, then switch to container user
 		// to execute the assemble script.
-		cmd = []string{"/.container.init/init.sh"}
-		volumeMap["/.container.init"] = struct{}{}
+		cmd = []string{filepath.Join(ContainerInitDirPath, "init.sh")}
+		volumeMap[ContainerInitDirPath] = struct{}{}
 	} else if h.request.usage {
 		// invoke assemble script with usage argument
 		log.Println("Assemble script usage requested, invoking assemble script help")
@@ -225,7 +227,7 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 	}
 
 	if hasUser {
-		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ".container.init")
+		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ContainerInitDirName)
 		err = os.MkdirAll(containerInitDir, 0700)
 		if err != nil {
 			return
@@ -258,7 +260,7 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 		}
 		buildScript.Close()
 
-		binds = append(binds, containerInitDir+":/.container.init")
+		binds = append(binds, containerInitDir+":"+ContainerInitDirPath)
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}
@@ -518,8 +520,8 @@ func (h requestHandler) saveArtifacts() error {
 	cmd := []string{"/bin/sh", "-c", "chmod 777 " + saveArtifactsScriptPath + " && " + saveArtifactsScriptPath}
 
 	if hasUser {
-		volumeMap["/.container.init"] = struct{}{}
-		cmd = []string{"/.container.init/init.sh"}
+		volumeMap[ContainerInitDirPath] = struct{}{}
+		cmd = []string{filepath.Join(ContainerInitDirPath, "init.sh")}
 	}
 
 	config := docker.Config{User: "root", Image: image, Cmd: cmd, Volumes: volumeMap}
@@ -548,7 +550,7 @@ func (h requestHandler) saveArtifacts() error {
 		}
 		defer stubFile.Close()
 
-		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ".container.init")
+		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ContainerInitDirName)
 		if h.request.Verbose {
 			log.Printf("Creating dir %+v\n", containerInitDir)
 		}
@@ -580,7 +582,7 @@ func (h requestHandler) saveArtifacts() error {
 		}
 		initScript.Close()
 
-		binds = append(binds, containerInitDir+":/.container.init")
+		binds = append(binds, containerInitDir+":"+ContainerInitDirPath)
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}
