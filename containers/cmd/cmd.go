@@ -33,9 +33,10 @@ type CommandContext struct {
 
 	resetEnv bool
 
-	start   bool
-	isolate bool
-	sockAct bool
+	start        bool
+	isolate      bool
+	sockAct      bool
+	systemdSlice string
 
 	keyPath   string
 	expiresAt int64
@@ -81,6 +82,7 @@ func (ctx *CommandContext) RegisterRemote(parent *cobra.Command) {
 	installImageCmd.Flags().StringVar(&(ctx.environment.Path), "env-file", "", "Path to an environment file to load")
 	installImageCmd.Flags().StringVar(&(ctx.environment.Description.Source), "env-url", "", "A url to download environment files from")
 	installImageCmd.Flags().StringVar((*string)(&(ctx.environment.Description.Id)), "env-id", "", "An optional identifier for the environment being set")
+	installImageCmd.Flags().StringVar(&(ctx.systemdSlice), "slice", cjobs.DefaultSlice, "systemd slice to use. default: "+cjobs.DefaultSlice)
 	parent.AddCommand(installImageCmd)
 
 	deleteCmd := &cobra.Command{
@@ -409,6 +411,7 @@ func (ctx *CommandContext) installImage(c *cobra.Command, args []string) {
 				Ports:        *ctx.portPairs.Get().(*port.PortPairs),
 				Environment:  &ctx.environment.Description,
 				NetworkLinks: ctx.networkLinks.NetworkLinks,
+				SystemdSlice: ctx.systemdSlice,
 			}
 			return &r
 		},

@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
@@ -121,14 +122,35 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 		}
 	}
 
-	slice := "container-small"
+	var sliceName string
+	if "" == req.SystemdSlice {
+		sliceName = DefaultSlice
+	} else {
+		sliceNames := []string{}
+		sliceFound := false
+		for _, name := range ListSliceNames() {
+			sliceNames = append(sliceNames, name)
+			if req.SystemdSlice == name {
+				sliceFound = true
+				break
+			}
+		}
+
+		if sliceFound {
+			sliceName = req.SystemdSlice
+		} else {
+			log.Printf("'%s' is not a valid systemd slice. Must be one of [%s]", req.SystemdSlice, strings.Join(sliceNames, ", "))
+			resp.Failure(ErrContainerCreateFailedInvalidSlice)
+			return
+		}
+	}
 
 	// write the definition unit file
 	args := csystemd.ContainerUnit{
 		Id:       id,
 		Image:    req.Image,
 		PortSpec: portSpec,
-		Slice:    slice + ".slice",
+		Slice:    sliceName + ".slice",
 
 		Isolate: req.Isolate,
 

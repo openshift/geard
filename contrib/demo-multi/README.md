@@ -2,13 +2,12 @@ demo
 ====
 
 These instructions will take you through setting up vagrant and libvirt and using these tools to 
-setup and execute a geard demo.
-
-1. [Host setup](#host-setup)
-1. [Demo setup](#demo-setup)
+setup and execute a geard demo.  
 
 Host setup
 -------------
+
+**NOTE: The following steps should be run as a non-root user.**
 
 1.  Install Vagrant 1.6.2
 
@@ -40,13 +39,10 @@ Host setup
 
         vagrant box add --name=atomic --provider=libvirt http://download.eng.bos.redhat.com/rcm-guest/staging/walters/images/snaps/20140531.1/vagrant-libvirt/rhel-atomic-host.box
 
-    Clone pmorie's fork and check out the `multi-demo` branch:
+    Clone the geard project and check out the `Vagrantfile`:
 
-        $ git clone git://github.com/pmorie/geard
-        $ cd geard
-        $ git checkout demo-multi
-        $ cd contrib/demo
-        $ cat Vagrantfile
+        $ git clone git://github.com/openshift/geard
+        $ cat geard/contrib/demo-multi/Vagrantfile
 
 5.  Pull and start local docker registry.  This will be used to serve the docker images needed for
     the demo to the two VMs as well and to host images built during the demo.
@@ -54,10 +50,17 @@ Host setup
         $ docker pull pmorie/geard-demo-registry
         $ docker run -p 5000:5000 pmorie/geard-demo-registry
 
+    If you're going to demo local development, you should pull down the nodejs images from your local
+    registry:
+
+        $ docker pull localhost:5000/openshift/nodejs-0-10-centos
+        $ docker tag localhost:5000/openshift/nodejs-0-10-centos openshift/nodejs-0-10-centos
+        $ docker tag openshift/nodejs-0-10-centos nodejs-centos
+
 6.  Install geard locally and clone the helloworld repo onto your host machine:
 
         $ git clone git://github.com/pmorie/nodejs-helloworld
-        $ yum -y install geard
+        $ sudo yum -y --enablerepo=updates-testing update geard
 
 7.  Start VMs
 
@@ -144,3 +147,24 @@ Host setup
 
     Once you have logged into cockpit, click the 'Add server' button on the right-hand side of the
     page.  Enter `atomic-2` for the hostname and leave `login with my current credentials` checked.
+
+11. JMeter
+
+    This demo uses JMeter to drive traffic.  Install JMeter onto your host from:
+
+        http://jmeter.apache.org/download_jmeter.cgi
+
+    Choose the binary distribution and unpack them; the dir the binaries are installed to will now
+    be referenced in these instruction as `JMETER_HOME`.  Next we need a JMeter plugin:
+
+        $ cd $JMETER_HOME
+        $ curl http://rubenlaguna.com/wp/wp-content/uploads/2007/01/stataggvisualizer.zip > stataggvisualizer.zip
+        $ unzip stataggvisualizer.zip
+
+    Next you can bring JMeter up with:
+
+        $ bin/jmeter.sh &
+
+    Next you'll need to import the test plan from your local clone of `geard`.  It will be at:
+
+        contrib/demo-multi/testplan.jmx
