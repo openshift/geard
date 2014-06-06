@@ -105,7 +105,11 @@ func (a *PortReservation) reserve(path string, p portReservations) error {
 			parent, direct := a.portPathsFor(res.External)
 			os.MkdirAll(parent, 0770)
 			err = os.Symlink(path, direct)
-			if err != nil {
+			if os.IsExist(err) {
+				if existing, err := os.Readlink(direct); err == nil {
+					log.Printf("ports: the reservation failed because the link %s points to %s", direct, existing)
+				}
+			} else if err != nil {
 				log.Printf("ports: Failed to reserve %d, rolling back: %v", res.External, err)
 				break
 			}
