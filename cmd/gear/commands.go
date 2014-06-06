@@ -358,6 +358,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 
 				Id:      instance.Id,
 				Image:   instance.Image,
+				Notify:  instance.Notify,
 				Isolate: isolate,
 
 				Ports:        instance.Ports.PortPairs(),

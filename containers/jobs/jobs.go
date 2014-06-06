@@ -59,6 +59,12 @@ type InstallContainerRequest struct {
 	// options like -P.  If simple is true no user or home
 	// directory is created and SSH is not available
 	Simple bool
+
+	// A notify type container is expected to indicate it readiness to the systemd
+	// using the $SYSTEMD_NOTIFY socket.
+	//
+	Notify bool
+
 	// Should this container be run in an isolated fashion
 	// (separate user, permission changes)
 	Isolate bool

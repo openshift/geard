@@ -144,6 +144,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 		Image:    req.Image,
 		PortSpec: portSpec,
 		Slice:    req.SystemdSlice + ".slice",
+		Notify:   req.Notify,
 
 		Isolate: req.Isolate,
 
@@ -164,6 +165,8 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 
 	var templateName string
 	switch {
+	case req.Notify:
+		templateName = "NOTIFY"
 	case req.SocketActivation:
 		templateName = "SOCKETACTIVATED"
 	case config.SystemDockerFeatures.ForegroundRun:

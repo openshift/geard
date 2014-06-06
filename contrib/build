@@ -47,6 +47,7 @@ function build_local() {
   )
   if [ "$GOOS" == "linux" ]; then
     artifacts+=(cmd/switchns)
+    artifacts+=(cmd/docker-notify)
     artifacts+=(ssh/cmd/gear-auth-keys-command)
     artifacts+=(cmd/sti)
   else
@@ -89,10 +90,12 @@ function build_local() {
     sudo cp -f ${bin_dir}/switchns /usr/bin
     sudo cp -f ${bin_dir}/gear /usr/bin
     sudo cp -f ${bin_dir}/sti /usr/bin
+    sudo cp -f ${bin_dir}/docker-notify /usr/bin
     sudo chmod +s /usr/bin/switchns
 
     if $use_selinux; then
-      sudo restorecon -v /usr/sbin/gear-auth-keys-command /usr/bin/gear /usr/bin/switchns
+      sudo restorecon -v /usr/sbin/gear-auth-keys-command /usr/bin/gear \
+        /usr/bin/switchns /usr/bin/docker-notify
     fi
 
     echo "..done"
