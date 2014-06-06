@@ -122,20 +122,27 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 		}
 	}
 
-	sliceNames := []string{}
-	sliceFound := false
-	for _, name := range ListSliceNames() {
-		sliceNames = append(sliceNames, name)
-		if req.SystemdSlice == name {
-			sliceFound = true
-			break
+	var sliceName string
+	if "" == req.SystemdSlice {
+		sliceName = DefaultSlice
+	} else {
+		sliceNames := []string{}
+		sliceFound := false
+		for _, name := range ListSliceNames() {
+			sliceNames = append(sliceNames, name)
+			if req.SystemdSlice == name {
+				sliceFound = true
+				break
+			}
 		}
-	}
 
-	if !sliceFound {
-		log.Printf("%s is not a valid systemd slice. Must be one of [%s]", req.SystemdSlice, strings.Join(sliceNames, ", "))
-		resp.Failure(ErrContainerCreateFailedInvalidSlice)
-		return
+		if sliceFound {
+			sliceName = req.SystemdSlice
+		} else {
+			log.Printf("'%s' is not a valid systemd slice. Must be one of [%s]", req.SystemdSlice, strings.Join(sliceNames, ", "))
+			resp.Failure(ErrContainerCreateFailedInvalidSlice)
+			return
+		}
 	}
 
 	// write the definition unit file
@@ -143,7 +150,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 		Id:       id,
 		Image:    req.Image,
 		PortSpec: portSpec,
-		Slice:    req.SystemdSlice + ".slice",
+		Slice:    sliceName + ".slice",
 
 		Isolate: req.Isolate,
 
