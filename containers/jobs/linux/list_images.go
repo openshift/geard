@@ -1,16 +1,19 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
 	"log"
 
+	. "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 )
 
-func (j *ListImagesRequest) Execute(resp jobs.Response) {
+type listImages struct {
+	*ListImagesRequest
+}
+
+func (j *listImages) Execute(resp jobs.Response) {
 	// TODO: config item for docker port
 	dockerClient, err := docker.NewClient(j.DockerSocket)
 

@@ -1,6 +1,4 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"log"
@@ -8,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/openshift/geard/containers"
+	. "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/go-systemd/dbus"
@@ -31,7 +30,12 @@ func unitsMatching(re *regexp.Regexp, found func(name string, unit *dbus.UnitSta
 
 var reContainerUnits = regexp.MustCompile("\\A" + regexp.QuoteMeta(containers.IdentifierPrefix) + "([^\\.]+)\\.service\\z")
 
-func (j *ListContainersRequest) Execute(resp jobs.Response) {
+type listContainers struct {
+	*ListContainersRequest
+	systemd systemd.Systemd
+}
+
+func (j *listContainers) Execute(resp jobs.Response) {
 	r := &ListContainersResponse{make(ContainerUnitResponses, 0)}
 
 	if err := unitsMatching(reContainerUnits, func(name string, unit *dbus.UnitStatus) {
@@ -60,7 +64,12 @@ func (j *ListContainersRequest) Execute(resp jobs.Response) {
 
 var reBuildUnits = regexp.MustCompile("\\Abuild-([^\\.]+)\\.service\\z")
 
-func (j *ListBuildsRequest) Execute(resp jobs.Response) {
+type listBuilds struct {
+	*ListBuildsRequest
+	systemd systemd.Systemd
+}
+
+func (j *listBuilds) Execute(resp jobs.Response) {
 	r := ListBuildsResponse{make(UnitResponses, 0)}
 
 	if err := unitsMatching(reBuildUnits, func(name string, unit *dbus.UnitStatus) {

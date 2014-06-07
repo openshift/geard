@@ -1,6 +1,4 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"fmt"
@@ -10,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/openshift/geard/config"
+	cjobs "github.com/openshift/geard/containers/jobs"
 	csystemd "github.com/openshift/geard/containers/systemd"
 	"github.com/openshift/geard/systemd"
 )
@@ -46,14 +45,10 @@ func initializeTargets() error {
 	return nil
 }
 
-const (
-	DefaultSlice string = "container-small"
-)
-
 var (
 	sliceUnits = []csystemd.SliceUnit{
 		{"container", "", "512M"},
-		{DefaultSlice, "container", "512M"},
+		{cjobs.DefaultSlice, "container", "512M"},
 		{"container-large", "container", "1G"},
 	}
 )

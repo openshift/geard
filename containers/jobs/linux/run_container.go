@@ -1,6 +1,4 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"fmt"
@@ -11,13 +9,19 @@ import (
 	"time"
 
 	"github.com/openshift/geard/containers"
+	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/utils"
 	"github.com/openshift/go-systemd/dbus"
 )
 
-func (j *RunContainerRequest) UnitCommand() []string {
+type runContainer struct {
+	*cjobs.RunContainerRequest
+	systemd systemd.Systemd
+}
+
+func (j *runContainer) UnitCommand() []string {
 	command := []string{
 		"/usr/bin/docker", "run",
 		"--rm",
@@ -34,7 +38,7 @@ func (j *RunContainerRequest) UnitCommand() []string {
 	return command
 }
 
-func (j *RunContainerRequest) Execute(resp jobs.Response) {
+func (j *runContainer) Execute(resp jobs.Response) {
 	command := j.UnitCommand()
 	unitName := containers.JobIdentifier(j.Name).UnitNameFor()
 	unitDescription := fmt.Sprintf("Execute image '%s': %s %s", j.Image, j.Command, strings.Join(command, " "))

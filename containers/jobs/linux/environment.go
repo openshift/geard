@@ -1,16 +1,19 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"io"
 	"log"
 	"os"
 
+	. "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 )
 
-func (j *GetEnvironmentRequest) Execute(resp jobs.Response) {
+type getEnvironment struct {
+	*GetEnvironmentRequest
+}
+
+func (j *getEnvironment) Execute(resp jobs.Response) {
 	id := j.Id
 
 	file, erro := os.Open(id.EnvironmentPathFor())
@@ -26,7 +29,11 @@ func (j *GetEnvironmentRequest) Execute(resp jobs.Response) {
 	}
 }
 
-func (j *PutEnvironmentRequest) Execute(resp jobs.Response) {
+type putEnvironent struct {
+	*PutEnvironmentRequest
+}
+
+func (j *putEnvironent) Execute(resp jobs.Response) {
 	if err := j.Fetch(100 * 1024); err != nil {
 		resp.Failure(ErrEnvironmentUpdateFailed)
 		return
@@ -39,7 +46,11 @@ func (j *PutEnvironmentRequest) Execute(resp jobs.Response) {
 	resp.Success(jobs.ResponseOk)
 }
 
-func (j *PatchEnvironmentRequest) Execute(resp jobs.Response) {
+type patchEnvironment struct {
+	*PatchEnvironmentRequest
+}
+
+func (j *patchEnvironment) Execute(resp jobs.Response) {
 	if err := j.Write(true); err != nil {
 		resp.Failure(ErrEnvironmentUpdateFailed)
 		return

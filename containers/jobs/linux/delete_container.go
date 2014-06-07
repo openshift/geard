@@ -1,6 +1,4 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"log"
@@ -8,13 +6,19 @@ import (
 	"path/filepath"
 
 	"github.com/openshift/geard/containers"
+	. "github.com/openshift/geard/containers/jobs"
 	csystemd "github.com/openshift/geard/containers/systemd"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 )
 
-func (j *DeleteContainerRequest) Execute(resp jobs.Response) {
+type deleteContainer struct {
+	*DeleteContainerRequest
+	systemd systemd.Systemd
+}
+
+func (j *deleteContainer) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 	unitDefinitionsPath := j.Id.VersionedUnitsPathFor()

@@ -7,7 +7,7 @@ import (
 	"github.com/openshift/geard/cmd"
 	ctrcmd "github.com/openshift/geard/containers/cmd"
 	chttp "github.com/openshift/geard/containers/http"
-	cjobs "github.com/openshift/geard/containers/jobs"
+	cjobs "github.com/openshift/geard/containers/jobs/linux"
 	initcmd "github.com/openshift/geard/containers/systemd/init"
 	"github.com/openshift/geard/git"
 	gitcmd "github.com/openshift/geard/git/cmd"

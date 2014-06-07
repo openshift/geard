@@ -13,6 +13,10 @@ import (
 	"github.com/openshift/geard/port"
 )
 
+const (
+	DefaultSlice string = "container-small"
+)
+
 // Installing a Container
 //
 // This job will install a given container definition as a systemd service unit,

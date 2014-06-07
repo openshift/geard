@@ -1,6 +1,4 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"fmt"
@@ -11,6 +9,7 @@ import (
 	"time"
 
 	"github.com/openshift/geard/containers"
+	. "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/utils"
@@ -18,11 +17,16 @@ import (
 )
 
 const (
-	buildImage     = "pmorie/sti-builder-go"
+	builderImage   = "pmorie/sti-builder-go"
 	gearBinaryPath = "/usr/bin/gear"
 )
 
-func (j *BuildImageRequest) Execute(resp jobs.Response) {
+type buildImage struct {
+	*BuildImageRequest
+	systemd systemd.Systemd
+}
+
+func (j *buildImage) Execute(resp jobs.Response) {
 	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 
 	fmt.Fprintf(w, "Processing build-image request:\n")
@@ -87,7 +91,7 @@ func (j *BuildImageRequest) Execute(resp jobs.Response) {
 			"/usr/bin/docker", "run",
 			"-rm",
 			"-v", "/run/docker.sock:/run/docker.sock",
-			"-t", buildImage,
+			"-t", builderImage,
 			"sti", "build", j.Source, j.BaseImage, j.Tag,
 			"-U", "unix:///run/docker.sock",
 		}

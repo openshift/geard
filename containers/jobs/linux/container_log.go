@@ -1,17 +1,20 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"log"
 	"os"
 	"time"
 
+	. "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/systemd"
 )
 
-func (j *ContainerLogRequest) Execute(resp jobs.Response) {
+type containerLog struct {
+	*ContainerLogRequest
+}
+
+func (j *containerLog) Execute(resp jobs.Response) {
 	if _, err := os.Stat(j.Id.UnitPathFor()); err != nil {
 		resp.Failure(ErrContainerNotFound)
 		return

@@ -1,16 +1,19 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"log"
 	"os"
 
+	. "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/systemd"
 )
 
-func (j *ContainerStatusRequest) Execute(resp jobs.Response) {
+type containerStatus struct {
+	*ContainerStatusRequest
+}
+
+func (j *containerStatus) Execute(resp jobs.Response) {
 	if _, err := os.Stat(j.Id.UnitPathFor()); err != nil {
 		//log.Printf("container_status: Can't stat unit: %v", err)
 		resp.Failure(ErrContainerNotFound)

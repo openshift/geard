@@ -1,10 +1,7 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +10,7 @@ import (
 
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
+	. "github.com/openshift/geard/containers/jobs"
 	csystemd "github.com/openshift/geard/containers/systemd"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
@@ -28,7 +26,12 @@ func dockerPortSpec(p port.PortPairs) string {
 	return portSpec.String()
 }
 
-func (req *InstallContainerRequest) Execute(resp jobs.Response) {
+type installContainer struct {
+	*InstallContainerRequest
+	systemd systemd.Systemd
+}
+
+func (req *installContainer) Execute(resp jobs.Response) {
 	id := req.Id
 	unitName := id.UnitNameFor()
 	unitPath := id.UnitPathFor()
@@ -271,23 +274,4 @@ func writeSocketUnit(path string, args *csystemd.ContainerUnit) error {
 	}
 
 	return nil
-}
-
-func (j *InstallContainerRequest) Join(job jobs.Job, complete <-chan bool) (joined bool, done <-chan bool, err error) {
-	if old, ok := job.(*InstallContainerRequest); !ok {
-		if old == nil {
-			err = jobs.ErrRanToCompletion
-		} else {
-			err = errors.New("Cannot join two jobs of different types.")
-		}
-		return
-	}
-
-	c := make(chan bool)
-	done = c
-	go func() {
-		close(c)
-	}()
-	joined = true
-	return
 }

@@ -1,6 +1,4 @@
-// +build linux
-
-package jobs
+package linux
 
 import (
 	"errors"
@@ -10,6 +8,7 @@ import (
 	"time"
 
 	"github.com/openshift/geard/containers"
+	. "github.com/openshift/geard/containers/jobs"
 	csystemd "github.com/openshift/geard/containers/systemd"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/systemd"
@@ -93,7 +92,12 @@ func inStateOrTooSoon(id containers.Identifier, unit string, active, transition 
 	return
 }
 
-func (j *StartedContainerStateRequest) Execute(resp jobs.Response) {
+type startContainer struct {
+	*StartedContainerStateRequest
+	systemd systemd.Systemd
+}
+
+func (j *startContainer) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
@@ -134,7 +138,12 @@ func (j *StartedContainerStateRequest) Execute(resp jobs.Response) {
 	fmt.Fprintf(w, "Container %s starting\n", j.Id)
 }
 
-func (j *StoppedContainerStateRequest) Execute(resp jobs.Response) {
+type stopContainer struct {
+	*StoppedContainerStateRequest
+	systemd systemd.Systemd
+}
+
+func (j *stopContainer) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 
 	inState, tooSoon := inStateOrTooSoon(j.Id, unitName, false, false, rateLimitChanges)
@@ -212,7 +221,12 @@ func (j *StoppedContainerStateRequest) Execute(resp jobs.Response) {
 	}
 }
 
-func (j *RestartContainerRequest) Execute(resp jobs.Response) {
+type restartContainer struct {
+	*RestartContainerRequest
+	systemd systemd.Systemd
+}
+
+func (j *restartContainer) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
 
