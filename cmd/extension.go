@@ -22,16 +22,16 @@ func AddCommandExtension(ext CommandRegistration, local bool) {
 	extensions = append(extensions, commandHook{ext, "", local, false})
 }
 
-func AddCommand(parent *cobra.Command, cmd *cobra.Command, local bool) *cobra.Command {
-	parent.AddCommand(cmd)
+func AddCommand(parent *cobra.Command, c *cobra.Command, local bool) *cobra.Command {
+	parent.AddCommand(c)
 	for i := range extensions {
 		ext := &extensions[i]
-		if ext.run == false && local == ext.local && ext.After == cmd.Name() {
-			ext.Func(cmd.Parent())
+		if ext.run == false && local == ext.local && ext.After == c.Name() {
+			ext.Func(c.Parent())
 			ext.run = true
 		}
 	}
-	return cmd
+	return c
 }
 
 func ExtendCommands(parent *cobra.Command, local bool) {

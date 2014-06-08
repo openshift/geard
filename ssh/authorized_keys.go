@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 
+	"github.com/openshift/geard/config"
 	key "github.com/openshift/geard/pkg/ssh-public-key"
 	"github.com/openshift/geard/utils"
 )
@@ -28,7 +30,7 @@ func (t authorizedKeyType) CreateKey(raw utils.RawMessage) (KeyLocator, error) {
 
 	contents := key.MarshalAuthorizedKey(pk)
 	fingerprint := KeyFingerprint(pk)
-	path := fingerprint.PublicKeyPathFor()
+	path := publicKeyPathFor(fingerprint)
 
 	if err := utils.AtomicWriteToContentPath(path, 0664, contents); err != nil {
 		return nil, err
@@ -39,4 +41,8 @@ func (t authorizedKeyType) CreateKey(raw utils.RawMessage) (KeyLocator, error) {
 func KeyFingerprint(key key.PublicKey) utils.Fingerprint {
 	bytes := sha256.Sum256(key.Marshal())
 	return utils.Fingerprint(bytes[:])
+}
+
+func publicKeyPathFor(f utils.Fingerprint) string {
+	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "keys", "public"), f.ToShortName(), "", 0775)
 }

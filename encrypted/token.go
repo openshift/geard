@@ -11,23 +11,15 @@ import (
 type TokenData struct {
 	Identifier     string `json:"i,omitempty"` // request identifier
 	ExpirationDate int64  `json:"d,omitempty"` // expiration time in seconds from the epoch
-	User           string `json:"u,omitempty"` // user unique identifier in hexadecimal
-	Type           string `json:"t,omitempty"` // resource type
-	Locator        string `json:"r,omitempty"` // resource locator
+	Content        string `json:"c,omitempty"` // opaque content
 }
 
 func (t *TokenData) ToValues(values *url.Values) {
 	if t.Identifier != "" {
 		values.Set("i", t.Identifier)
 	}
-	if t.Type != "" {
-		values.Set("t", t.Type)
-	}
-	if t.Locator != "" {
-		values.Set("r", t.Locator)
-	}
-	if t.User != "" {
-		values.Set("u", t.User)
+	if t.Content != "" {
+		values.Set("c", t.Content)
 	}
 	if t.ExpirationDate != 0 {
 		values.Set("d", strconv.FormatInt(t.ExpirationDate, 10))
@@ -57,9 +49,7 @@ func NewTokenFromMap(m map[string][]string) (*TokenData, error) {
 		}
 		token.ExpirationDate = d
 	}
-	token.User = firstParam(m, "u")
-	token.Type = firstParam(m, "t")
-	token.Locator = firstParam(m, "r")
+	token.Content = firstParam(m, "c")
 	return &token, nil
 }
 

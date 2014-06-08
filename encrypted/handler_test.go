@@ -96,7 +96,7 @@ func TestHandle(t *testing.T) {
 	}
 
 	buf := &bytes.Buffer{}
-	source := &TokenData{Locator: "foo", Type: "env", ExpirationDate: time.Now().Unix() + 10}
+	source := &TokenData{Content: "GET?/environment/foo?#", ExpirationDate: time.Now().Unix() + 10}
 	encoder := json.NewEncoder(buf)
 	encoder.Encode(source)
 	cipher, _ := rsa.EncryptPKCS1v15(rand.Reader, serverPub, buf.Bytes())

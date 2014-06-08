@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -18,10 +19,16 @@ type check interface {
 	Check() error
 }
 type JobRequest interface{}
+type RequestedJob struct {
+	Request JobRequest
+	Job     jobs.Job
+	Locator Locator
+}
+type requestedJobs []RequestedJob
 
 type FuncBulk func(...Locator) JobRequest
 type FuncSerial func(Locator) JobRequest
-type FuncReact func(*CliJobResponse, io.Writer, JobRequest)
+type FuncReact func(*CliJobResponse, io.Writer, RequestedJob)
 
 // An executor runs a number of local or remote jobs in
 // parallel or sequentially.  You must set either .Group
@@ -115,14 +122,20 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 	byDestination := make([]requestedJobs, len(remote))
 	for i := range remote {
 		group := remote[i]
-		jobs := e.requests(group)
-		if err := jobs.check(); err != nil {
+		ops := e.requests(group)
+		if err := ops.check(); err != nil {
 			return responses, err
 		}
-		byDestination[i] = jobs
-		for j := range jobs {
-			remote, err := e.Transport.RemoteJobFor(jobs[j].Locator.TransportLocator(), jobs[j].Request)
-			if err != nil {
+		byDestination[i] = ops
+		for j := range ops {
+			op := ops[j]
+			remote, err := e.Transport.RemoteJobFor(op.Locator.TransportLocator(), op.Request)
+			if err == jobs.ErrNoJobForRequest {
+				if op.Locator.TransportLocator() == transport.Local {
+					return responses, fmt.Errorf("this command does not work on %s - did you mean to specify a remote server instead?", osName())
+				}
+				return responses, fmt.Errorf("the remote API for %s is not implemented", op.Locator.TransportLocator().String())
+			} else if err != nil {
 				return responses, err
 			}
 			byDestination[i][j].Job = remote
@@ -147,7 +160,7 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 			for _, job := range allJobs {
 				response := &CliJobResponse{Output: w, Gather: gather}
 				job.Job.Execute(response)
-				respch <- e.react(response, w, job.Request)
+				respch <- e.react(response, w, job)
 			}
 		}()
 	}
@@ -166,7 +179,7 @@ Response:
 	return responses, nil
 }
 
-func (e *Executor) react(response *CliJobResponse, w io.Writer, job JobRequest) *CliJobResponse {
+func (e *Executor) react(response *CliJobResponse, w io.Writer, job RequestedJob) *CliJobResponse {
 	if response.Error != nil && e.OnFailure != nil {
 		e.OnFailure(response, w, job)
 	}
@@ -186,21 +199,14 @@ func (e *Executor) requests(on []Locator) requestedJobs {
 		return requestedJobs{}
 	}
 	if e.Group != nil {
-		return requestedJobs{requestedJob{Request: e.Group(on...), Locator: on[0]}}
+		return requestedJobs{RequestedJob{Request: e.Group(on...), Locator: on[0]}}
 	}
 
 	jobs := make(requestedJobs, 0, len(on))
 	for i := range on {
-		jobs = append(jobs, requestedJob{Request: e.Serial(on[i]), Locator: on[i]})
+		jobs = append(jobs, RequestedJob{Request: e.Serial(on[i]), Locator: on[i]})
 	}
 	return jobs
-}
-
-type requestedJobs []requestedJob
-type requestedJob struct {
-	Request JobRequest
-	Job     jobs.Job
-	Locator Locator
 }
 
 func (jobs requestedJobs) check() error {
@@ -228,4 +234,17 @@ func prefixUnless(prefix string, cond bool) string {
 		return ""
 	}
 	return prefix
+}
+
+func osName() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "Mac OS X"
+	case "windows":
+		return "Windows"
+	case "linux":
+		return "Linux"
+	default:
+		return runtime.GOOS
+	}
 }

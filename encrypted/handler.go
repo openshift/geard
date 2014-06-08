@@ -24,8 +24,6 @@ import (
 	"strings"
 	"time"
 
-	chttp "github.com/openshift/geard/containers/http"
-	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/utils"
 )
@@ -50,12 +48,11 @@ func NewTokenConfiguration(private, public string) (*TokenConfiguration, error) 
 	return &TokenConfiguration{priv, pub}, nil
 }
 
-func (t *TokenConfiguration) Sign(job *cjobs.ContentRequest, keyId string, expiration int64) (string, error) {
+func (t *TokenConfiguration) Sign(content, keyId string, expiration int64) (string, error) {
 	source := &TokenData{
 		Identifier:     jobs.NewRequestIdentifier().String(),
-		Locator:        job.Locator,
-		Type:           job.Type,
 		ExpirationDate: expiration,
+		Content:        content,
 	}
 
 	buf := &bytes.Buffer{}
@@ -127,8 +124,8 @@ func (t *TokenConfiguration) Handler(parent http.Handler) http.HandlerFunc {
 		decoder.Decode(token)
 		log.Printf("Decoded %+v", *token)
 
-		if token.Locator == "" || token.Type == "" {
-			log.Printf("The token has no locator or type")
+		if token.Content == "" {
+			log.Printf("The token has no content")
 			http.Error(w, "Token is not valid", http.StatusBadRequest)
 			return
 		}
@@ -145,9 +142,21 @@ func (t *TokenConfiguration) Handler(parent http.Handler) http.HandlerFunc {
 			return
 		}
 
-		job := chttp.HttpContentRequest{ContentRequest: cjobs.ContentRequest{Type: token.Type, Locator: token.Locator}}
-		r.Method = job.HttpMethod()
-		r.URL.Path = job.HttpPath()
+		split := strings.SplitN(token.Content, "?", 3)
+		method, path := split[0], split[1]
+		split = strings.SplitN(split[2], "#", 2)
+		query := split[0]
+		body := split[1]
+
+		if method == "" || path == "" {
+			log.Printf("The token is not properly formatted")
+			http.Error(w, "Token is not valid", http.StatusBadRequest)
+		}
+
+		r.Method = method
+		r.URL.Path = path
+		r.URL.RawQuery = query
+		r.Body = ioutil.NopCloser(strings.NewReader(body))
 		parent.ServeHTTP(w, r)
 	}
 }

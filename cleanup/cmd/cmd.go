@@ -25,7 +25,7 @@ func RegisterCleanup(parent *cobra.Command) {
 	parent.AddCommand(cleanCmd)
 }
 
-func clean(cmd *cobra.Command, args []string) {
+func clean(c *cobra.Command, args []string) {
 	logInfo := log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime)
 	logError := log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime)
 

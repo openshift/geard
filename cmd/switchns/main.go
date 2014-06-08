@@ -59,7 +59,7 @@ func main() {
 		Use:   "version",
 		Short: "Display version",
 		Long:  "Display version",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(c *cobra.Command, args []string) {
 			fmt.Printf("swtichns %s\n", version)
 		},
 	}
@@ -87,7 +87,7 @@ func extractPassthroughArgs() (left []string, right []string) {
 	return left, right
 }
 
-func switchns(cmd *cobra.Command, args []string) {
+func switchns(c *cobra.Command, args []string) {
 	if gitRo || gitRw {
 		switchnsGit()
 	} else {

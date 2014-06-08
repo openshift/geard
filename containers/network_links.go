@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/port"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/openshift/geard/port"
 )
 
 type NetworkLink struct {
