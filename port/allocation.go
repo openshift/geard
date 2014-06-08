@@ -4,28 +4,25 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
-	"sync"
 )
 
 const portsPerBlock = Port(100) // changing this breaks disk structure... don't do it!
 const maxReadFailures = 3
 
-func StartPortAllocator(min, max Port) {
-	lock.Lock()
-	defer lock.Unlock()
-	if started {
-		return
+func NewPortAllocator(base string, min, max Port) *PortAllocator {
+	allocator := &PortAllocator{
+		base,
+		make(chan Port),
+		make(chan bool),
+		uint(min / portsPerBlock),
+		0,
+		min,
+		max,
 	}
-	started = true
-	internalPortAllocator.min = min
-	internalPortAllocator.max = max
-	internalPortAllocator.block = uint(min / portsPerBlock)
-	go func() {
-		internalPortAllocator.findPorts()
-		close(internalPortAllocator.ports)
-	}()
+	return allocator
 }
 
 //
@@ -34,9 +31,8 @@ func StartPortAllocator(min, max Port) {
 // available at a later time, but are unlikely to
 // come open now.
 //
-func allocatePort() Port {
-	StartPortAllocator(4000, 60000)
-	p := <-internalPortAllocator.ports
+func (a *PortAllocator) allocatePort() Port {
+	p := <-a.ports
 	log.Printf("ports: Reserved port %d", p)
 	return p
 }
@@ -44,7 +40,8 @@ func allocatePort() Port {
 //
 // An example of a very simple Port allocator.
 //
-type portAllocator struct {
+type PortAllocator struct {
+	path     string
 	ports    chan Port
 	done     chan bool
 	block    uint
@@ -53,13 +50,12 @@ type portAllocator struct {
 	max      Port
 }
 
-var (
-	internalPortAllocator = portAllocator{make(chan Port), make(chan bool), 1, 0, 0, 0}
-	started               = false
-	lock                  = sync.Mutex{}
-)
+func (p *PortAllocator) Run() {
+	p.findPorts()
+	close(p.done)
+}
 
-func (p *portAllocator) findPorts() {
+func (p *PortAllocator) findPorts() {
 	for {
 		foundInBlock := 0
 		start := Port(p.block) * portsPerBlock
@@ -76,7 +72,7 @@ func (p *portAllocator) findPorts() {
 		log.Printf("ports: searching block %d, %d-%d", p.block, start, end-1)
 
 		var taken []string
-		parent, _ := start.PortPathsFor()
+		parent, _ := p.portPathsFor(start)
 		f, erro := os.OpenFile(parent, os.O_RDONLY, 0)
 		if erro == nil {
 			names, errr := f.Readdirnames(int(portsPerBlock))
@@ -132,7 +128,7 @@ func (p *portAllocator) findPorts() {
 finished:
 }
 
-func (p *portAllocator) fail() bool {
+func (p *PortAllocator) fail() bool {
 	p.failures += 1
 	if p.failures > maxReadFailures {
 		select {
@@ -144,8 +140,20 @@ func (p *portAllocator) fail() bool {
 	return false
 }
 
-func (p *portAllocator) foundPorts() {
+func (p *PortAllocator) foundPorts() {
 	p.failures = 0
+}
+
+func (a *PortAllocator) portPathsFor(p Port) (base string, path string) {
+	root := a.devicePath(Device("1"))
+	prefix := p / portsPerBlock
+	base = filepath.Join(root, strconv.FormatUint(uint64(prefix), 10))
+	path = filepath.Join(base, strconv.FormatUint(uint64(p), 10))
+	return
+}
+
+func (a *PortAllocator) devicePath(d Device) string {
+	return filepath.Join(a.path, "ports", "interfaces", string(d))
 }
 
 type ports []Port

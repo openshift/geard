@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/geard/http"
+	"github.com/openshift/geard/http/client"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/transport"
 )
 
-var loopbackTransport = http.NewHttpTransport()
+var loopbackTransport = &client.HttpTransport{}
 var localTransport = transport.Local
 var localhost transport.Locator
 var noHosts PlacementStrategy = SimplePlacement(transport.Locators{})

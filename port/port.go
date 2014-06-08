@@ -8,9 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/config"
 	"net"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -139,7 +137,3 @@ func FromPortPairHeader(s string) (PortPairs, error) {
 }
 
 type Device string
-
-func (d Device) DevicePath() string {
-	return filepath.Join(config.ContainerBasePath(), "ports", "interfaces", string(d))
-}

@@ -26,8 +26,9 @@ import (
 )
 
 var (
-	pre  bool
-	post bool
+	pre          bool
+	post         bool
+	dockerSocket string
 )
 
 func RegisterInit(parent *cobra.Command) {
@@ -39,6 +40,7 @@ func RegisterInit(parent *cobra.Command) {
 	}
 	initGearCmd.Flags().BoolVarP(&pre, "pre", "", false, "Perform pre-start initialization")
 	initGearCmd.Flags().BoolVarP(&post, "post", "", false, "Perform post-start initialization")
+	initGearCmd.Flags().StringVarP(&dockerSocket, "docker-socket", "S", "unix:///var/run/docker.sock", "Set the docker socket to use")
 	parent.AddCommand(initGearCmd)
 }
 

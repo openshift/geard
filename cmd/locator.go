@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"errors"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/transport"
 	"strings"
+
+	"github.com/openshift/geard/transport"
 )
 
 type Locator interface {
@@ -49,9 +49,6 @@ func (locators Locators) Has(locator Locator) bool {
 // Disambiguate resources with the same id via their type
 type ResourceType string
 
-// A container resource
-const ResourceTypeContainer ResourceType = "ctr"
-
 type ResourceValidator interface {
 	Type() ResourceType
 }
@@ -80,10 +77,6 @@ func (r *ResourceLocator) Identity() string {
 	}
 	return base
 }
-func AsIdentifier(locator Locator) containers.Identifier {
-	id, _ := containers.NewIdentifier(locator.(*ResourceLocator).Id)
-	return id
-}
 
 func NewResourceLocators(t transport.Transport, defaultType ResourceType, values ...string) (Locators, error) {
 	out := make(Locators, 0, len(values))
@@ -109,20 +102,6 @@ func NewResourceLocator(t transport.Transport, defaultType ResourceType, value s
 		return nil, err
 	}
 	return &ResourceLocator{ResourceType(res), id, locator}, nil
-}
-
-func NewContainerLocators(t transport.Transport, values ...string) (Locators, error) {
-	locators, err := NewResourceLocators(t, ResourceTypeContainer, values...)
-	if err != nil {
-		return Locators{}, err
-	}
-	for i := range locators {
-		_, err := containers.NewIdentifier(locators[i].(*ResourceLocator).Id)
-		if err != nil {
-			return Locators{}, err
-		}
-	}
-	return locators, nil
 }
 
 // Given a command line string representing a resource, break it into type, host identity, and suffix

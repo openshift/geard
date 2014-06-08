@@ -13,6 +13,10 @@ import (
 	"github.com/openshift/geard/port"
 )
 
+const (
+	DefaultSlice string = "container-small"
+)
+
 // Installing a Container
 //
 // This job will install a given container definition as a systemd service unit,
@@ -122,7 +126,8 @@ type StartedContainerStateRequest struct {
 }
 
 type StoppedContainerStateRequest struct {
-	Id containers.Identifier
+	Id   containers.Identifier
+	Wait bool
 }
 
 type RestartContainerRequest struct {
@@ -187,6 +192,10 @@ type DeleteContainerRequest struct {
 	Id containers.Identifier
 }
 
+type GetEnvironmentRequest struct {
+	Id containers.Identifier
+}
+
 type PutEnvironmentRequest struct {
 	containers.EnvironmentDescription
 }
@@ -204,6 +213,7 @@ type ListImagesRequest struct {
 }
 
 type ListContainersRequest struct {
+	IncludeInactive bool
 }
 
 type UnitResponse struct {

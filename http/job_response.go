@@ -2,22 +2,17 @@ package http
 
 import (
 	"encoding/json"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/utils"
 	"io"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/openshift/geard/http/client"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/utils"
 )
 
 var (
 	ErrContentTypeDoesNotMatch = jobs.SimpleError{jobs.ResponseNotAcceptable, "The content type you requested is not available for this action."}
-)
-
-type ResponseContentMode int
-
-const (
-	ResponseJson ResponseContentMode = iota
-	ResponseTable
 )
 
 type TabularOutput interface {
@@ -27,13 +22,13 @@ type TabularOutput interface {
 type httpJobResponse struct {
 	response      http.ResponseWriter
 	skipStreaming bool
-	mode          ResponseContentMode
+	mode          client.ResponseContentMode
 	succeeded     bool
 	failed        bool
 	pending       map[string]string
 }
 
-func NewHttpJobResponse(w http.ResponseWriter, skipStreaming bool, mode ResponseContentMode) jobs.Response {
+func NewHttpJobResponse(w http.ResponseWriter, skipStreaming bool, mode client.ResponseContentMode) jobs.Response {
 	return &httpJobResponse{
 		response:      w,
 		skipStreaming: skipStreaming,
@@ -50,7 +45,7 @@ func (s *httpJobResponse) Success(t jobs.ResponseSuccess) {
 }
 
 func (s *httpJobResponse) SuccessWithData(t jobs.ResponseSuccess, data interface{}) {
-	if s.mode == ResponseTable {
+	if s.mode == client.ResponseTable {
 		tabular, ok := data.(TabularOutput)
 		if !ok {
 			s.Failure(ErrContentTypeDoesNotMatch)
@@ -135,7 +130,7 @@ func (s *httpJobResponse) Failure(err error) {
 	s.failed = true
 
 	code := http.StatusInternalServerError
-	response := httpFailureResponse{err.Error(), nil}
+	response := client.HttpFailureResponse{err.Error(), nil, ""}
 	s.response.Header().Set("Content-Type", "application/json")
 
 	if e, ok := err.(jobs.JobError); ok {
@@ -157,11 +152,6 @@ func (s *httpJobResponse) Failure(err error) {
 
 	s.response.WriteHeader(code)
 	json.NewEncoder(s.response).Encode(&response)
-}
-
-type httpFailureResponse struct {
-	Message string
-	Data    interface{} `json:"Data,omitempty"`
 }
 
 type HeaderSerialization interface {
