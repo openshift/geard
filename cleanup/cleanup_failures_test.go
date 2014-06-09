@@ -11,6 +11,16 @@ import (
 )
 
 const (
+	version_payload = `{
+    "ApiVersion": "1.12",
+    "Arch": "amd64",
+    "GitCommit": "63fe64c/1.0.0",
+    "GoVersion": "go1.2.2",
+    "KernelVersion": "3.14.4-200.fc20.x86_64",
+    "Os": "linux",
+    "Version": "1.0.0"
+	}`
+
 	info_payload = `{
 		"Containers":1,
 		"Debug":0,
@@ -171,6 +181,7 @@ var failureCleanupTest = &FailureCleanup_Test{}
 
 func Test_FailureCleanup_Clean_0(t *testing.T) {
 	routes := map[string]string{
+		"/version":                                                                          version_payload,
 		"/info":                                                                             info_payload,
 		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": success_payload,
@@ -196,6 +207,7 @@ func Test_FailureCleanup_Clean_0(t *testing.T) {
 
 func Test_FailureCleanup_Clean_1(t *testing.T) {
 	routes := map[string]string{
+		"/version":                                                                                 version_payload,
 		"/info":                                                                                    info_payload,
 		"/containers/json?all=1":                                                                   containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json":        failureCleanupTest.failedPayload(success_payload),
@@ -224,6 +236,7 @@ func Test_FailureCleanup_Clean_2(t *testing.T) {
 		1)
 
 	routes := map[string]string{
+		"/version":                                                                          version_payload,
 		"/info":                                                                             info_payload,
 		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,
@@ -260,6 +273,7 @@ func Test_FailureCleanup_Clean_3(t *testing.T) {
 
 func Test_FailureCleanup_Clean_4(t *testing.T) {
 	routes := map[string]string{
+		"/version":               version_payload,
 		"/info":                  info_payload,
 		"/containers/json?all=1": "{}",
 	}
@@ -278,6 +292,7 @@ func Test_FailureCleanup_Clean_4(t *testing.T) {
 
 func Test_FailureCleanup_Clean_5(t *testing.T) {
 	routes := map[string]string{
+		"/version":                                                                                 version_payload,
 		"/info":                                                                                    info_payload,
 		"/containers/json?all=1":                                                                   containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json":        failureCleanupTest.failedPayload(success_payload),
@@ -305,6 +320,7 @@ func Test_FailureCleanup_Clean_6(t *testing.T) {
 		1)
 
 	routes := map[string]string{
+		"/version":                                                                          version_payload,
 		"/info":                                                                             info_payload,
 		"/containers/json?all=1":                                                            containers_payload,
 		"/containers/4d84640d81f1c745bc8fdf0726567c8fe9c72201486169fac77540f258c87aef/json": payload,

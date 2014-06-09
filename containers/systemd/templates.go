@@ -64,7 +64,7 @@ X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
 # Create data container
-ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint true "{{.Image}}"'
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint /bin/true "{{.Image}}"'
 ExecStartPre=-/usr/bin/docker rm "{{.Id}}"
 {{ if .Isolate }}# Initialize user and volumes
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"{{ end }}
@@ -72,8 +72,8 @@ ExecStart=/usr/bin/docker run --rm --name "{{.Id}}" \
           --volumes-from "{{.Id}}-data" \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
           -a stdout -a stderr {{.PortSpec}} {{.RunSpec}} \
-          {{ if .Isolate }} -v {{.RunDir}}:/.container.init:ro -u root {{end}} \
-          "{{.Image}}" {{ if .Isolate }} /.container.init/container-init.sh {{ end }}
+          {{ if .Isolate }} -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro -v {{.RunDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
+          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
 # Set links (requires container have a name)
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 ExecReload=-/usr/bin/docker stop "{{.Id}}"
@@ -87,7 +87,7 @@ ExecStop=-/usr/bin/docker stop "{{.Id}}"
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
 # Create data container
-ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint true "{{.Image}}"'
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint /bin/true "{{.Image}}"'
 ExecStartPre=-/usr/bin/docker rm "{{.Id}}"
 {{ if .Isolate }}# Initialize user and volumes
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"{{ end }}
@@ -95,8 +95,8 @@ ExecStart=/usr/bin/docker run --rm --foreground \
           {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
           {{.PortSpec}} {{.RunSpec}} \
           --name "{{.Id}}" --volumes-from "{{.Id}}-data" \
-          {{ if .Isolate }} -v {{.RunDir}}:/.container.init:ro -u root {{end}} \
-          "{{.Image}}" {{ if .Isolate }} /.container.init/container-init.sh {{ end }}
+          {{ if .Isolate }} -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro -v {{.RunDir}}/container-init.sh:/.container.init:ro -u root {{end}} \
+          "{{.Image}}" {{ if .Isolate }} /.container.init {{ end }}
 # Set links (requires container have a name)
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{template "COMMON_CONTAINER" .}}
@@ -115,10 +115,11 @@ ExecStart=/usr/bin/docker run \
             {{ if and .EnvironmentPath .DockerFeatures.EnvironmentFile }}--env-file "{{ .EnvironmentPath }}"{{ end }} \
             -a stdout -a stderr {{.RunSpec}} \
             --env LISTEN_FDS \
-            -v {{.RunDir}}:/.container.init:ro \
+            -v {{.RunDir}}/container-init.sh:/.container.init:ro \
+            -v {{.RunDir}}/container-cmd.sh:/.container.cmd:ro \
             -v /usr/sbin/systemd-socket-proxyd:/usr/sbin/systemd-socket-proxyd:ro \
             -u root -f --rm \
-            "{{.Image}}" /.container.init/container-init.sh
+            "{{.Image}}" /.container.init
 ExecStartPost=-{{.ExecutablePath}} init --post "{{.Id}}" "{{.Image}}"
 {{template "COMMON_CONTAINER" .}}
 X-SocketActivated={{.SocketActivationType}}
