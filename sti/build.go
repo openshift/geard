@@ -15,8 +15,7 @@ import (
 
 const (
 	SVirtSandboxFileLabel = "system_u:object_r:svirt_sandbox_file_t:s0"
-	ContainerInitDirName  = ".sti.init"
-	ContainerInitDirPath  = "/" + ContainerInitDirName
+	ContainerInitPath     = "/.container.init"
 )
 
 // Request contains essential fields for any request: a Configuration, a base image, and an
@@ -146,14 +145,6 @@ func Build(req *STIRequest) (result *STIResult, err error) {
 }
 
 func (h requestHandler) buildInternal() (messages []string, imageID string, err error) {
-	volumeMap := make(map[string]struct{})
-	volumeMap["/tmp/src"] = struct{}{}
-	volumeMap["/tmp/scripts"] = struct{}{}
-	volumeMap["/tmp/defaultScripts"] = struct{}{}
-	if h.request.incremental {
-		volumeMap["/tmp/artifacts"] = struct{}{}
-	}
-
 	if h.request.Verbose {
 		log.Printf("Using image name %s", h.request.BaseImage)
 	}
@@ -189,8 +180,7 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 	if hasUser {
 		// run setup commands as root, then switch to container user
 		// to execute the assemble script.
-		cmd = []string{filepath.Join(ContainerInitDirPath, "init.sh")}
-		volumeMap[ContainerInitDirPath] = struct{}{}
+		cmd = []string{ContainerInitPath}
 	} else if h.request.usage {
 		// invoke assemble script with usage argument
 		log.Println("Assemble script usage requested, invoking assemble script help")
@@ -200,7 +190,7 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " && mkdir -p /opt/sti/bin && cp " + runPath + " /opt/sti/bin && chmod 700 /opt/sti/bin/run"}
 	}
 
-	config := docker.Config{User: "root", Image: h.request.BaseImage, Cmd: cmd, Volumes: volumeMap}
+	config := docker.Config{User: "root", Image: h.request.BaseImage, Cmd: cmd}
 
 	var cmdEnv []string
 	if len(h.request.Environment) > 0 {
@@ -227,19 +217,7 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 	}
 
 	if hasUser {
-		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ContainerInitDirName)
-		err = os.MkdirAll(containerInitDir, 0700)
-		if err != nil {
-			return
-		}
-
-		err = chcon(SVirtSandboxFileLabel, containerInitDir)
-		if err != nil {
-			err = fmt.Errorf("unable to set SELinux context: %s", err.Error())
-			return
-		}
-
-		buildScriptPath := filepath.Join(containerInitDir, "init.sh")
+		buildScriptPath := filepath.Join(h.request.workingDir, "tmp", ".container.init")
 		var buildScript *os.File
 		buildScript, err = os.OpenFile(buildScriptPath, os.O_CREATE|os.O_RDWR, 0700)
 		if err != nil {
@@ -260,7 +238,7 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 		}
 		buildScript.Close()
 
-		binds = append(binds, containerInitDir+":"+ContainerInitDirPath)
+		binds = append(binds, buildScriptPath+":"+ContainerInitPath)
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}
@@ -511,20 +489,13 @@ func (h requestHandler) saveArtifacts() error {
 		log.Printf("Artifact image hasUser=%t, user is %s\n", hasUser, user)
 	}
 
-	volumeMap := make(map[string]struct{})
-	volumeMap["/tmp/artifacts"] = struct{}{}
-	volumeMap["/tmp/src"] = struct{}{}
-	volumeMap["/tmp/scripts"] = struct{}{}
-	volumeMap["/tmp/defaultScripts"] = struct{}{}
-
 	cmd := []string{"/bin/sh", "-c", "chmod 777 " + saveArtifactsScriptPath + " && " + saveArtifactsScriptPath}
 
 	if hasUser {
-		volumeMap[ContainerInitDirPath] = struct{}{}
-		cmd = []string{filepath.Join(ContainerInitDirPath, "init.sh")}
+		cmd = []string{ContainerInitPath}
 	}
 
-	config := docker.Config{User: "root", Image: image, Cmd: cmd, Volumes: volumeMap}
+	config := docker.Config{User: "root", Image: image, Cmd: cmd}
 	if h.request.Verbose {
 		log.Printf("Creating container using config: %+v\n", config)
 	}
@@ -550,21 +521,7 @@ func (h requestHandler) saveArtifacts() error {
 		}
 		defer stubFile.Close()
 
-		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ContainerInitDirName)
-		if h.request.Verbose {
-			log.Printf("Creating dir %+v\n", containerInitDir)
-		}
-		err = os.MkdirAll(containerInitDir, 0700)
-		if err != nil {
-			return err
-		}
-
-		err = chcon(SVirtSandboxFileLabel, containerInitDir)
-		if err != nil {
-			return fmt.Errorf("unable to set SELinux context: %s", err.Error())
-		}
-
-		initScriptPath := filepath.Join(containerInitDir, "init.sh")
+		initScriptPath := filepath.Join(h.request.workingDir, "tmp", ".container.init")
 		if h.request.Verbose {
 			log.Printf("Writing %+v\n", initScriptPath)
 		}
@@ -582,7 +539,7 @@ func (h requestHandler) saveArtifacts() error {
 		}
 		initScript.Close()
 
-		binds = append(binds, containerInitDir+":"+ContainerInitDirPath)
+		binds = append(binds, initScriptPath+":"+ContainerInitPath)
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}
