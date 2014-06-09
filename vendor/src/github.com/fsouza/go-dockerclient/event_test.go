@@ -1,4 +1,4 @@
-// Copyright 2013 go-dockerclient authors. All rights reserved.
+// Copyright 2014 go-dockerclient authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -37,6 +37,7 @@ func TestEventListeners(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to create client: %s", err)
 	}
+	client.SkipServerVersionCheck = true
 
 	listener := make(chan *APIEvents, 10)
 	defer func() { time.Sleep(10 * time.Millisecond); client.RemoveEventListener(listener) }()
