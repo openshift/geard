@@ -1,3 +1,6 @@
+/*
+The gear 'clean' extension.
+*/
 package cmd
 
 import (

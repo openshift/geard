@@ -1,6 +1,6 @@
-// An executable for executing a process inside a running Docker container.  Can be used as
-// root to switch into any named container (name is the same as the gear name), or as a
-// container user (user tied to a container) to enter the context for SSH or other function.
+// The switchns binary - an executable for executing a process inside a running Docker container.
+// Can be used as root to switch into any named container (name is the same as the gear name), or
+// as a container user (user tied to a container) to enter the context for SSH or other function.
 // Will be eventually become a setuid stub for docker exec.
 package main
 
