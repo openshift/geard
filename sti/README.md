@@ -29,7 +29,7 @@ Anatomy of a source image
 Building source images is easy.  `sti` expects you to supply the following scripts to use with an
 image:
 
-1. `assemble` : This script is builds and/or deploys the source
+1. `assemble` : This script builds and/or deploys the source
 2. `run`: This script runs the deployed source
 3. `save-artifacts` (optional): This script saves the build context for an incremental build
 
