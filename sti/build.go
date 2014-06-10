@@ -141,7 +141,7 @@ func Build(req *STIRequest) (result *STIResult, err error) {
 		executeCallback(h.request.CallbackUrl, result)
 	}
 
-	return result, nil
+	return result, err
 }
 
 func (h requestHandler) buildInternal() (messages []string, imageID string, err error) {
@@ -239,6 +239,16 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 		buildScript.Close()
 
 		binds = append(binds, buildScriptPath+":"+ContainerInitPath)
+	}
+
+	// only run chcon if it's not an incremental build, as saveArtifacts will have
+	// already run chcon if it is incremental
+	if !h.request.incremental {
+		err = chcon(SVirtSandboxFileLabel, h.request.workingDir, true)
+		if err != nil {
+			err = fmt.Errorf("Unable to set SELinux context for %s: %s", h.request.workingDir, err.Error())
+			return
+		}
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}
@@ -540,6 +550,12 @@ func (h requestHandler) saveArtifacts() error {
 		initScript.Close()
 
 		binds = append(binds, initScriptPath+":"+ContainerInitPath)
+	}
+
+	err = chcon(SVirtSandboxFileLabel, h.request.workingDir, true)
+	if err != nil {
+		err = fmt.Errorf("Unable to set SELinux context for %s: %s", h.request.workingDir, err.Error())
+		return err
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}
