@@ -2,8 +2,9 @@ package network
 
 import (
 	"errors"
-	"github.com/dotcloud/docker/pkg/netlink"
 	"net"
+
+	"github.com/dotcloud/docker/pkg/libcontainer/netlink"
 )
 
 var (
