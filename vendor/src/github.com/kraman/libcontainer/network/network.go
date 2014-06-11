@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/dotcloud/docker/pkg/libcontainer/netlink"
+	"github.com/docker/libcontainer/netlink"
 )
 
 var (
