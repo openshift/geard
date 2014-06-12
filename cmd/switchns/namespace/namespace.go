@@ -2,12 +2,13 @@ package namespace
 
 import (
 	"fmt"
-	"github.com/kraman/libcontainer"
-	"github.com/kraman/libcontainer/namespaces"
-	"github.com/kraman/libcontainer/utils"
 	"os"
 	"path"
 	"strconv"
+
+	"github.com/kraman/libcontainer"
+	"github.com/kraman/libcontainer/namespaces"
+	"github.com/kraman/libcontainer/utils"
 )
 
 func createContainer(containerName string, nsPid int, args []string, env []string) (*libcontainer.Container, error) {
@@ -48,20 +49,19 @@ func createContainer(containerName string, nsPid int, args []string, env []strin
 	return container, nil
 }
 
-func RunIn(containerName string, nsPid int, args []string, env []string) error {
+func RunIn(containerName string, nsPid int, args []string, env []string) (int, error) {
 	container, err := createContainer(containerName, nsPid, args, env)
 	if err != nil {
-		return fmt.Errorf("error creating container %s", err)
+		return -1, fmt.Errorf("error creating container %s", err)
 	}
 
 	pid, err := namespaces.ExecIn(container, container.Command)
 	if err != nil {
-		return fmt.Errorf("error exexin container %s", err)
+		return -1, fmt.Errorf("error execin container %s", err)
 	}
 	exitcode, err := utils.WaitOnPid(pid)
 	if err != nil {
-		return fmt.Errorf("error waiting on child %s", err)
+		return -1, fmt.Errorf("error waiting on child %s", err)
 	}
-	os.Exit(exitcode)
-	return nil
+	return exitcode, nil
 }

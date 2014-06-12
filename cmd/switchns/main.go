@@ -188,5 +188,6 @@ func runCommandInContainer(name string, command []string, environment []string) 
 		containerEnv = container.Config.Env
 	}
 
-	namespace.RunIn(name, containerNsPID, command, containerEnv)
+	exitCode, _ := namespace.RunIn(name, containerNsPID, command, containerEnv)
+	os.Exit(exitCode)
 }
