@@ -16,10 +16,11 @@ import (
 
 type Identifier string
 
-var InvalidIdentifier = Identifier("")
-var allowedIdentifier = regexp.MustCompile("\\A[a-zA-Z0-9\\-\\.]{4,24}\\z")
-
 const IdentifierPrefix = "ctr-"
+const IdentifierSuffixPattern = "[a-zA-Z0-9\\-\\.]{4,24}"
+
+var InvalidIdentifier = Identifier("")
+var allowedIdentifier = regexp.MustCompile("\\A" + IdentifierSuffixPattern + "\\z")
 
 func NewIdentifier(s string) (Identifier, error) {
 	switch {

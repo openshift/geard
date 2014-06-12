@@ -66,7 +66,8 @@ func unitsMatching(conn systemd.Systemd, includeInactive bool, re *regexp.Regexp
 	return nil
 }
 
-var reContainerUnits = regexp.MustCompile("\\A" + regexp.QuoteMeta(containers.IdentifierPrefix) + "([^\\.]+)\\.service\\z")
+var reContainerUnits = regexp.MustCompile("\\A" + regexp.QuoteMeta(containers.IdentifierPrefix) + "(" + containers.IdentifierSuffixPattern + ")\\.service\\z")
+
 
 type listContainers struct {
 	*ListContainersRequest
