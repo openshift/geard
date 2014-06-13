@@ -6,7 +6,7 @@ go
 /gear
 geard
 switchns
-gear-auth-keys-command
+./gear-auth-keys-command
 gear.mac
 /bin
 /src

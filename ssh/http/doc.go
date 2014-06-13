@@ -1,4 +1,4 @@
 /*
-HTTP handlers for ssh-related jobs.
+Provides an HTTP extension that handles ssh-related jobs.
 */
 package http
