@@ -54,6 +54,7 @@ type InstallContainerRequest struct {
 
 	Id    containers.Identifier
 	Image string
+	Cmd   string
 
 	// A simple container is allowed to default to normal Docker
 	// options like -P.  If simple is true no user or home

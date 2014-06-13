@@ -47,6 +47,7 @@ func init() {
 
 	cmd.AddCommandExtension(cleancmd.RegisterCleanup, true)
 	cmd.AddCommandExtension(initcmd.RegisterInit, true)
+	cmd.AddCommandExtension(initcmd.RegisterLocal, true)
 	cmd.AddCommandExtension(routercmd.RegisterRouter, true)
 
 	jobs.AddJobExtension(cjobs.NewContainerExtension())
