@@ -27,6 +27,7 @@ func (j *deleteContainer) Execute(resp jobs.Response) {
 	homeDirPath := j.Id.BaseHomePath()
 	runDirPath := j.Id.RunPathFor()
 	networkLinksPath := j.Id.NetworkLinksPathFor()
+	envPath := j.Id.EnvironmentPathFor()
 
 	_, err := systemd.Connection().GetUnitProperties(unitName)
 	switch {
@@ -86,6 +87,10 @@ func (j *deleteContainer) Execute(resp jobs.Response) {
 
 	if err := os.RemoveAll(filepath.Dir(homeDirPath)); err != nil {
 		log.Printf("delete_container: Unable to remove home directory: %v", err)
+	}
+
+	if err := os.Remove(envPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("delete_container: Unable to remove env file: %v", err)
 	}
 
 	if _, err := systemd.Connection().DisableUnitFiles([]string{unitPath, socketUnitPath}, false); err != nil {
