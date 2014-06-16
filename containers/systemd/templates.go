@@ -64,7 +64,7 @@ X-ContainerType={{ if .Isolate }}isolated{{ else }}simple{{ end }}
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
 # Create data container
-ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint true "{{.Image}}"'
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint /bin/true "{{.Image}}"'
 ExecStartPre=-/usr/bin/docker rm "{{.Id}}"
 {{ if .Isolate }}# Initialize user and volumes
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"{{ end }}
@@ -87,7 +87,7 @@ ExecStop=-/usr/bin/docker stop "{{.Id}}"
 {{template "COMMON_UNIT" .}}
 {{template "COMMON_SERVICE" .}}
 # Create data container
-ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint true "{{.Image}}"'
+ExecStartPre=/bin/sh -c '/usr/bin/docker inspect --format="Reusing {{"{{.ID}}"}}" "{{.Id}}-data" || exec docker run --name "{{.Id}}-data" --volumes-from "{{.Id}}-data" --entrypoint /bin/true "{{.Image}}"'
 ExecStartPre=-/usr/bin/docker rm "{{.Id}}"
 {{ if .Isolate }}# Initialize user and volumes
 ExecStartPre={{.ExecutablePath}} init --pre "{{.Id}}" "{{.Image}}"{{ end }}

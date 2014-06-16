@@ -125,13 +125,11 @@ func downloadFile(url *url.URL, targetFile string, verbose bool) error {
 	sr := schemeReaders[url.Scheme]
 
 	reader, err := sr(url)
-
-	defer reader.Close()
-
 	if err != nil {
 		log.Printf("ERROR: Reading error while downloading %s (%s)\n", url.String(), err)
 		return err
 	}
+	defer reader.Close()
 
 	out, err := os.Create(targetFile)
 	defer out.Close()

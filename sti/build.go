@@ -233,7 +233,7 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 			return
 		}
 
-		err = chcon(SVirtSandboxFileLabel, containerInitDir)
+		err = chcon(SVirtSandboxFileLabel, containerInitDir, true)
 		if err != nil {
 			err = fmt.Errorf("unable to set SELinux context: %s", err.Error())
 			return
@@ -569,7 +569,7 @@ func (h requestHandler) saveArtifacts() error {
 			return err
 		}
 
-		err = chcon(SVirtSandboxFileLabel, containerInitDir)
+		err = chcon(SVirtSandboxFileLabel, containerInitDir, true)
 		if err != nil {
 			return fmt.Errorf("unable to set SELinux context: %s", err.Error())
 		}
