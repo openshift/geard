@@ -54,7 +54,7 @@ if $test_integration; then
   $geard_home/sti/test_images/buildimages.sh
   echo -e "done"
   go test -tags integration -c github.com/openshift/geard/tests $test_opts
-  sudo ./tests.test -gocheck.v $test_opts
+  sudo -E ./tests.test -gocheck.v $test_opts
 
   go test github.com/openshift/geard/sti -integration
 fi
