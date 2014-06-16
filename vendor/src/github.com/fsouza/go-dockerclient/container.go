@@ -175,7 +175,7 @@ type Config struct {
 	StdinOnce       bool
 	Env             []string
 	Cmd             []string
-	Dns             []string
+	Dns             []string // For Docker API v1.9 and below only
 	Image           string
 	Volumes         map[string]struct{}
 	VolumesFrom     string
@@ -205,8 +205,9 @@ type Container struct {
 	Name           string
 	Driver         string
 
-	Volumes   map[string]string
-	VolumesRW map[string]bool
+	Volumes    map[string]string
+	VolumesRW  map[string]bool
+	HostConfig *HostConfig
 }
 
 // InspectContainer returns information about a container by its ID.
@@ -275,6 +276,9 @@ func (c *Client) CreateContainer(opts CreateContainerOptions) (*Container, error
 	if err != nil {
 		return nil, err
 	}
+
+	container.Name = opts.Name
+
 	return &container, nil
 }
 
@@ -291,6 +295,10 @@ type HostConfig struct {
 	PortBindings    map[Port][]PortBinding
 	Links           []string
 	PublishAllPorts bool
+	Dns             []string // For Docker API v1.10 and above only
+	DnsSearch       []string
+	VolumesFrom     []string
+	NetworkMode     string
 }
 
 // StartContainer starts a container, returning an errror in case of failure.
@@ -460,20 +468,6 @@ type CommitContainerOptions struct {
 	Run        *Config `qs:"-"`
 }
 
-type Image struct {
-	ID              string    `json:"id"`
-	Parent          string    `json:"parent,omitempty"`
-	Comment         string    `json:"comment,omitempty"`
-	Created         time.Time `json:"created"`
-	Container       string    `json:"container,omitempty"`
-	ContainerConfig Config    `json:"container_config,omitempty"`
-	DockerVersion   string    `json:"docker_version,omitempty"`
-	Author          string    `json:"author,omitempty"`
-	Config          *Config   `json:"config,omitempty"`
-	Architecture    string    `json:"architecture,omitempty"`
-	Size            int64
-}
-
 // CommitContainer creates a new image from a container's changes.
 //
 // See http://goo.gl/628gxm for more details.
@@ -525,6 +519,9 @@ type AttachToContainerOptions struct {
 	// It must be an unbuffered channel. Using a buffered channel can lead
 	// to unexpected behavior.
 	Success chan struct{}
+
+	// Use raw terminal? Usually true when the container contains a TTY.
+	RawTerminal bool `qs:"-"`
 }
 
 // AttachToContainer attaches to a container, using the given options.
@@ -535,7 +532,31 @@ func (c *Client) AttachToContainer(opts AttachToContainerOptions) error {
 		return &NoSuchContainer{ID: opts.Container}
 	}
 	path := "/containers/" + opts.Container + "/attach?" + queryString(opts)
-	return c.hijack("POST", path, opts.Success, opts.InputStream, opts.ErrorStream, opts.OutputStream)
+	return c.hijack("POST", path, opts.Success, opts.RawTerminal, opts.InputStream, opts.ErrorStream, opts.OutputStream)
+}
+
+// LogsOptions represents the set of options used when getting logs from a
+// container.
+//
+// See http://goo.gl/rLhKSU for more details.
+type LogsOptions struct {
+	Container    string    `qs:"-"`
+	OutputStream io.Writer `qs:"-"`
+	Follow       bool
+	Stdout       bool
+	Stderr       bool
+	Timestamps   bool
+}
+
+// Logs gets stdout and stderr logs from the specified container.
+//
+// See http://goo.gl/rLhKSU for more details.
+func (c *Client) Logs(opts LogsOptions) error {
+	if opts.Container == "" {
+		return &NoSuchContainer{ID: opts.Container}
+	}
+	path := "/containers/" + opts.Container + "/logs?" + queryString(opts)
+	return c.stream("GET", path, nil, nil, opts.OutputStream)
 }
 
 // ResizeContainerTTY resizes the terminal to the given height and width.

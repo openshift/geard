@@ -21,9 +21,10 @@ func newTestClient(rt *FakeRoundTripper) Client {
 	endpoint := "http://localhost:4243"
 	u, _ := parseEndpoint("http://localhost:4243")
 	client := Client{
-		endpoint:    endpoint,
-		endpointURL: u,
-		client:      &http.Client{Transport: rt},
+		endpoint:               endpoint,
+		endpointURL:            u,
+		client:                 &http.Client{Transport: rt},
+		SkipServerVersionCheck: true,
 	}
 	return client
 }
@@ -597,6 +598,33 @@ func TestBuildImageRemoteWithoutName(t *testing.T) {
 	got := map[string][]string(req.URL.Query())
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("BuildImage: wrong query string. Want %#v. Got %#v.", expected, got)
+	}
+}
+
+func TestTagImageParameters(t *testing.T) {
+	fakeRT := &FakeRoundTripper{message: "", status: http.StatusOK}
+	client := newTestClient(fakeRT)
+	opts := TagImageOptions{Repo: "testImage"}
+	err := client.TagImage("base", opts)
+	if err != nil && strings.Index(err.Error(), "tag image fail") == -1 {
+		t.Fatal(err)
+	}
+	req := fakeRT.requests[0]
+	expected := "http://localhost:4243/images/base/tag?repo=testImage"
+	got := req.URL.String()
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("TagImage: wrong query string. Want %#v. Got %#v.", expected, got)
+	}
+}
+
+func TestTagImageMissingRepo(t *testing.T) {
+	fakeRT := &FakeRoundTripper{message: "", status: http.StatusOK}
+	client := newTestClient(fakeRT)
+	opts := TagImageOptions{Repo: "testImage"}
+	err := client.TagImage("", opts)
+	if err != ErrNoSuchImage {
+		t.Errorf("TestTag: wrong error returned. Want %#v. Got %#v.",
+			ErrNoSuchImage, err)
 	}
 }
 
