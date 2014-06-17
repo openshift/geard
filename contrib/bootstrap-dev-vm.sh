@@ -1,7 +1,7 @@
 #!/bin/bash
 echo "Installing dependencies and setting up vm for geard development"
 yum update -y
-yum install -y docker-io golang git hg bzr libselinux-devel vim tig glibc-static btrfs-progs-devel device-mapper-devel sqlite-devel libnetfilter_queue-devel gcc gcc-c++
+yum install -y docker-io golang git hg bzr libselinux-devel vim tig glibc-static btrfs-progs-devel device-mapper-devel sqlite-devel libnetfilter_queue-devel gcc gcc-c++ gdb cgdb
 usermod -a -G docker vagrant
 systemctl enable docker.service
 systemctl start docker
@@ -17,6 +17,13 @@ if [[ $(cat /etc/ssh/sshd_config | grep /gear-auth-keys-command) = "" ]]; then
   echo 'AuthorizedKeysCommandUser nobody' >> /etc/ssh/sshd_config
 else
   echo "AuthorizedKeysCommand already configured"
+fi
+
+# Set up gdb symbols
+if [[ $(cat ~vagrant/.gdbinit | grep add-auto-load-safe-path) = "" ]]; then
+  echo 'add-auto-load-safe-path /usr/lib/golang/src/pkg/runtime/runtime-gdb.py' >> ~vagrant/.gdbinit
+else
+  echo "gdb already configured"
 fi
 
 # SET GOPATH, GEARD_PATH
