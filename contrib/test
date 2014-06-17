@@ -4,10 +4,11 @@ source "$(dirname $0)/build-support"
 
 function usage() {
   echo "Usage: "
-  echo "    $0 -a -o <test options>"
+  echo "    $0 -a [-o <test options>] [-d <cgdb|gdb>]"
   echo " "
   echo "-a                Run integration tests"
   echo "-o <options>      Pass additional flags to integration tests"
+  echo "-d <debugger>     Run integration tests in debugger - accepts gdb or cgdb"
   exit
 }
 
@@ -17,12 +18,15 @@ setup_geard_build_env
 # Options parsing
 test_integration=false
 test_opts=""
+debug=false
+debugger=""
 geard_home=$(cd `dirname $0`/..; pwd)
 
-while getopts "ao:" o; do
+while getopts "ad:o:" o; do
   case "${o}" in
     (a) test_integration=true;;
     (o) test_opts=${OPTARG:-};;
+    (d) debug=true; debugger=${OPTARG};;
     (?) usage; break;;
   esac
 done
@@ -54,7 +58,12 @@ if $test_integration; then
   $geard_home/sti/test_images/buildimages.sh
   echo -e "done"
   go test -tags integration -c github.com/openshift/geard/tests $test_opts
-  sudo -E ./tests.test -gocheck.v $test_opts
+
+  if $debug; then
+    exec sudo -E $debugger ./tests.test
+  else
+    sudo -E ./tests.test -gocheck.v $test_opts
+  fi
 
   go test github.com/openshift/geard/sti -integration
 fi
