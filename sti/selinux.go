@@ -15,11 +15,17 @@ func selinuxEnabled() bool {
 	return false
 }
 
-func chcon(label, path string) error {
+func chcon(label, path string, recursive bool) error {
 	if selinuxEnabled() {
 		chconPath, err := exec.LookPath("chcon")
 		if err == nil {
-			chconCmd := exec.Command(chconPath, label, path)
+			var chconCmd *exec.Cmd
+			if recursive {
+				chconCmd = exec.Command(chconPath, "-R", label, path)
+			} else {
+				chconCmd = exec.Command(chconPath, label, path)
+			}
+
 			err = chconCmd.Run()
 			if err != nil {
 				return err
