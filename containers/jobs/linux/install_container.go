@@ -18,14 +18,6 @@ import (
 	"github.com/openshift/geard/utils"
 )
 
-func dockerPortSpec(p port.PortPairs) string {
-	var portSpec bytes.Buffer
-	for i := range p {
-		portSpec.WriteString(fmt.Sprintf("-p %d:%d ", p[i].External, p[i].Internal))
-	}
-	return portSpec.String()
-}
-
 type installContainer struct {
 	*InstallContainerRequest
 	systemd systemd.Systemd
@@ -100,13 +92,6 @@ func (req *installContainer) Execute(resp jobs.Response) {
 		resp.WritePendingSuccess(PendingPortMappingName, reserved)
 	}
 
-	var portSpec string
-	if req.Simple && len(reserved) == 0 {
-		portSpec = "-P"
-	} else {
-		portSpec = dockerPortSpec(reserved)
-	}
-
 	// write the environment to disk
 	var environmentPath string
 	if env != nil {
@@ -125,64 +110,61 @@ func (req *installContainer) Execute(resp jobs.Response) {
 		}
 	}
 
-	var sliceName string
-	if "" == req.SystemdSlice {
-		sliceName = DefaultSlice
-	} else {
-		sliceNames := []string{}
+	sliceName := DefaultSlice
+	if "" != req.SystemdSlice {
+		sliceNames := ListSliceNames()
 		sliceFound := false
-		for _, name := range ListSliceNames() {
-			sliceNames = append(sliceNames, name)
+		for _, name := range sliceNames {
 			if req.SystemdSlice == name {
+				sliceName = name
 				sliceFound = true
 				break
 			}
 		}
-
-		if sliceFound {
-			sliceName = req.SystemdSlice
-		} else {
+		if !sliceFound {
 			log.Printf("'%s' is not a valid systemd slice. Must be one of [%s]", req.SystemdSlice, strings.Join(sliceNames, ", "))
 			resp.Failure(ErrContainerCreateFailedInvalidSlice)
 			return
 		}
 	}
 
+	// a docker run command line
+	runSpec := bytes.Buffer{}
+	if req.Simple && len(reserved) == 0 {
+		runSpec.WriteString(" -P")
+	} else {
+		dockerPortSpec(runSpec, reserved)
+	}
+	if req.Isolate {
+		runSpec.WriteString(" --isolate")
+	}
+	runSpec.WriteString(fmt.Sprintf(" --name=\"%s\"", string(id)))
+	runSpec.WriteString(fmt.Sprintf(" \"%s\"", string(req.Image)))
+	if req.Cmd != "" {
+		runSpec.WriteString(fmt.Sprintf(" %s", req.Cmd))
+	}
+
 	// write the definition unit file
 	args := csystemd.ContainerUnit{
-		Id:       id,
-		Image:    req.Image,
-		PortSpec: portSpec,
-		Slice:    sliceName + ".slice",
-
-		Isolate: req.Isolate,
-
-		ReqId: req.RequestIdentifier.String(),
-
-		HomeDir:         id.HomePath(),
-		RunDir:          id.RunPathFor(),
-		EnvironmentPath: environmentPath,
-		ExecutablePath:  filepath.Join("/", "usr", "bin", "gear"),
-		IncludePath:     "",
-
+		Id:                   id,
+		Image:                req.Image,
+		Cmd:                  req.Cmd,
+		Slice:                sliceName + ".slice",
+		Isolate:              req.Isolate,
+		EnvironmentPath:      environmentPath,
 		PortPairs:            reserved,
 		SocketUnitName:       socketUnitName,
 		SocketActivationType: socketActivationType,
 
+		ReqId: req.RequestIdentifier.String(),
+
+		RunSpec: runSpec.String(),
+
+		ExecutablePath: filepath.Join("/", "usr", "bin", "gear"),
 		DockerFeatures: config.SystemDockerFeatures,
 	}
 
-	var templateName string
-	switch {
-	case req.SocketActivation:
-		templateName = "SOCKETACTIVATED"
-	case config.SystemDockerFeatures.ForegroundRun:
-		templateName = "FOREGROUND"
-	default:
-		templateName = "SIMPLE"
-	}
-
-	if erre := csystemd.ContainerUnitTemplate.ExecuteTemplate(unit, templateName, args); erre != nil {
+	if erre := csystemd.ContainerUnitTemplate.Execute(unit, args); erre != nil {
 		log.Printf("install_container: Unable to output template: %+v", erre)
 		resp.Failure(ErrContainerCreateFailed)
 		defer os.Remove(unitVersionPath)
@@ -249,6 +231,12 @@ func (req *installContainer) Execute(resp jobs.Response) {
 		fmt.Fprintf(w, "Container %s is starting\n", id)
 	} else {
 		fmt.Fprintf(w, "Container %s is installed\n", id)
+	}
+}
+
+func dockerPortSpec(b bytes.Buffer, p port.PortPairs) {
+	for i := range p {
+		b.WriteString(fmt.Sprintf(" -p %d:%d ", p[i].External, p[i].Internal))
 	}
 }
 
