@@ -16,6 +16,8 @@ func HttpJobFor(job interface{}) (exc client.RemoteExecutable, err error) {
 		exc = &HttpStopContainerRequest{StoppedContainerStateRequest: *j}
 	case *cjobs.RestartContainerRequest:
 		exc = &HttpRestartContainerRequest{RestartContainerRequest: *j}
+	case *cjobs.GetEnvironmentRequest:
+		exc = &HttpGetEnvironmentRequest{GetEnvironmentRequest: *j}
 	case *cjobs.PutEnvironmentRequest:
 		exc = &HttpPutEnvironmentRequest{PutEnvironmentRequest: *j}
 	case *cjobs.PatchEnvironmentRequest:

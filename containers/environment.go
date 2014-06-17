@@ -101,6 +101,11 @@ func (d *EnvironmentDescription) Empty() bool {
 }
 
 func (d *EnvironmentDescription) Check() error {
+	if d.Id != "" {
+		if _, err := NewIdentifier(string(d.Id)); err != nil {
+			return fmt.Errorf("invalid environment id: %s", err.Error())
+		}
+	}
 	for i := range d.Variables {
 		e := &d.Variables[i]
 		if err := e.Check(); err != nil {

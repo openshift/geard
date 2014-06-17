@@ -17,7 +17,7 @@ import (
 type Identifier string
 
 const IdentifierPrefix = "ctr-"
-const IdentifierSuffixPattern = "[a-zA-Z0-9\\-\\.]{4,24}"
+const IdentifierSuffixPattern = "[a-zA-Z0-9\\_\\-\\.]{4,24}"
 
 var InvalidIdentifier = Identifier("")
 var allowedIdentifier = regexp.MustCompile("\\A" + IdentifierSuffixPattern + "\\z")
@@ -25,9 +25,9 @@ var allowedIdentifier = regexp.MustCompile("\\A" + IdentifierSuffixPattern + "\\
 func NewIdentifier(s string) (Identifier, error) {
 	switch {
 	case s == "":
-		return InvalidIdentifier, errors.New("Identifier may not be empty")
+		return InvalidIdentifier, errors.New("identifier may not be empty")
 	case !allowedIdentifier.MatchString(s):
-		return InvalidIdentifier, errors.New("Identifier must match " + allowedIdentifier.String())
+		return InvalidIdentifier, errors.New("identifier must match " + allowedIdentifier.String())
 	}
 	return Identifier(s), nil
 }
@@ -42,7 +42,7 @@ func NewRandomIdentifier(prefix string) (Identifier, error) {
 
 func NewIdentifierFromUser(u *user.User) (Identifier, error) {
 	if !strings.HasPrefix(u.Username, IdentifierPrefix) || u.Name != "Container user" {
-		return InvalidIdentifier, errors.New("Not a container user")
+		return InvalidIdentifier, errors.New("not a container user")
 	}
 	id := strings.TrimPrefix(u.Username, IdentifierPrefix)
 	return NewIdentifier(id)
