@@ -1,4 +1,4 @@
 /*
-Provides job implementations for git API calls.
+Provides requests for git jobs.
 */
 package jobs
