@@ -142,7 +142,7 @@ func Build(req *STIRequest) (result *STIResult, err error) {
 		executeCallback(h.request.CallbackUrl, result)
 	}
 
-	return result, nil
+	return result, err
 }
 
 func (h requestHandler) buildInternal() (messages []string, imageID string, err error) {
@@ -233,7 +233,7 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 			return
 		}
 
-		err = chcon(SVirtSandboxFileLabel, containerInitDir)
+		err = chcon(SVirtSandboxFileLabel, containerInitDir, true)
 		if err != nil {
 			err = fmt.Errorf("unable to set SELinux context: %s", err.Error())
 			return
@@ -261,6 +261,16 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 		buildScript.Close()
 
 		binds = append(binds, containerInitDir+":"+ContainerInitDirPath)
+	}
+
+	// only run chcon if it's not an incremental build, as saveArtifacts will have
+	// already run chcon if it is incremental
+	if !h.request.incremental {
+		err = chcon(SVirtSandboxFileLabel, h.request.workingDir, true)
+		if err != nil {
+			err = fmt.Errorf("Unable to set SELinux context for %s: %s", h.request.workingDir, err.Error())
+			return
+		}
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}
@@ -559,7 +569,7 @@ func (h requestHandler) saveArtifacts() error {
 			return err
 		}
 
-		err = chcon(SVirtSandboxFileLabel, containerInitDir)
+		err = chcon(SVirtSandboxFileLabel, containerInitDir, true)
 		if err != nil {
 			return fmt.Errorf("unable to set SELinux context: %s", err.Error())
 		}
@@ -583,6 +593,12 @@ func (h requestHandler) saveArtifacts() error {
 		initScript.Close()
 
 		binds = append(binds, containerInitDir+":"+ContainerInitDirPath)
+	}
+
+	err = chcon(SVirtSandboxFileLabel, h.request.workingDir, true)
+	if err != nil {
+		err = fmt.Errorf("Unable to set SELinux context for %s: %s", h.request.workingDir, err.Error())
+		return err
 	}
 
 	hostConfig := docker.HostConfig{Binds: binds}

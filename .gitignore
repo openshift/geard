@@ -19,4 +19,5 @@ vendor/src/github.com/coreos/
 vendor/src/github.com/dotcloud/
 vendor/src/github.com/gorilla/
 vendor/src/github.com/kr
+vendor/src/launchpad.net
 contrib/demo/deploy_eap_cluster.json.*

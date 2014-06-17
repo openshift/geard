@@ -115,7 +115,7 @@ func (s *BuildIntegrationTestSuite) TestBuild(c *C) {
 
 func (s *BuildIntegrationTestSuite) buildImage(c *C, extendedParams cjobs.BuildImageRequest) {
 
-	cmd := exec.Command("/usr/bin/gear", "build", extendedParams.Source, extendedParams.BaseImage, extendedParams.Tag)
+	cmd := exec.Command("/usr/bin/gear", "build", extendedParams.Source, extendedParams.BaseImage, extendedParams.Tag, "--verbose")
 	data, err := cmd.CombinedOutput()
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)

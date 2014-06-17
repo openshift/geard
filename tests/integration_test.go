@@ -340,9 +340,7 @@ func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 	containers, err := s.dockerClient.ListContainers()
 	c.Assert(err, chk.IsNil)
 	for _, cinfo := range containers {
-		container, err := s.dockerClient.InspectContainer(cinfo.ID)
-		c.Assert(err, chk.IsNil)
-		if strings.HasPrefix(container.Name, "IntTest") {
+		if strings.HasPrefix(cinfo.Names[0], "IntTest") {
 			s.dockerClient.ForceCleanContainer(cinfo.ID)
 		}
 	}
