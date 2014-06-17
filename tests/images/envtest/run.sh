@@ -8,3 +8,5 @@ trap "kill %1" SIGTERM
 /bin/sleep 86400 &
 
 wait %1
+
+exit 0

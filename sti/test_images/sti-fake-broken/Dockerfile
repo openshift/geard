@@ -1,5 +1,10 @@
 FROM busybox
 RUN mkdir -p /sti-fake/src
+
+# FIXME: The 'default' user has conflicting UID (1000). This should be fixed in
+#        how geard handle UID's during isolation.
+#
+RUN deluser default
 WORKDIR /
 
 # Need to serve the scripts from localhost so any potential changes to the

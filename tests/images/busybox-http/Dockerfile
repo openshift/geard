@@ -1,5 +1,6 @@
 FROM mrunalp/busybox
 
+RUN deluser default
 RUN mkdir -p /usr/mock/source
 
 ADD index.html /usr/mock/source/index.html
