@@ -18,6 +18,7 @@ package dbus
 
 import (
 	"errors"
+
 	"github.com/godbus/dbus"
 )
 
@@ -99,7 +100,10 @@ func (c *Conn) StartUnit(name string, mode string) (string, error) {
 }
 
 func (c *Conn) StartUnitJob(name string, mode string) error {
-	_, err := c.startJob("org.freedesktop.systemd1.Manager.StartUnit", name, mode)
+	result, err := c.startJob("org.freedesktop.systemd1.Manager.StartUnit", name, mode)
+	go func() {
+		<-result
+	}()
 	return err
 }
 
@@ -110,7 +114,10 @@ func (c *Conn) StopUnit(name string, mode string) (string, error) {
 }
 
 func (c *Conn) StopUnitJob(name string, mode string) error {
-	_, err := c.startJob("org.freedesktop.systemd1.Manager.StopUnit", name, mode)
+	result, err := c.startJob("org.freedesktop.systemd1.Manager.StopUnit", name, mode)
+	go func() {
+		<-result
+	}()
 	return err
 }
 
