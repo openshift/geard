@@ -21,6 +21,7 @@ type ContainerInitScript struct {
 var ContainerInitTemplate = template.Must(template.New("container-init.sh").Parse(`#!/bin/sh
 {{ if .CreateUser }}
 if command -v useradd >/dev/null; then
+	groupadd -g {{.Gid}} {{.ContainerUser}}
 	useradd -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}
 else
 	adduser -u {{.Uid}} -g {{.Gid}} {{.ContainerUser}}
