@@ -13,10 +13,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/openshift/geard/cmd/switchns/namespace"
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
 	"github.com/openshift/geard/git"
+	"github.com/openshift/geard/namespace"
 )
 
 type Environment []string
