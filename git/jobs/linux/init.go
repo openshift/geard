@@ -1,6 +1,6 @@
 // +build linux
 
-package jobs
+package linux
 
 import (
 	"log"
