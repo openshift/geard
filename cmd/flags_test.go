@@ -1,8 +1,9 @@
 package cmd_test
 
 import (
-	. "github.com/openshift/geard/cmd"
 	"testing"
+
+	. "github.com/openshift/geard/cmd"
 )
 
 func TestGenerateId(t *testing.T) {

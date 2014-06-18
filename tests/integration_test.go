@@ -3,7 +3,6 @@
 package tests
 
 import (
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -340,7 +339,7 @@ func (s *IntegrationTestSuite) SetUpSuite(c *chk.C) {
 	containers, err := s.dockerClient.ListContainers()
 	c.Assert(err, chk.IsNil)
 	for _, cinfo := range containers {
-		if strings.HasPrefix(cinfo.Names[0], "IntTest") {
+		if strings.HasPrefix(cinfo.Names[0], "Test") {
 			s.dockerClient.ForceCleanContainer(cinfo.ID)
 		}
 	}
@@ -394,14 +393,8 @@ func (s *IntegrationTestSuite) TestInstallSimpleStart(c *chk.C) {
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/Te/ctr-TestInstallSimpleStart.service; enabled)"), chk.Equals, true)
 }
 
-var hasEnvFile = flag.Bool("env-file", true, "Test env-file feature")
-
-func (s *IntegrationTestSuite) TestInstallSimpleEnv(c *chk.C) {
-	if !*hasEnvFile {
-		c.Skip("-env-file not specified")
-	}
-
-	id, err := containers.NewIdentifier("TestInstallSimpleEnv")
+func (s *IntegrationTestSuite) TestInstallEnvFile(c *chk.C) {
+	id, err := containers.NewIdentifier("TestInstallEnvFile")
 	c.Assert(err, chk.IsNil)
 	s.containerIds = append(s.containerIds, id)
 
@@ -420,18 +413,40 @@ func (s *IntegrationTestSuite) TestInstallSimpleEnv(c *chk.C) {
 
 	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
 	data, err = cmd.CombinedOutput()
-
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
-	c.Assert(strings.Contains(string(data), "TEST=\"value\""), chk.Equals, true)
-	c.Assert(strings.Contains(string(data), "QUOTED=\"\\\"foo\\\"\""), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "TEST=value"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "QUOTED=\\\"foo\\\""), chk.Equals, true)
 	c.Assert(strings.Contains(string(data), "IGNORED"), chk.Equals, false)
+}
 
-	cmd = exec.Command("/usr/bin/gear", "stop", hostContainerId)
-	data, err = cmd.CombinedOutput()
+func (s *IntegrationTestSuite) TestInstallEnv(c *chk.C) {
+	id, err := containers.NewIdentifier("TestInstallEnv")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
+
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+	hostEnvId := fmt.Sprintf("%v/%v", s.daemonURI, "foobar")
+
+	cmd := exec.Command("/usr/bin/gear", "install", EnvImage, hostContainerId, "--env-id=foobar", "A=B", "C=D", "--start")
+	data, err := cmd.CombinedOutput()
+	c.Log(cmd.Args)
 	c.Log(string(data))
 	c.Assert(err, chk.IsNil)
-	s.assertContainerStops(c, id, true)
+	s.assertContainerStarts(c, id)
+
+	cmd = exec.Command("/usr/bin/gear", "status", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Assert(err, chk.IsNil)
+	c.Log(string(data))
+	c.Assert(strings.Contains(string(data), "A=B"), chk.Equals, true)
+	c.Assert(strings.Contains(string(data), "C=D"), chk.Equals, true)
+
+	cmd = exec.Command("/usr/bin/gear", "env", hostEnvId)
+	data, err = cmd.CombinedOutput()
+	c.Assert(err, chk.IsNil)
+	c.Log(string(data))
+	c.Assert(string(data), chk.Equals, "A=B\nC=D\n")
 }
 
 func (s *IntegrationTestSuite) TestInstallIsolateStart(c *chk.C) {

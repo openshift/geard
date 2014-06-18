@@ -2,7 +2,8 @@ package cmd
 
 import (
 	"crypto/rand"
-	"encoding/hex"
+
+	"github.com/openshift/geard/utils"
 )
 
 func GenerateId() string {
@@ -10,5 +11,5 @@ func GenerateId() string {
 	if _, err := rand.Read(b); err != nil {
 		return ""
 	}
-	return hex.EncodeToString(b)
+	return utils.Fingerprint(b).ToShortName()
 }

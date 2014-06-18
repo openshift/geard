@@ -38,7 +38,6 @@ func (e *Environment) FromString(s string) (bool, error) {
 	if len(pair) != 2 {
 		return false, nil
 	}
-	second := pair[1]
 
 	// trim the front of a variable, but nothing else
 	variable := strings.TrimLeft(pair[0], whiteSpaces)
@@ -46,8 +45,16 @@ func (e *Environment) FromString(s string) (bool, error) {
 		return false, fmt.Errorf("variable '%s' has white spaces", variable)
 	}
 
+	second, err := strconv.Unquote(pair[1])
+	if err != nil {
+		second = pair[1]
+	}
 	e.Name = variable
-	e.Value = second
+	e.Value = strings.TrimSpace(second)
+
+	if err := e.Check(); err != nil {
+		return false, err
+	}
 
 	return true, nil
 }
@@ -94,6 +101,11 @@ func (d *EnvironmentDescription) Empty() bool {
 }
 
 func (d *EnvironmentDescription) Check() error {
+	if d.Id != "" {
+		if _, err := NewIdentifier(string(d.Id)); err != nil {
+			return fmt.Errorf("invalid environment id: %s", err.Error())
+		}
+	}
 	for i := range d.Variables {
 		e := &d.Variables[i]
 		if err := e.Check(); err != nil {
@@ -161,7 +173,7 @@ func (j *EnvironmentDescription) Write(appends bool) error {
 
 	env := j.Variables
 	for i := range env {
-		if _, errw := fmt.Fprintf(file, "%s=%s\n", env[i].Name, strconv.Quote(env[i].Value)); errw != nil {
+		if _, errw := fmt.Fprintf(file, "%s=%s\n", env[i].Name, env[i].Value); errw != nil {
 			log.Print("job_environment: Unable to write to environment file: ", err)
 			return err
 		}
