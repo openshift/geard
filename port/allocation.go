@@ -33,7 +33,8 @@ func NewPortAllocator(base string, min, max Port) *PortAllocator {
 //
 func (a *PortAllocator) allocatePort() Port {
 	p := <-a.ports
-	log.Printf("ports: Reserved port %d", p)
+
+	//log.Printf("ports: Reserved port %d", p)
 	return p
 }
 
@@ -69,7 +70,8 @@ func (p *PortAllocator) findPorts() {
 		} else {
 			p.block += 1
 		}
-		log.Printf("ports: searching block %d, %d-%d", p.block, start, end-1)
+
+		//log.Printf("ports: searching block %d, %d-%d", p.block, start, end-1)
 
 		var taken []string
 		parent, _ := p.portPathsFor(start)
