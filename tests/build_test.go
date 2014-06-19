@@ -5,17 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	. "launchpad.net/gocheck"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"runtime"
 	"time"
-	. "launchpad.net/gocheck"
 
 	"github.com/fsouza/go-dockerclient"
 	cjobs "github.com/openshift/geard/containers/jobs"
-
 
 	chk "launchpad.net/gocheck"
 )
@@ -73,7 +72,7 @@ func (s *BuildIntegrationTestSuite) SetUpSuite(c *C) {
 	// get the full path to this .go file so we can get the correct path
 	// to the test_images directory
 	_, filename, _, _ := runtime.Caller(0)
-	testImagesDir := path.Join(path.Dir(filename), "..", "sti", "test_images")
+	testImagesDir := path.Join(path.Dir(filename), "..", "tests", "images")
 
 	// Need to serve the scripts from localhost so any potential changes to the
 	// scripts are made available for integration testing.

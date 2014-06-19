@@ -7,6 +7,7 @@ const (
 	ErrNoSuchBaseImage
 	ErrNoSuchRuntimeImage
 	ErrPullImageFailed
+	ErrScriptsDownloadFailed
 	ErrSaveArtifactsFailed
 	ErrCreateDockerfileFailed
 	ErrCreateContainerFailed
@@ -26,6 +27,8 @@ func (s StiError) Error() string {
 		return "Couldn't find runtime image"
 	case ErrPullImageFailed:
 		return "Couldn't pull image"
+	case ErrScriptsDownloadFailed:
+		return "Scripts download failed"
 	case ErrSaveArtifactsFailed:
 		return "Error saving artifacts for incremental build"
 	case ErrCreateDockerfileFailed:

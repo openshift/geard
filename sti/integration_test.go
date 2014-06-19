@@ -66,7 +66,7 @@ func (s *IntegrationTestSuite) SetUpSuite(c *C) {
 	// get the full path to this .go file so we can construct the file url
 	// using this file's dirname
 	_, filename, _, _ := runtime.Caller(0)
-	testImagesDir := path.Join(path.Dir(filename), "test_images")
+	testImagesDir := path.Join(path.Dir(path.Dir(filename)), "tests", "images")
 	FakeScriptsFileUrl = "file://" + path.Join(testImagesDir, "sti-fake", ".sti", "bin")
 
 	s.dockerClient, _ = docker.NewClient(DockerSocket)

@@ -4,29 +4,116 @@ source "$(dirname $0)/build-support"
 
 function usage() {
   echo "Usage: "
-  echo "    $0 -a [-o <test options>] [-d <cgdb|gdb>]"
+  echo "    $0 [-a|-g <group>] [-o <test options>] [-d <cgdb|gdb>]"
   echo " "
-  echo "-a                Run integration tests"
+  echo "-a                Run all tests"
+  echo "-v                Enable verbose output for integration tests"
+  echo "-g <group>        Select test group to run: all|units|geard|sti|<package>"
   echo "-o <options>      Pass additional flags to integration tests"
-  echo "-d <debugger>     Run integration tests in debugger - accepts gdb or cgdb"
+  echo "-d <debugger>     Run integration test groups in debugger - accepts gdb or cgdb"
   exit
+}
+
+function test_all() {
+  echo "[testing all]"
+  test_units
+  build_test_images
+  test_geard_integration
+  test_sti_integration
+  echo "[testing all finished]"
+}
+
+function test_units() {
+  echo "[unit tests]"
+  pushd $geard_home >/dev/null
+    go test $(find . -name *_test.go -printf "%h\n" | grep -v /vendor/ | grep -v /tests | sort | uniq | xargs echo)
+  popd >/dev/null
+}
+
+function build_test_images() {
+  echo "[building test images]"
+  for image_dir in `ls -d $geard_home/tests/images/* | sort -V`; do
+    pushd $image_dir >/dev/null
+      image_name=$(basename $image_dir)
+      echo " ---> $image_name"
+
+      case "$image_name" in
+        sti-fake-broken) ;&
+        sti-fake-user) ;&
+        sti-fake) docker build -t sti_test/$image_name . ;;
+        *) docker build -t openshift/$image_name . ;;
+      esac
+    popd >/dev/null
+  done  
+}
+
+function test_geard_integration() {
+  echo "[geard integration tests]"
+  test_package github.com/openshift/geard/tests "integration" "$test_opts"
+}
+
+function test_sti_integration() {
+  echo "[sti integration tests]"
+  test_package github.com/openshift/geard/sti "" "-integration \"$test_opts\""
+}
+
+function test_arbitrary_package() {
+  package=$1
+  echo "[test package $package]"
+  test_package $package "" "$test_opts"
+}
+
+function test_package() {
+  package=$1
+  tags=$2
+  opts=$3
+  binary="$(basename $package).test"
+
+  pushd $geard_home >/dev/null
+    rm -f ./binary
+
+    if [ -n "$tags" ]; then
+      tags="--tags $tags"
+    fi
+    go test $tags -c $package
+
+    if $debug; then
+      case "$debugger" in
+        cgdb) exec sudo -E cgdb --args ./$binary $opts;;
+        gdb) exec sudo -E gdb ./$binary $opts;;
+        *) echo "ERROR: unsupported debugger"; exit 255;;
+      esac
+    else
+      verbose_arg="-gocheck.v"
+      if $verbose; then
+        verbose_arg="-gocheck.vv"
+      fi
+
+      echo "sudo -E ./$binary $verbose_arg $opts"
+      sudo -E ./$binary $verbose_arg $opts
+      echo "Done"
+    fi
+  popd >/dev/null
 }
 
 # Construct a sane build environment
 setup_geard_build_env
 
 # Options parsing
-test_integration=false
+test_group=""
 test_opts=""
 debug=false
 debugger=""
+verbose=false
 geard_home=$(cd `dirname $0`/..; pwd)
 
-while getopts "ad:o:" o; do
+while getopts "avg:d:o:" o; do
   case "${o}" in
-    (a) test_integration=true;;
+    (a) test_group="all";;
+    (g) test_group=${OPTARG};;
     (o) test_opts=${OPTARG:-};;
     (d) debug=true; debugger=${OPTARG};;
+    (v) verbose=true;;
     (?) usage; break;;
   esac
 done
@@ -35,35 +122,10 @@ echo "Downloading test dependencies"
 go get -d -t github.com/gorilla/context github.com/gorilla/mux launchpad.net/gocheck
 echo "..done"
 
-rm -f tests.test
-
-pushd $geard_home >/dev/null
-  go test $(find . -name *_test.go -printf "%h\n" | grep -v /vendor/ | grep -v /tests | sort | uniq | xargs echo)
-popd >/dev/null
-
-if $test_integration; then
-  echo "Building test images"
-  for image_dir in $geard_home/tests/images/*/; do
-    pushd $image_dir >/dev/null
-      image_name=$(basename $image_dir)
-      echo " ---> $image_name"
-      docker build -t openshift/$image_name .
-    popd >/dev/null
-  done
-
-  echo -e "\nRunning integration tests\n"
-
-  # build the sti images needed for the gear build integration tests
-  echo -e "Building sti test images...."
-  $geard_home/sti/test_images/buildimages.sh
-  echo -e "done"
-  go test -tags integration -c github.com/openshift/geard/tests $test_opts
-
-  if $debug; then
-    exec sudo -E $debugger ./tests.test
-  else
-    sudo -E ./tests.test -gocheck.v $test_opts
-  fi
-
-  go test github.com/openshift/geard/sti -integration
-fi
+case "$test_group" in
+  all)   test_all;;
+  unit)  test_units;;
+  geard) build_test_images; test_geard_integration;;
+  sti)   build_test_images; test_sti_integration;;
+  *)     test_arbitrary_package $test_group;;
+esac
