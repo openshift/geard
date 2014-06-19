@@ -3,6 +3,7 @@ package sti
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"path"
 	"runtime"
 	"testing"
+	"time"
 
 	. "launchpad.net/gocheck"
 
@@ -73,6 +75,29 @@ func (s *IntegrationTestSuite) SetUpSuite(c *C) {
 	}
 
 	go http.ListenAndServe(":23456", http.FileServer(http.Dir(testImagesDir)))
+	fmt.Printf("Waiting for mock HTTP server to start...")
+	if err := waitForHttpReady(); err != nil {
+		fmt.Printf("[ERROR] Unable to start mock HTTP server: %s\n", err)
+	}
+	fmt.Println("done")
+}
+
+// Wait for the mock HTTP server to become ready to serve the HTTP requests.
+//
+func waitForHttpReady() error {
+	retryCount := 50
+	for {
+		if resp, err := http.Get("http://localhost:23456/"); err != nil {
+			resp.Body.Close()
+			if retryCount -= 1; retryCount > 0 {
+				time.Sleep(20 * time.Millisecond)
+			} else {
+				return err
+			}
+		} else {
+			return nil
+		}
+	}
 }
 
 func (s *IntegrationTestSuite) SetUpTest(c *C) {
