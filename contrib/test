@@ -8,7 +8,7 @@ function usage() {
   echo " "
   echo "-a                Run all tests"
   echo "-v                Enable verbose output for integration tests"
-  echo "-g <group>        Select test group to run: all|units|geard|sti|<package>"
+  echo "-g <group>        Select test group to run: all|unit|geard|sti|<package> - defaults to 'unit'"
   echo "-o <options>      Pass additional flags to integration tests"
   echo "-d <debugger>     Run integration test groups in debugger - accepts gdb or cgdb"
   exit
@@ -100,7 +100,7 @@ function test_package() {
 setup_geard_build_env
 
 # Options parsing
-test_group=""
+test_group="unit"
 test_opts=""
 debug=false
 debugger=""
