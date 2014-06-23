@@ -2,7 +2,7 @@
 geard.linux64
 go
 .project
-/tests.test
+/*.test
 /gear
 geard
 switchns

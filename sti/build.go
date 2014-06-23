@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/fsouza/go-dockerclient"
 )
@@ -19,7 +20,7 @@ const (
 	ContainerInitDirPath  = "/" + ContainerInitDirName
 )
 
-// Request contains essential fields for any request: a Configuration, a base image, and an
+// STIRequest contains essential fields for any request: a Configuration, a base image, and an
 // optional runtime image.
 type STIRequest struct {
 	BaseImage           string
@@ -360,13 +361,16 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 }
 
 func (h requestHandler) downloadScripts() error {
-	var wg sync.WaitGroup
+	var (
+		wg         sync.WaitGroup
+		errorCount int32 = 0
+	)
 
 	downloadAsync := func(scriptUrl *url.URL, targetFile string) {
 		defer wg.Done()
 		err := downloadFile(scriptUrl, targetFile, h.request.Verbose)
 		if err != nil {
-			log.Printf("Failed to download '%s' (%s)\n", scriptUrl, err.Error())
+			atomic.AddInt32(&errorCount, 1)
 		}
 	}
 
@@ -389,21 +393,15 @@ func (h requestHandler) downloadScripts() error {
 		}
 	}
 
-	targetSourceDir := filepath.Join(h.request.workingDir, "src")
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err = h.prepareSourceDir(h.request.Source, targetSourceDir, h.request.Ref)
-		if err != nil {
-			fmt.Printf("ERROR: Unable to fetch the application source.\n")
-		}
-	}()
-
 	// Wait for the scripts and the source code download to finish.
 	//
 	wg.Wait()
+	if errorCount > 0 {
+		return ErrScriptsDownloadFailed
+	}
 
-	return nil
+	targetSourceDir := filepath.Join(h.request.workingDir, "src")
+	return h.prepareSourceDir(h.request.Source, targetSourceDir, h.request.Ref)
 }
 
 func (h requestHandler) determineIncremental() error {
@@ -444,7 +442,7 @@ func (h requestHandler) getDefaultUrl() (string, error) {
 		}
 	}
 	if h.request.Verbose {
-		log.Printf("Image contains default script url %s", defaultScriptsUrl)
+		log.Printf("Image contains default script url '%s'", defaultScriptsUrl)
 	}
 	return defaultScriptsUrl, nil
 }
