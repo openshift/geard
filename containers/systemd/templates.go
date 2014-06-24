@@ -35,7 +35,7 @@ type ContainerUnit struct {
 var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
 [Unit]
 Description=Container {{.Id}}
-{{ if .SocketUnitName }}BindsTo={{.SocketUnitName}}{{ end }}
+{{ if and .SocketActivationType .SocketUnitName }}BindsTo={{.SocketUnitName}}{{ end }}
 
 [Service]
 Type=simple

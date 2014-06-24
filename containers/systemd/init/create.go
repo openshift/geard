@@ -9,6 +9,12 @@ import (
 
 type DataContainerPattern struct {
 	*docker.Client
+	Hooks []ContainerHook
+}
+
+type ContainerHook interface {
+	Update(image docker.Image, opt docker.CreateContainerOptions) (docker.CreateContainerOptions, error)
+	Alter(container docker.Container, client *docker.Client) error
 }
 
 var ErrImageRemoved = errors.New("the requested image was removed from the system")
@@ -21,7 +27,7 @@ func isNoSuchContainer(err error) bool {
 	return false
 }
 
-func (c *DataContainerPattern) Create(isolate bool, opt docker.CreateContainerOptions) error {
+func (c *DataContainerPattern) Create(opt docker.CreateContainerOptions) error {
 	pull := false
 
 	existing, err := c.InspectContainer(opt.Name)
@@ -77,13 +83,12 @@ func (c *DataContainerPattern) Create(isolate bool, opt docker.CreateContainerOp
 		}
 	}
 
-	if isolate {
-		originalCmd := opt.Config.Cmd
-		originalVolumes := opt.Config.Volumes
-		originalUser := opt.Config.User
-		if originalUser == "" {
-			originalUser = "container"
+	for i := range c.Hooks {
+		override, err := c.Hooks[i].Update(*image, opt)
+		if err != nil {
+			return err
 		}
+		opt = override
 	}
 
 	// create the active container
@@ -92,6 +97,13 @@ func (c *DataContainerPattern) Create(isolate bool, opt docker.CreateContainerOp
 			return ErrImageRemoved
 		}
 		return err
+	}
+
+	for i := range c.Hooks {
+		err := c.Hooks[i].Alter(*existing, c.Client)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

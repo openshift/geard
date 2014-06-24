@@ -1,52 +1,80 @@
 package init
 
 import (
-	"errors"
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
+	docker "github.com/fsouza/go-dockerclient"
+	"io/ioutil"
+	"log"
 	"os"
+	"os/user"
+	"strings"
+	"text/template"
 )
 
-func generateContainerIsolation(image docker.Image, opt docker.CreateContainerOptions) (docker.CreateContainerOptions, error) {
+type Isolator struct {
+	RunPath string
+	User    *user.User
+
+	initFile *os.File
+	cmdFile  *os.File
+}
+
+func (i *Isolator) Update(image docker.Image, opt docker.CreateContainerOptions) (docker.CreateContainerOptions, error) {
+	volumes := []string{}
+	for volume := range image.Config.Volumes {
+		volumes = append(volumes, volume)
+	}
+	cmd := image.Config.Entrypoint
+	if len(cmd) == 0 {
+		cmd = image.Config.Cmd
+	}
+	user := opt.Config.User
+	if user == "" {
+		user = image.Config.User
+	}
+
 	data := isolateInitScript{
-		image.Config.User == "",
+		user == "",
 		user,
-		u.Uid,
-		u.Gid,
-		strings.Join(image.Config.Cmd, " "),
+		i.User.Uid,
+		i.User.Gid,
+		strings.Join(cmd, " "),
 		len(volumes) > 0,
 		strings.Join(volumes, " "),
 	}
 
-	file, _, err := utils.OpenFileExclusive(path.Join(id.RunPathFor(), "container-init.sh"), 0700)
+	initFile, err := writeTemplateToTempFile(isolateInitTemplate, data, "", "container-init-sh")
 	if err != nil {
-		fmt.Printf("container init pre-start: Unable to open script file: %v\n", err)
-		return err
-	}
-	defer file.Close()
-
-	if erre := isolateInitTemplate.Execute(file, data); erre != nil {
-		fmt.Printf("container init pre-start: Unable to output template: ", erre)
-		return erre
-	}
-	if err := file.Close(); err != nil {
-		return err
+		return opt, fmt.Errorf("unable to write init script: %v", err)
 	}
 
-	file, _, err = utils.OpenFileExclusive(path.Join(id.RunPathFor(), "container-cmd.sh"), 0705)
+	cmdFile, err := writeTemplateToTempFile(isolateCmdTemplate, data, "", "container-cmd-sh")
 	if err != nil {
-		fmt.Printf("container init pre-start: Unable to open cmd script file: %v\n", err)
-		return err
+		os.Remove(initFile.Name())
+		return opt, fmt.Errorf("unable to write cmd script: %v", err)
 	}
-	defer file.Close()
 
-	if erre := isolateCmdTemplate.Execute(file, data); erre != nil {
-		fmt.Printf("container init pre-start: Unable to output cmd template: ", erre)
-		return erre
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
+	i.initFile = initFile
+	i.cmdFile = cmdFile
+
+	opt.Config.User = "root"
+	opt.Config.Entrypoint = []string{"/.container.init/container-init.sh"}
+
+	return opt, nil
+}
+
+func (i *Isolator) Alter(container docker.Container, client *docker.Client) error {
+	log.Printf("container: %+v", container)
+	info, _ := client.Info()
+	driver := info.Map()["Driver"]
+	log.Printf("info: %+v", info)
+	return nil
+}
+
+func (i *Isolator) Close() error {
+	os.Remove(i.cmdFile.Name())
+	os.Remove(i.initFile.Name())
+	return nil
 }
 
 type isolateInitScript struct {
@@ -83,3 +111,21 @@ exec su {{.ContainerUser}} -s /.container.init/container-cmd.sh
 var isolateCmdTemplate = template.Must(template.New("container-cmd.sh").Parse(`#!/bin/sh
 exec {{.Command}}
 `))
+
+func writeTemplateToTempFile(t *template.Template, data interface{}, path, prefix string) (*os.File, error) {
+	file, err := ioutil.TempFile(path, prefix)
+	if err != nil {
+		return nil, err
+	}
+	if err := t.Execute(file, data); err != nil {
+		file.Close()
+		os.Remove(file.Name())
+		return nil, err
+	}
+	if err := file.Close(); err != nil {
+		file.Close()
+		os.Remove(file.Name())
+		return nil, err
+	}
+	return file, nil
+}
