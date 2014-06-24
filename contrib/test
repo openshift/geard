@@ -24,18 +24,18 @@ function test_all() {
 }
 
 function test_units() {
-  echo "[unit tests]"
+  show "unit tests"
   pushd $geard_home >/dev/null
     go test $(find . -name *_test.go -printf "%h\n" | grep -v /vendor/ | grep -v /tests | sort | uniq | xargs echo)
   popd >/dev/null
 }
 
 function build_test_images() {
-  echo "[building test images]"
+  show "building test images"
   for image_dir in `ls -d $geard_home/tests/images/* | sort -V`; do
     pushd $image_dir >/dev/null
       image_name=$(basename $image_dir)
-      echo " ---> $image_name"
+      show "building $image_name"
 
       case "$image_name" in
         sti-fake-broken) ;&
@@ -44,22 +44,23 @@ function build_test_images() {
         *) docker build -t openshift/$image_name . ;;
       esac
     popd >/dev/null
-  done  
+  done
+  show "finished building test images"
 }
 
 function test_geard_integration() {
-  echo "[geard integration tests]"
+  show "geard integration tests"
   test_package github.com/openshift/geard/tests "integration" "$test_opts"
 }
 
 function test_sti_integration() {
-  echo "[sti integration tests]"
+  show "sti integration tests"
   test_package github.com/openshift/geard/sti "" "-integration \"$test_opts\""
 }
 
 function test_arbitrary_package() {
   package=$1
-  echo "[test package $package]"
+  show "test package $package"
   test_package $package "" "$test_opts"
 }
 
@@ -94,6 +95,13 @@ function test_package() {
       echo "Done"
     fi
   popd >/dev/null
+}
+
+function show() {
+  message=$1
+  ts="$(date +"%R:%S")"
+
+  echo "[$message - $ts]"
 }
 
 # Construct a sane build environment
