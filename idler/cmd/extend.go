@@ -8,7 +8,7 @@ import (
 	"github.com/openshift/geard/idler"
 	"github.com/openshift/geard/systemd"
 	"github.com/spf13/cobra"
-	
+
 	"net"
 	"strings"
 )
