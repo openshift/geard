@@ -433,7 +433,7 @@ func (h requestHandler) getDefaultUrl() (string, error) {
 		return "", err
 	}
 	var defaultScriptsUrl string
-	env := imageMetadata.ContainerConfig.Env
+	env := append(imageMetadata.ContainerConfig.Env, imageMetadata.Config.Env...)
 	for _, v := range env {
 		if strings.HasPrefix(v, "STI_SCRIPTS_URL=") {
 			t := strings.Split(v, "=")
