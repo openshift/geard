@@ -138,9 +138,7 @@ func Build(req *STIRequest) (result *STIResult, err error) {
 		}
 	}
 
-	messages, imageID, err := h.buildInternal()
-	result.Messages = messages
-	result.ImageID = imageID
+	result.Messages, result.ImageID, err = h.buildInternal()
 	if err == nil {
 		result.Success = true
 	}
