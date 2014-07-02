@@ -67,6 +67,9 @@ func (ctx *CommandContext) RegisterRemote(parent *cobra.Command) {
 	}
 	deployCmd.Flags().BoolVar(&(ctx.isolate), "isolate", false, "Use an isolated container running as a user")
 	deployCmd.Flags().Int64VarP(&(ctx.timeout), "timeout", "", 300, "Number of seconds to wait for a response")
+	deployCmd.Flags().StringVar(&(ctx.environment.Path), "env-file", "", "Path to an environment file to load")
+	deployCmd.Flags().StringVar(&(ctx.environment.Description.Source), "env-url", "", "A url to download environment files from")
+	deployCmd.Flags().StringVar((*string)(&(ctx.environment.Description.Id)), "env-id", "", "An optional identifier for the environment being set")
 	parent.AddCommand(deployCmd)
 
 	installImageCmd := &cobra.Command{
@@ -206,6 +209,10 @@ func (ctx *CommandContext) deployContainers(c *cobra.Command, args []string) {
 		cmd.Fail(1, "Valid arguments: <deployment_file|URL> <host> ...")
 	}
 
+	if err := ctx.environment.ExtractVariablesFrom(&args, true); err != nil {
+		cmd.Fail(1, err.Error())
+	}
+
 	t := ctx.Transport.Get()
 
 	path := args[0]
@@ -291,9 +298,10 @@ func (ctx *CommandContext) deployContainers(c *cobra.Command, args []string) {
 			return &cjobs.InstallContainerRequest{
 				RequestIdentifier: jobs.NewRequestIdentifier(),
 
-				Id:      instance.Id,
-				Image:   instance.Image,
-				Isolate: ctx.isolate,
+				Id:          instance.Id,
+				Image:       instance.Image,
+				Isolate:     ctx.isolate,
+				Environment: &ctx.environment.Description,
 
 				Ports:        instance.Ports.PortPairs(),
 				NetworkLinks: &links,
