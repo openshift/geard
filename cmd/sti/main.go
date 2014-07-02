@@ -50,12 +50,12 @@ func Execute() {
 	req = &sti.STIRequest{}
 
 	stiCmd := &cobra.Command{
-		Use:   "sti",
-		Short: "STI is a tool for building repeatable docker images",
-		Long: `A command-line interface for the sti library
-              Complete documentation is available at http://github.com/pmorie/go-sti`,
+		Use:  "sti",
+		Long: "Source-to-images (STI) is a tool for building repeatable docker images.\n\n"+
+			  "A command line interface that injects and assembles an application source into a docker image.\n"+
+			  "Complete documentation is available at http://github.com/openshift/geard/tree/master/sti",
 		Run: func(c *cobra.Command, args []string) {
-			c.Usage()
+			c.Help()
 		},
 	}
 	stiCmd.PersistentFlags().StringVarP(&(req.DockerSocket), "url", "U", "unix:///var/run/docker.sock", "Set the url of the docker socket to use")
@@ -74,9 +74,9 @@ func Execute() {
 	stiCmd.AddCommand(versionCmd)
 
 	buildCmd := &cobra.Command{
-		Use:   "build SOURCE BUILD_IMAGE APP_IMAGE_TAG",
-		Short: "Build an image",
-		Long:  "Build an image",
+		Use:   "build <source> <image> <tag>",
+		Short: "Build a new image",
+		Long:  "Build a new Docker image named <tag> from a source repository and base image.",
 		Run: func(c *cobra.Command, args []string) {
 			// if we're not verbose, make sure the logger doesn't print out timestamps
 			if !req.Verbose {
@@ -117,9 +117,9 @@ func Execute() {
 	stiCmd.AddCommand(buildCmd)
 
 	usageCmd := &cobra.Command{
-		Use:   "usage BUILD_IMAGE",
-		Short: "Print usage for assemble script associated with an image",
-		Long:  "Print usage for assemble script associated with an image",
+		Use:   "usage <image>",
+		Short: "Print usage of the assemble script associated with the image",
+		Long:  "Create and start a container from the image and invoke it's usage (run `assemble -h' script).",
 		Run: func(c *cobra.Command, args []string) {
 			// if we're not verbose, make sure the logger doesn't print out timestamps
 			if !req.Verbose {
