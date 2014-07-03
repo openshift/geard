@@ -23,7 +23,7 @@ Link the redis container to the application container on node1 and start it:
     $ gear start node1:43273/app1 
     
 Now, the application is able to use redis as if it were running locally at 127.0.0.1:6379.
-The IP Address could also be explicity specified as below:
+The IP Address could also be explicitly specified as below:
 
     $ gear link -n "127.0.0.1:6379:10.16.138.4:50000" node1:43273/app1
 
