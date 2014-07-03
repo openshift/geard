@@ -26,8 +26,9 @@ func init() {
 func main() {
 	gearCmd := &cobra.Command{
 		Use:   "gear",
-		Short: "Gear(d) is a tool for installing Docker containers to systemd",
-		Long:  "A commandline client and server that installs Docker containers to systemd.\n\nComplete documentation is available at http://github.com/openshift/geard",
+		Long: "Gear(d) is a tool for installing Docker containers to systemd.\n\n"+
+		      "A command line client and server that installs Docker containers as systemd units.\n"+
+		      "Complete documentation is available at http://github.com/openshift/geard",
 		Run: func(c *cobra.Command, args []string) {
 			c.Help()
 		},
