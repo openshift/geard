@@ -83,9 +83,9 @@ func Execute() {
 				log.SetFlags(0)
 			}
 
-			if len(args) == 0 {
-				c.Usage()
-				return
+			if len(args) < 3 {
+				fmt.Println("Valid arguments: <source> <image> <tag> ...")
+				os.Exit(1)
 			}
 
 			req.Source = args[0]
@@ -127,8 +127,8 @@ func Execute() {
 			}
 
 			if len(args) == 0 {
-				c.Usage()
-				return
+				fmt.Println("Valid arguments: <image>")
+				os.Exit(1)
 			}
 
 			req.BaseImage = args[0]

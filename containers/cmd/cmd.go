@@ -428,7 +428,7 @@ func (ctx *CommandContext) buildImage(c *cobra.Command, args []string) {
 	}
 
 	if len(args) < 3 {
-		cmd.Fail(1, "Valid arguments: <source> <build image> <tag> ...")
+		cmd.Fail(1, "Valid arguments: <source> <image> <tag> ...")
 	}
 
 	buildReq := &ctx.buildReq
