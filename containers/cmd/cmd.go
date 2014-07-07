@@ -288,12 +288,14 @@ func (ctx *CommandContext) deployContainers(c *cobra.Command, args []string) {
 		Serial: func(on cmd.Locator) cmd.JobRequest {
 			instance, _ := changes.Instances.Find(cloc.AsIdentifier(on))
 			links := instance.NetworkLinks()
+
 			return &cjobs.InstallContainerRequest{
 				RequestIdentifier: jobs.NewRequestIdentifier(),
 
-				Id:      instance.Id,
-				Image:   instance.Image,
-				Isolate: ctx.isolate,
+				Id:          instance.Id,
+				Image:       instance.Image,
+				Environment: instance.EnvironmentVariables(),
+				Isolate:     ctx.isolate,
 
 				Ports:        instance.Ports.PortPairs(),
 				NetworkLinks: &links,

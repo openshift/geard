@@ -21,6 +21,9 @@ type Instance struct {
 	// The mapping of internal, external, and remote ports
 	Ports PortMappings `json:"Ports,omitempty"`
 
+	// Extra environment variables set for the instance
+	Environment containers.EnvironmentVariables `json:",omitempty"`
+
 	// Was this instance added.
 	add bool
 	// Is this instance flagged for removal
@@ -42,6 +45,10 @@ func (i *Instance) NetworkLinks() containers.NetworkLinks {
 	return i.links.NetworkLinks()
 }
 
+func (i *Instance) EnvironmentVariables() *containers.EnvironmentDescription {
+	return &containers.EnvironmentDescription{Id: i.Id, Variables: i.Environment}
+}
+
 func (i *Instance) Added() bool {
 	return i.add
 }
@@ -60,9 +67,6 @@ func (i *Instance) ResolveHostname() (string, error) {
 		return "", errors.New(fmt.Sprintf("No locator available for this instance (can't resolve from %s)", i.On))
 	}
 	return i.on.ResolveHostname()
-}
-
-func (i *Instance) EnvironmentVariables() {
 }
 
 func (instances Instances) Find(id containers.Identifier) (*Instance, bool) {

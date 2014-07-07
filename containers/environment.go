@@ -61,6 +61,14 @@ func (e *Environment) FromString(s string) (bool, error) {
 
 type EnvironmentVariables []Environment
 
+func ToArray(v map[string]string) EnvironmentVariables {
+	env := make(EnvironmentVariables, 0, len(v))
+	for name := range v {
+		env = append(env, Environment{name, v[name]})
+	}
+	return env
+}
+
 func ExtractEnvironmentVariablesFrom(existing *[]string) (EnvironmentVariables, error) {
 	args := *existing
 	unchanged := make([]string, 0, len(args))
@@ -206,12 +214,12 @@ func (j *EnvironmentDescription) ReadFrom(r io.Reader) error {
 		return err
 	}
 
-	env := make(EnvironmentVariables, 0, len(all))
-	for name := range all {
-		e := Environment{name, all[name]}
-		env = append(env, e)
+	j.Variables = ToArray(all)
+
+	if err := j.Check(); err != nil {
+		return err
 	}
-	j.Variables = env
+
 	return nil
 }
 

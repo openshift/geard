@@ -208,10 +208,11 @@ func (d *Deployment) createInstances(c *Container) error {
 			return err
 		}
 		instance := &Instance{
-			Id:    id,
-			From:  c.Name,
-			Image: c.Image,
-			Ports: newPortMappings(c.PublicPorts),
+			Id:          id,
+			From:        c.Name,
+			Image:       c.Image,
+			Ports:       newPortMappings(c.PublicPorts),
+			Environment: c.Environment,
 
 			container: c,
 			add:       true,
@@ -248,8 +249,9 @@ func (d *Deployment) UpdateLinks() {
 type Container struct {
 	Name        string
 	Image       string
-	PublicPorts port.PortPairs `json:"PublicPorts,omitempty"`
-	Links       Links          `json:"Links,omitempty"`
+	PublicPorts port.PortPairs                  `json:"PublicPorts,omitempty"`
+	Links       Links                           `json:"Links,omitempty"`
+	Environment containers.EnvironmentVariables `json:",omitempty"`
 
 	Count    int
 	Affinity string `json:"Affinity,omitempty"`
