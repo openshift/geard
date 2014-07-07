@@ -147,7 +147,7 @@ Here are the supported container actions on the agent - these should map cleanly
         contain+    24    22  0 19:48 ?        00:00:00 ps -ef
         bash-4.2$
 
-*   Build a new image using [Source-to-Images](https://github.com/openshift/geard/tree/master/sti) from a source URL and base image
+*   Build a new image using [Source-to-Images (STI)](./sti) from a source URL and base image
 
         # build an image on the local system and tag it as mybuild-1
         $ gear build git://github.com/pmorie/simple-html pmorie/fedora-mock mybuild-1
@@ -312,7 +312,7 @@ Not yet prototyped:
 Building Images
 ---------------
 
-geard uses [Source to Images (STI)](./sti)
+geard uses [Source-to-Images (STI)](./sti)
 to build deployable images from a base image and application source.  STI supports a number of
 use cases for building deployable images, including:
 
@@ -321,11 +321,11 @@ use cases for building deployable images, including:
 
 A number of public STI base images exist:
 
-1. `openshift/centos-ruby` - ruby on centos
-1. `openshift/centos-wildfly-standalone` - wildfly on centos
-1. `pmorie/fedora-mock` - a simple Webrick server for static html, on fedora
+1. [Ruby 1.9 on CentOS 6.x](https://github.com/openshift/ruby-19-centos)
+1. [Wildfly 8 on CentOS 6.x](https://github.com/openshift/wildfly-8-centos)
+1. [WEBrick, a simple Ruby HTTP server, on latest Fedora](https://github.com/pmorie/fedora-mock)
 
-See the STI docs for information on creating your own base images to use with STI.
+See the [STI docs](./sti) if you want to create your own STI base image.
 
 
 License
