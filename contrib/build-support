@@ -20,3 +20,40 @@ function setup_geard_build_env() {
   # Allow portable references to binaries like cp
   export PATH=$PATH:/bin:/usr/bin:/usr/local/bin
 }
+
+# Run job in background, redirect its output to a non-blocking pipe,
+# and leave the rc and stdout/stderr to be handled by attach_wait_jobs()
+jobs_tmp_dirs=""
+function run_job() {
+    local dir=$(mktemp -d -t gearXXXXXX)
+    jobs_tmp_dirs="$jobs_tmp_dirs $dir"
+    mkfifo $dir/pipe
+    mkfifo $dir/pipe_nonblock
+    "$@" &>$dir/pipe_nonblock &
+    echo $! >$dir/pid
+    cat $dir/pipe_nonblock | cat >$dir/pipe &
+}
+
+# Attach to all jobs being executed by run() one by one in the
+# execution order, wait for them to finish and return on error
+function attach_wait_jobs() {
+    for dir in $jobs_tmp_dirs; do
+        cat $dir/pipe
+        wait $(<$dir/pid)
+        local rc=$?
+        [ $rc -eq 0 ] || exit $rc
+    done
+    cleanup_jobs
+}
+
+# Terminate jobs and cleanup temporary files
+trap 'cleanup_jobs' EXIT
+function cleanup_jobs() {
+    local rc=$?
+    { pkill -TERM -P $$; } &>/dev/null || :
+    for dir in $jobs_tmp_dirs; do
+        rm -rf $dir || :
+    done
+    jobs_tmp_dirs=""
+    return $rc
+}
