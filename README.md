@@ -112,6 +112,7 @@ Here are the supported container actions on the agent - these should map cleanly
 *   [Link containers](./docs/linking.md) with local loopback ports (for e.g. 127.0.0.2:8081 -> 9.8.23.14:8080). If local ip isn't specified, it defaults to 127.0.0.1
 
         $ gear link -n=127.0.0.2:8081:9.8.23.14:8080 localhost/my-sample-service
+        $ curl -X PUT -H "Content-Type: application/json" "http://localhost:43273/container/my-sample-service" -d '{"Image": "openshift/busybox-http-app", "Started":true, "Ports":[{"Internal":8080}], "NetworkLinks": [{"FromHost": "127.0.0.1","FromPort": 8081, "ToHost": "9.8.23.14","ToPort": 8080}]}'
 
 *   Set a public key as enabling SSH or Git SSH access to a container or repository (respectively)
 
