@@ -30,6 +30,28 @@ function build_geard_service() {
   echo "..done"
 }
 
+# Build artifact
+# Parameters:
+#   $1 .. $artifact
+#   $2 .. $cc_message
+#   $3 .. $version
+#   $4 .. $flags
+#   $5 .. $tags
+function build_artifact() {
+  echo ""
+  echo "------------------------------------------"
+  echo "Building ${1}${2}..."
+  echo "------------------------------------------"
+
+  if ! go install -ldflags "-X main.version '$3'" -gcflags "$4" -tags "$5" "github.com/openshift/geard/$1"; then
+    echo -e "\n===> FAILED"
+    echo -e "\nExiting due to build failures." 1>&2
+    exit 2
+  else
+    echo -e "===> Success"
+  fi
+}
+
 # Performs a local go install of geard.
 function build_local() {
   if ! $skip_go_get; then
@@ -53,32 +75,15 @@ function build_local() {
     copy_binaries=false
   fi
   local cc_message=" (target: $GOOS)"
-
-  local build_success=true
+  if ! $enable_optimizations; then
+    local flags=("-N -l")
+  fi
 
   local version="version $(git describe --abbrev=0 --tags), build $(git rev-parse --short HEAD)"
   for artifact in ${artifacts[@]}; do
-    echo ""
-    echo "------------------------------------------"
-    echo "Building ${artifact}${cc_message}..."
-    echo "------------------------------------------"
-
-    if ! $enable_optimizations; then
-      local flags=("-N -l")
-    fi
-
-    if ! go install -ldflags "-X main.version '$version'" -gcflags "${flags[@]:-}" -tags "$tags" "github.com/openshift/geard/${artifact}"; then
-      echo -e "\n===> FAILED"
-      build_success=false
-    else
-      echo -e "===> Success"
-    fi
+    run_job build_artifact "$artifact" "$cc_message" "$version" "${flags[@]:-}" "$tags"
   done
-
-  if ! $build_success; then
-    echo -e "\nExiting due to build failures." 1>&2
-    exit 2
-  fi
+  attach_wait_jobs
 
   if $copy_binaries; then
     echo ""

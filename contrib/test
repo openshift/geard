@@ -16,8 +16,9 @@ function usage() {
 
 function test_all() {
   echo "[testing all]"
-  test_units
-  build_test_images
+  run_job test_units
+  run_job build_test_images
+  attach_wait_jobs
   test_geard_integration
   test_sti_integration
   echo "[testing all finished]"
