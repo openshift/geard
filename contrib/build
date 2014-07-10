@@ -56,7 +56,13 @@ function build_local() {
 
   local build_success=true
 
-  local version="version $(git describe --abbrev=0 --tags), build $(git rev-parse --short HEAD)"
+  # You can override the version string by setting the
+  # GEARD_VERSION='version 0.x, build SHORT_GIT_HASH'
+  #
+  local GEARD_VERSION=${GEARD_VERSION:-"version $(git describe --abbrev=0 --tags), build $(git rev-parse --short HEAD)"}
+
+  echo "Version: ${GEARD_VERSION}"
+
   for artifact in ${artifacts[@]}; do
     echo ""
     echo "------------------------------------------"
@@ -67,7 +73,7 @@ function build_local() {
       local flags=("-N -l")
     fi
 
-    if ! go install -ldflags "-X main.version '$version'" -gcflags "${flags[@]:-}" -tags "$tags" "github.com/openshift/geard/${artifact}"; then
+    if ! go install -ldflags "-X main.version '${GEARD_VERSION}'" -gcflags "${flags[@]:-}" -tags "$tags" "github.com/openshift/geard/${artifact}"; then
       echo -e "\n===> FAILED"
       build_success=false
     else
