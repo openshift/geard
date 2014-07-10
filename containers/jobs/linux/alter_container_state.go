@@ -29,6 +29,9 @@ func propIncludesString(value interface{}, key string) bool {
 
 func inStateOrTooSoon(id containers.Identifier, unit string, active, transition bool, rateLimit uint64) (inState bool, tooSoon bool) {
 	if props, erru := systemd.Connection().GetUnitProperties(unit); erru == nil {
+		if props["LoadState"] == "not-found" {
+			return
+		}
 		switch props["ActiveState"] {
 		case "active":
 			if active {
