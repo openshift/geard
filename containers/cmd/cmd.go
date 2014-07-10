@@ -108,6 +108,8 @@ func (ctx *CommandContext) RegisterRemote(parent *cobra.Command) {
 	buildCmd.Flags().StringVar(&(ctx.environment.Path), "env-file", "", "Path to an environment file to load")
 	buildCmd.Flags().StringVar(&(ctx.environment.Description.Source), "env-url", "", "A url to download environment files from")
 	buildCmd.Flags().StringVarP(&(ctx.buildReq.ScriptsUrl), "scripts", "s", "", "Specify a URL for the assemble and run scripts")
+	buildCmd.Flags().BoolVar(&(ctx.buildReq.RemovePreviousImage), "rm", false, "Remove the previous image during incremental builds")
+
 	parent.AddCommand(buildCmd)
 
 	setEnvCmd := &cobra.Command{
