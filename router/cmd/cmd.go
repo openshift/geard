@@ -133,7 +133,7 @@ func (e *Command) test(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// good so far, now delete the testfrontend 
+	// good so far, now delete the testfrontend
 	router.DeleteFrontend(frontendname)
 	_, ok = router.GlobalRoutes[frontendname]
 	if ok {
@@ -167,8 +167,8 @@ func (e *Command) createFrontend(cmd *cobra.Command, args []string) {
 		On: Locators{id},
 		Serial: func(on Locator) JobRequest {
 			return &rjobs.CreateFrontendRequest{
-				Frontend:   on.(*ResourceLocator).Id,
-				Alias: alias,
+				Frontend: on.(*ResourceLocator).Id,
+				Alias:    alias,
 			}
 		},
 		Output:    os.Stdout,
@@ -194,8 +194,8 @@ func (e *Command) addAlias(cmd *cobra.Command, args []string) {
 		On: Locators{id},
 		Serial: func(on Locator) JobRequest {
 			return &rjobs.AddAliasRequest{
-				Frontend:   on.(*ResourceLocator).Id,
-				Alias: args[1],
+				Frontend: on.(*ResourceLocator).Id,
+				Alias:    args[1],
 			}
 		},
 		Output:    os.Stdout,
@@ -234,11 +234,11 @@ func (e *Command) addRoute(cmd *cobra.Command, args []string) {
 		On: Locators{id},
 		Serial: func(on Locator) JobRequest {
 			return &rjobs.AddRouteRequest{
-				Frontend:          on.(*ResourceLocator).Id,
+				Frontend:     on.(*ResourceLocator).Id,
 				FrontendPath: r.FrontendPath,
 				BackendPath:  r.BackendPath,
 				Protocols:    r.Protocols,
-				Endpoints:      r.Endpoints,
+				Endpoints:    r.Endpoints,
 			}
 		},
 		Output:    os.Stdout,
@@ -261,6 +261,10 @@ func removeBackend(cmd *cobra.Command, args []string) {
 }
 
 func (e *Command) removeFrontend(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println("One valid argument expected. (<host>/<id> | <id>)")
+		return
+	}
 	t := e.Transport.Get()
 	id, err := NewResourceLocator(t, "router", args[0])
 	if err != nil {
@@ -297,10 +301,12 @@ func (e *Command) removeRoute(cmd *cobra.Command, args []string) {
 	frontendname := args[0]
 	epid := args[1]
 
+	fmt.Printf("Deleting route %s from %s\n", epid, frontendname)
 	delete(router.GlobalRoutes[frontendname].EndpointTable, epid)
 
 	for _, be := range router.GlobalRoutes[frontendname].BeTable {
 		i := exists(be.EndpointIds, epid)
+		fmt.Printf("Deleting route %s from be_table, %d\n", epid, i)
 		if i != -1 {
 			// Bug here : https://code.google.com/p/go/issues/detail?id=3117
 			// router.GlobalRoutes[frontendname].BeTable[be_id].EndpointIds = a
@@ -308,9 +314,12 @@ func (e *Command) removeRoute(cmd *cobra.Command, args []string) {
 			a := be.EndpointIds
 			a[len(a)-1], a[i], a = "", a[len(a)-1], a[:len(a)-1]
 			be.EndpointIds = a
+			fmt.Printf("Deletion successful\n")
 			break
 		}
 	}
+	router.WriteRoutes()
+	router.BumpRouter()
 }
 
 func (e *Command) printFrontendRoutes(cmd *cobra.Command, args []string) {
