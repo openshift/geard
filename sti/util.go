@@ -124,6 +124,10 @@ func tarDirectory(dir string) (*os.File, error) {
 func downloadFile(url *url.URL, targetFile string, verbose bool) error {
 	sr := schemeReaders[url.Scheme]
 
+	if sr == nil {
+		log.Printf("ERROR: No URL handler found for url %s", url.String())
+		return fmt.Errorf("ERROR: No URL handler found for url %s", url.String())
+	}
 	reader, err := sr(url)
 	if err != nil {
 		log.Printf("ERROR: Reading error while downloading %s (%s)\n", url.String(), err)
