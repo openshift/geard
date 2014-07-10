@@ -98,10 +98,16 @@ func switchns(c *cobra.Command, args []string) {
 func switchnsExec(args []string) {
 	var err error
 
+	client, err := docker.GetConnection("unix:///var/run/docker.sock")
+	if err != nil {
+		fmt.Printf("Unable to connect to server\n")
+		os.Exit(3)
+	}
+
 	uid := os.Getuid()
 
 	if uid == 0 {
-		runCommandInContainer(containerName, args, envs)
+		runCommandInContainer(client, containerName, args, envs)
 	} else {
 		var u *user.User
 		var containerId containers.Identifier
@@ -115,7 +121,7 @@ func switchnsExec(args []string) {
 			fmt.Printf("Couldn't get identifier from user: %v\n", u)
 			os.Exit(2)
 		}
-		runCommandInContainer(containerId.ContainerFor(), []string{"/bin/sh", "-l"}, []string{})
+		runCommandInContainer(client, containerId.ContainerFor(), []string{"/bin/sh", "-l"}, []string{})
 	}
 }
 
@@ -142,7 +148,13 @@ func switchnsGit() {
 			os.Exit(2)
 		}
 		env := []string{fmt.Sprintf("HOME=%s", repoId.RepositoryPathFor())}
-		runCommandInContainer("geard-githost", []string{"/usr/bin/git-shell", "-c", originalCommand}, env)
+		client, err := docker.GetConnection("unix:///var/run/docker.sock")
+		if err != nil {
+			fmt.Printf("Unable to connect to server\n")
+			os.Exit(3)
+		}
+
+		runCommandInContainer(client, "geard-githost", []string{"/usr/bin/git-shell", "-c", originalCommand}, env)
 	} else {
 		fmt.Println("Cannot switch into any git repo as root user")
 		os.Exit(2)
@@ -159,35 +171,7 @@ func isValidGitCommand(command string, isReadOnlyUser bool) bool {
 	return true
 }
 
-func runCommandInContainer(name string, command []string, environment []string) {
-	if len(command) == 0 {
-		fmt.Println("No command specified")
-		os.Exit(3)
-	}
-
-	client, err := docker.GetConnection("unix:///var/run/docker.sock")
-	if err != nil {
-		fmt.Printf("Unable to connect to server\n")
-		os.Exit(3)
-	}
-
-	container, err := client.InspectContainer(name)
-	if err != nil {
-		fmt.Printf("Unable to locate container named %v\n", name)
-		os.Exit(3)
-	}
-	containerNsPID, err := client.ChildProcessForContainer(container)
-	if err != nil {
-		fmt.Println("Couldn't create child process for container")
-		os.Exit(3)
-	}
-
-	containerEnv := environment
-
-	if len(containerEnv) == 0 {
-		containerEnv = container.Config.Env
-	}
-
-	exitCode, _ := namespace.RunIn(name, containerNsPID, command, containerEnv)
+func runCommandInContainer(client *docker.DockerClient, name string, command []string, environment []string) {
+	exitCode, _ := namespace.RunCommandInContainer(client, name, command, environment)
 	os.Exit(exitCode)
 }

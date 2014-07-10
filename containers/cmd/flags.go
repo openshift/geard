@@ -10,6 +10,32 @@ import (
 	"github.com/openshift/geard/port"
 )
 
+type VolumeConfig struct {
+	*containers.VolumeConfig
+}
+
+func (v *VolumeConfig) Get() interface{} {
+	return v.VolumeConfig
+}
+
+func (v *VolumeConfig) String() string {
+	if v.VolumeConfig == nil {
+		return ""
+	}
+	return v.VolumeConfig.String()
+}
+
+func (v *VolumeConfig) Set(s string) error {
+	volumeConfig, err := containers.VolumeConfigFromString(s)
+	if err != nil {
+		fmt.Println(os.Stderr, err.Error())
+		return err
+	}
+
+	v.VolumeConfig = volumeConfig
+	return nil
+}
+
 type PortPairs struct {
 	*port.PortPairs
 }

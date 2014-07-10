@@ -44,6 +44,7 @@ type CommandContext struct {
 	environment  EnvironmentDescription
 	portPairs    PortPairs
 	networkLinks NetworkLinks
+	volumeConfig VolumeConfig
 
 	deploymentPath string
 
@@ -77,6 +78,7 @@ func (ctx *CommandContext) RegisterRemote(parent *cobra.Command) {
 	}
 	installImageCmd.Flags().VarP(&(ctx.portPairs), "ports", "p", "List of comma separated port pairs to bind '<internal>:<external>,...'. Use zero to request a port be assigned.")
 	installImageCmd.Flags().VarP(&(ctx.networkLinks), "net-links", "n", "List of comma separated port pairs to wire '<local_host>:<local_port>:<remote_host>:<remote_port>,...'. local_host may be empty. It defaults to 127.0.0.1.")
+	installImageCmd.Flags().VarP(&(ctx.volumeConfig), "volumes", "v", "List of comma separated volume and bind-mount specs")
 	installImageCmd.Flags().BoolVar(&(ctx.start), "start", false, "Start the container immediately")
 	installImageCmd.Flags().BoolVar(&(ctx.isolate), "isolate", false, "Use an isolated container running as a user")
 	installImageCmd.Flags().BoolVar(&(ctx.sockAct), "socket-activated", false, "Use a socket-activated container (experimental, requires Docker branch)")
@@ -417,6 +419,7 @@ func (ctx *CommandContext) installImage(c *cobra.Command, args []string) {
 				Ports:        *ctx.portPairs.Get().(*port.PortPairs),
 				Environment:  &ctx.environment.Description,
 				NetworkLinks: ctx.networkLinks.NetworkLinks,
+				VolumeConfig: ctx.volumeConfig.VolumeConfig,
 				SystemdSlice: ctx.systemdSlice,
 			}
 			return &r
