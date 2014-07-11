@@ -3,12 +3,12 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/router"
 	rjobs "github.com/openshift/geard/router/jobs"
 	"github.com/openshift/geard/transport"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 type Command struct {
@@ -46,7 +46,7 @@ func (e *Command) RegisterRouterCmds(parent *cobra.Command) {
 
 	testCmd = &cobra.Command{
 		Use:   "delete-frontend",
-		Short: "Delete an existing from the router.",
+		Short: "Delete an existing frontend from the router.",
 		Run:   e.removeFrontend,
 	}
 	routerCmd.AddCommand(testCmd)
@@ -133,7 +133,7 @@ func (e *Command) test(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// good so far, now delete the testfrontend 
+	// good so far, now delete the testfrontend
 	router.DeleteFrontend(frontendname)
 	_, ok = router.GlobalRoutes[frontendname]
 	if ok {
@@ -167,8 +167,8 @@ func (e *Command) createFrontend(cmd *cobra.Command, args []string) {
 		On: Locators{id},
 		Serial: func(on Locator) JobRequest {
 			return &rjobs.CreateFrontendRequest{
-				Frontend:   on.(*ResourceLocator).Id,
-				Alias: alias,
+				Frontend: on.(*ResourceLocator).Id,
+				Alias:    alias,
 			}
 		},
 		Output:    os.Stdout,
@@ -194,8 +194,8 @@ func (e *Command) addAlias(cmd *cobra.Command, args []string) {
 		On: Locators{id},
 		Serial: func(on Locator) JobRequest {
 			return &rjobs.AddAliasRequest{
-				Frontend:   on.(*ResourceLocator).Id,
-				Alias: args[1],
+				Frontend: on.(*ResourceLocator).Id,
+				Alias:    args[1],
 			}
 		},
 		Output:    os.Stdout,
@@ -234,11 +234,11 @@ func (e *Command) addRoute(cmd *cobra.Command, args []string) {
 		On: Locators{id},
 		Serial: func(on Locator) JobRequest {
 			return &rjobs.AddRouteRequest{
-				Frontend:          on.(*ResourceLocator).Id,
+				Frontend:     on.(*ResourceLocator).Id,
 				FrontendPath: r.FrontendPath,
 				BackendPath:  r.BackendPath,
 				Protocols:    r.Protocols,
-				Endpoints:      r.Endpoints,
+				Endpoints:    r.Endpoints,
 			}
 		},
 		Output:    os.Stdout,
