@@ -447,9 +447,11 @@ func TestNewDeploymentFromURL_Secure(t *testing.T) {
 }
 
 func TestNewDeploymentFromURL_Timeout(t *testing.T) {
+	done := make(chan struct{})
 	server := httptest.NewTLSServer(gohttp.HandlerFunc(func(w gohttp.ResponseWriter, r *gohttp.Request) {
 		time.Sleep(2 * time.Second)
 		w.Write([]byte("{}"))
+		close(done)
 	}))
 	defer server.Close()
 
@@ -464,4 +466,5 @@ func TestNewDeploymentFromURL_Timeout(t *testing.T) {
 		t.Errorf("TestDeployment_NewDeploymentFromURL_Timeout: Expected timeout err, not: %v", err)
 
 	}
+	<-done
 }
