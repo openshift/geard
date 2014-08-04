@@ -1,12 +1,14 @@
-package main
+package nsinit
 
 import (
 	"log"
 	"os"
+	"runtime"
 	"strconv"
 
 	"github.com/codegangsta/cli"
 	"github.com/docker/libcontainer/namespaces"
+	"github.com/docker/libcontainer/syncpipe"
 )
 
 var (
@@ -22,6 +24,8 @@ var (
 )
 
 func initAction(context *cli.Context) {
+	runtime.LockOSThread()
+
 	container, err := loadContainer()
 	if err != nil {
 		log.Fatal(err)
@@ -37,7 +41,7 @@ func initAction(context *cli.Context) {
 		log.Fatal(err)
 	}
 
-	syncPipe, err := namespaces.NewSyncPipeFromFd(0, uintptr(pipeFd))
+	syncPipe, err := syncpipe.NewSyncPipeFromFd(0, uintptr(pipeFd))
 	if err != nil {
 		log.Fatalf("unable to create sync pipe: %s", err)
 	}

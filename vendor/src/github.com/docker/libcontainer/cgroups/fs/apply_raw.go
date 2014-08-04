@@ -12,21 +12,21 @@ import (
 
 var (
 	subsystems = map[string]subsystem{
-		"devices":    &devicesGroup{},
-		"memory":     &memoryGroup{},
-		"cpu":        &cpuGroup{},
-		"cpuset":     &cpusetGroup{},
-		"cpuacct":    &cpuacctGroup{},
-		"blkio":      &blkioGroup{},
-		"perf_event": &perfEventGroup{},
-		"freezer":    &freezerGroup{},
+		"devices":    &DevicesGroup{},
+		"memory":     &MemoryGroup{},
+		"cpu":        &CpuGroup{},
+		"cpuset":     &CpusetGroup{},
+		"cpuacct":    &CpuacctGroup{},
+		"blkio":      &BlkioGroup{},
+		"perf_event": &PerfEventGroup{},
+		"freezer":    &FreezerGroup{},
 	}
 )
 
 type subsystem interface {
 	Set(*data) error
 	Remove(*data) error
-	GetStats(*data, *cgroups.Stats) error
+	GetStats(string, *cgroups.Stats) error
 }
 
 type data struct {
@@ -52,16 +52,34 @@ func Apply(c *cgroups.Cgroup, pid int) (cgroups.ActiveCgroup, error) {
 	return d, nil
 }
 
+func Cleanup(c *cgroups.Cgroup) error {
+	d, err := getCgroupData(c, 0)
+	if err != nil {
+		return fmt.Errorf("Could not get Cgroup data %s", err)
+	}
+	return d.Cleanup()
+}
+
 func GetStats(c *cgroups.Cgroup) (*cgroups.Stats, error) {
 	stats := cgroups.NewStats()
 
 	d, err := getCgroupData(c, 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting CgroupData %s", err)
 	}
 
-	for _, sys := range subsystems {
-		if err := sys.GetStats(d, stats); err != nil {
+	for sysname, sys := range subsystems {
+		path, err := d.path(sysname)
+		if err != nil {
+			// Don't fail if a cgroup hierarchy was not found, just skip this subsystem
+			if err == cgroups.ErrNotFound {
+				continue
+			}
+
+			return nil, err
+		}
+
+		if err := sys.GetStats(path, stats); err != nil {
 			return nil, err
 		}
 	}
@@ -132,6 +150,10 @@ func (raw *data) parent(subsystem string) (string, error) {
 }
 
 func (raw *data) path(subsystem string) (string, error) {
+	// If the cgroup name/path is absolute do not look relative to the cgroup of the init process.
+	if filepath.IsAbs(raw.cgroup) {
+		return filepath.Join(raw.root, subsystem, raw.cgroup), nil
+	}
 	parent, err := raw.parent(subsystem)
 	if err != nil {
 		return "", err

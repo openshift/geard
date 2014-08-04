@@ -1,113 +1,71 @@
+/*
+NOTE: The API is in flux and mainly not implemented. Proceed with caution until further notice.
+*/
 package libcontainer
 
-import (
-	"github.com/docker/libcontainer/cgroups"
-	"github.com/docker/libcontainer/devices"
-)
-
-// Context is a generic key value pair that allows arbatrary data to be sent
-type Context map[string]string
-
-// Container defines configuration options for executing a process inside a contained environment
-type Container struct {
-	// Hostname optionally sets the container's hostname if provided
-	Hostname string `json:"hostname,omitempty"`
-
-	// ReadonlyFs will remount the container's rootfs as readonly where only externally mounted
-	// bind mounts are writtable
-	ReadonlyFs bool `json:"readonly_fs,omitempty"`
-
-	// NoPivotRoot will use MS_MOVE and a chroot to jail the process into the container's rootfs
-	// This is a common option when the container is running in ramdisk
-	NoPivotRoot bool `json:"no_pivot_root,omitempty"`
-
-	// User will set the uid and gid of the executing process running inside the container
-	User string `json:"user,omitempty"`
-
-	// WorkingDir will change the processes current working directory inside the container's rootfs
-	WorkingDir string `json:"working_dir,omitempty"`
-
-	// Env will populate the processes environment with the provided values
-	// Any values from the parent processes will be cleared before the values
-	// provided in Env are provided to the process
-	Env []string `json:"environment,omitempty"`
-
-	// Tty when true will allocate a pty slave on the host for access by the container's process
-	// and ensure that it is mounted inside the container's rootfs
-	Tty bool `json:"tty,omitempty"`
-
-	// Namespaces specifies the container's namespaces that it should setup when cloning the init process
-	// If a namespace is not provided that namespace is shared from the container's parent process
-	Namespaces map[string]bool `json:"namespaces,omitempty"`
-
-	// Capabilities specify the capabilities to keep when executing the process inside the container
-	// All capbilities not specified will be dropped from the processes capability mask
-	Capabilities []string `json:"capabilities,omitempty"`
-
-	// Networks specifies the container's network setup to be created
-	Networks []*Network `json:"networks,omitempty"`
-
-	// Routes can be specified to create entries in the route table as the container is started
-	Routes []*Route `json:"routes,omitempty"`
-
-	// Cgroups specifies specific cgroup settings for the various subsystems that the container is
-	// placed into to limit the resources the container has available
-	Cgroups *cgroups.Cgroup `json:"cgroups,omitempty"`
-
-	// Context is a generic key value format that allows for additional settings to be passed
-	// on the container's creation
-	// This is commonly used to specify apparmor profiles, selinux labels, and different restrictions
-	// placed on the container's processes
-	Context Context `json:"context,omitempty"`
-
-	// Mounts specify additional source and destination paths that will be mounted inside the container's
-	// rootfs and mount namespace if specified
-	Mounts Mounts `json:"mounts,omitempty"`
-
-	// The device nodes that should be automatically created within the container upon container start.  Note, make sure that the node is marked as allowed in the cgroup as well!
-	DeviceNodes []*devices.Device `json:"device_nodes,omitempty"`
-}
-
-// Network defines configuration for a container's networking stack
+// A libcontainer container object.
 //
-// The network configuration can be omited from a container causing the
-// container to be setup with the host's networking stack
-type Network struct {
-	// Type sets the networks type, commonly veth and loopback
-	Type string `json:"type,omitempty"`
+// Each container is thread-safe within the same process. Since a container can
+// be destroyed by a separate process, any function may return that the container
+// was not found.
+type Container interface {
+	// Returns the path to the container which contains the state
+	Path() string
 
-	// Context is a generic key value format for setting additional options that are specific to
-	// the network type
-	Context Context `json:"context,omitempty"`
+	// Returns the current run state of the container.
+	//
+	// Errors: container no longer exists,
+	//         system error.
+	RunState() (*RunState, error)
 
-	// Address contains the IP and mask to set on the network interface
-	Address string `json:"address,omitempty"`
+	// Returns the current config of the container.
+	Config() *Config
 
-	// Gateway sets the gateway address that is used as the default for the interface
-	Gateway string `json:"gateway,omitempty"`
+	// Start a process inside the container. Returns the PID of the new process (in the caller process's namespace) and a channel that will return the exit status of the process whenever it dies.
+	//
+	// Errors: container no longer exists,
+	//         config is invalid,
+	//         container is paused,
+	//         system error.
+	Start(*ProcessConfig) (pid int, exitChan chan int, err error)
 
-	// Mtu sets the mtu value for the interface and will be mirrored on both the host and
-	// container's interfaces if a pair is created, specifically in the case of type veth
-	Mtu int `json:"mtu,omitempty"`
-}
+	// Destroys the container after killing all running processes.
+	//
+	// Any event registrations are removed before the container is destroyed.
+	// No error is returned if the container is already destroyed.
+	//
+	// Errors: system error.
+	Destroy() error
 
-// Routes can be specified to create entries in the route table as the container is started
-//
-// All of destination, source, and gateway should be either IPv4 or IPv6.
-// One of the three options must be present, and ommitted entries will use their
-// IP family default for the route table.  For IPv4 for example, setting the
-// gateway to 1.2.3.4 and the interface to eth0 will set up a standard
-// destination of 0.0.0.0(or *) when viewed in the route table.
-type Route struct {
-	// Sets the destination and mask, should be a CIDR.  Accepts IPv4 and IPv6
-	Destination string `json:"destination,omitempty"`
+	// Returns the PIDs inside this container. The PIDs are in the namespace of the calling process.
+	//
+	// Errors: container no longer exists,
+	//         system error.
+	//
+	// Some of the returned PIDs may no longer refer to processes in the Container, unless
+	// the Container state is PAUSED in which case every PID in the slice is valid.
+	Processes() ([]int, error)
 
-	// Sets the source and mask, should be a CIDR.  Accepts IPv4 and IPv6
-	Source string `json:"source,omitempty"`
+	// Returns statistics for the container.
+	//
+	// Errors: container no longer exists,
+	//         system error.
+	Stats() (*ContainerStats, error)
 
-	// Sets the gateway.  Accepts IPv4 and IPv6
-	Gateway string `json:"gateway,omitempty"`
+	// If the Container state is RUNNING or PAUSING, sets the Container state to PAUSING and pauses
+	// the execution of any user processes. Asynchronously, when the container finished being paused the
+	// state is changed to PAUSED.
+	// If the Container state is PAUSED, do nothing.
+	//
+	// Errors: container no longer exists,
+	//         system error.
+	Pause() error
 
-	// The device to set this route up for, for example: eth0
-	InterfaceName string `json:"interface_name,omitempty"`
+	// If the Container state is PAUSED, resumes the execution of any user processes in the
+	// Container before setting the Container state to RUNNING.
+	// If the Container state is RUNNING, do nothing.
+	//
+	// Errors: container no longer exists,
+	//         system error.
+	Resume() error
 }

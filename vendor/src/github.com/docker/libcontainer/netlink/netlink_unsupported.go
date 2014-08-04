@@ -1,4 +1,4 @@
-// +build !linux !amd64
+// +build !linux
 
 package netlink
 
@@ -64,6 +64,10 @@ func NetworkLinkDown(iface *net.Interface) error {
 }
 
 func CreateBridge(name string, setMacAddr bool) error {
+	return ErrNotImplemented
+}
+
+func DeleteBridge(name string) error {
 	return ErrNotImplemented
 }
 

@@ -5,7 +5,6 @@ package namespaces
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"syscall"
 
@@ -18,14 +17,25 @@ import (
 	"github.com/docker/libcontainer/network"
 	"github.com/docker/libcontainer/security/capabilities"
 	"github.com/docker/libcontainer/security/restrict"
+	"github.com/docker/libcontainer/syncpipe"
+	"github.com/docker/libcontainer/system"
+	"github.com/docker/libcontainer/user"
 	"github.com/docker/libcontainer/utils"
-	"github.com/dotcloud/docker/pkg/system"
-	"github.com/dotcloud/docker/pkg/user"
 )
 
+// TODO(vishh): This is part of the libcontainer API and it does much more than just namespaces related work.
+// Move this to libcontainer package.
 // Init is the init process that first runs inside a new namespace to setup mounts, users, networking,
 // and other options required for the new container.
-func Init(container *libcontainer.Container, uncleanRootfs, consolePath string, syncPipe *SyncPipe, args []string) error {
+// The caller of Init function has to ensure that the go runtime is locked to an OS thread
+// (using runtime.LockOSThread) else system calls like setns called within Init may not work as intended.
+func Init(container *libcontainer.Config, uncleanRootfs, consolePath string, syncPipe *syncpipe.SyncPipe, args []string) (err error) {
+	defer func() {
+		if err != nil {
+			syncPipe.ReportChildError(err)
+		}
+	}()
+
 	rootfs, err := utils.ResolveRootfs(uncleanRootfs)
 	if err != nil {
 		return err
@@ -38,19 +48,17 @@ func Init(container *libcontainer.Container, uncleanRootfs, consolePath string, 
 	}
 
 	// We always read this as it is a way to sync with the parent as well
-	context, err := syncPipe.ReadFromParent()
+	networkState, err := syncPipe.ReadFromParent()
 	if err != nil {
-		syncPipe.Close()
 		return err
 	}
-	syncPipe.Close()
 
 	if consolePath != "" {
 		if err := console.OpenAndDup(consolePath); err != nil {
 			return err
 		}
 	}
-	if _, err := system.Setsid(); err != nil {
+	if _, err := syscall.Setsid(); err != nil {
 		return fmt.Errorf("setsid %s", err)
 	}
 	if consolePath != "" {
@@ -58,7 +66,7 @@ func Init(container *libcontainer.Container, uncleanRootfs, consolePath string, 
 			return fmt.Errorf("setctty %s", err)
 		}
 	}
-	if err := setupNetwork(container, context); err != nil {
+	if err := setupNetwork(container, networkState); err != nil {
 		return fmt.Errorf("setup networking %s", err)
 	}
 	if err := setupRoute(container); err != nil {
@@ -67,25 +75,30 @@ func Init(container *libcontainer.Container, uncleanRootfs, consolePath string, 
 
 	label.Init()
 
-	if err := mount.InitializeMountNamespace(rootfs, consolePath, container); err != nil {
+	if err := mount.InitializeMountNamespace(rootfs,
+		consolePath,
+		container.RestrictSys,
+		(*mount.MountConfig)(container.MountConfig)); err != nil {
 		return fmt.Errorf("setup mount namespace %s", err)
 	}
+
 	if container.Hostname != "" {
-		if err := system.Sethostname(container.Hostname); err != nil {
+		if err := syscall.Sethostname([]byte(container.Hostname)); err != nil {
 			return fmt.Errorf("sethostname %s", err)
 		}
 	}
 
-	runtime.LockOSThread()
-
-	if err := apparmor.ApplyProfile(container.Context["apparmor_profile"]); err != nil {
-		return fmt.Errorf("set apparmor profile %s: %s", container.Context["apparmor_profile"], err)
+	if err := apparmor.ApplyProfile(container.AppArmorProfile); err != nil {
+		return fmt.Errorf("set apparmor profile %s: %s", container.AppArmorProfile, err)
 	}
-	if err := label.SetProcessLabel(container.Context["process_label"]); err != nil {
+
+	if err := label.SetProcessLabel(container.ProcessLabel); err != nil {
 		return fmt.Errorf("set process label %s", err)
 	}
-	if container.Context["restrictions"] != "" {
-		if err := restrict.Restrict("proc/sys", "proc/sysrq-trigger", "proc/irq", "proc/bus", "sys"); err != nil {
+
+	// TODO: (crosbymichael) make this configurable at the Config level
+	if container.RestrictSys {
+		if err := restrict.Restrict("proc/sys", "proc/sysrq-trigger", "proc/irq", "proc/bus"); err != nil {
 			return err
 		}
 	}
@@ -105,7 +118,7 @@ func Init(container *libcontainer.Container, uncleanRootfs, consolePath string, 
 		return fmt.Errorf("restore parent death signal %s", err)
 	}
 
-	return system.Execv(args[0], args[0:], container.Env)
+	return system.Execv(args[0], args[0:], os.Environ())
 }
 
 // RestoreParentDeathSignal sets the parent death signal to old.
@@ -138,33 +151,44 @@ func RestoreParentDeathSignal(old int) error {
 
 // SetupUser changes the groups, gid, and uid for the user inside the container
 func SetupUser(u string) error {
-	uid, gid, suppGids, err := user.GetUserGroupSupplementary(u, syscall.Getuid(), syscall.Getgid())
+	uid, gid, suppGids, home, err := user.GetUserGroupSupplementaryHome(u, syscall.Getuid(), syscall.Getgid(), "/")
 	if err != nil {
 		return fmt.Errorf("get supplementary groups %s", err)
 	}
-	if err := system.Setgroups(suppGids); err != nil {
+
+	if err := syscall.Setgroups(suppGids); err != nil {
 		return fmt.Errorf("setgroups %s", err)
 	}
-	if err := system.Setgid(gid); err != nil {
+
+	if err := syscall.Setgid(gid); err != nil {
 		return fmt.Errorf("setgid %s", err)
 	}
-	if err := system.Setuid(uid); err != nil {
+
+	if err := syscall.Setuid(uid); err != nil {
 		return fmt.Errorf("setuid %s", err)
 	}
+
+	// if we didn't get HOME already, set it based on the user's HOME
+	if envHome := os.Getenv("HOME"); envHome == "" {
+		if err := os.Setenv("HOME", home); err != nil {
+			return fmt.Errorf("set HOME %s", err)
+		}
+	}
+
 	return nil
 }
 
 // setupVethNetwork uses the Network config if it is not nil to initialize
 // the new veth interface inside the container for use by changing the name to eth0
 // setting the MTU and IP address along with the default gateway
-func setupNetwork(container *libcontainer.Container, context libcontainer.Context) error {
+func setupNetwork(container *libcontainer.Config, networkState *network.NetworkState) error {
 	for _, config := range container.Networks {
 		strategy, err := network.GetStrategy(config.Type)
 		if err != nil {
 			return err
 		}
 
-		err1 := strategy.Initialize(config, context)
+		err1 := strategy.Initialize((*network.Network)(config), networkState)
 		if err1 != nil {
 			return err1
 		}
@@ -172,7 +196,7 @@ func setupNetwork(container *libcontainer.Container, context libcontainer.Contex
 	return nil
 }
 
-func setupRoute(container *libcontainer.Container) error {
+func setupRoute(container *libcontainer.Config) error {
 	for _, config := range container.Routes {
 		if err := netlink.AddRoute(config.Destination, config.Source, config.Gateway, config.InterfaceName); err != nil {
 			return err
@@ -184,13 +208,16 @@ func setupRoute(container *libcontainer.Container) error {
 // FinalizeNamespace drops the caps, sets the correct user
 // and working dir, and closes any leaky file descriptors
 // before execing the command inside the namespace
-func FinalizeNamespace(container *libcontainer.Container) error {
-	if err := system.CloseFdsFrom(3); err != nil {
+func FinalizeNamespace(container *libcontainer.Config) error {
+	// Ensure that all non-standard fds we may have accidentally
+	// inherited are marked close-on-exec so they stay out of the
+	// container
+	if err := utils.CloseExecFrom(3); err != nil {
 		return fmt.Errorf("close open file descriptors %s", err)
 	}
 
 	// drop capabilities in bounding set before changing user
-	if err := capabilities.DropBoundingSet(container); err != nil {
+	if err := capabilities.DropBoundingSet(container.Capabilities); err != nil {
 		return fmt.Errorf("drop bounding set %s", err)
 	}
 
@@ -208,19 +235,20 @@ func FinalizeNamespace(container *libcontainer.Container) error {
 	}
 
 	// drop all other capabilities
-	if err := capabilities.DropCapabilities(container); err != nil {
+	if err := capabilities.DropCapabilities(container.Capabilities); err != nil {
 		return fmt.Errorf("drop capabilities %s", err)
 	}
 
 	if container.WorkingDir != "" {
-		if err := system.Chdir(container.WorkingDir); err != nil {
+		if err := syscall.Chdir(container.WorkingDir); err != nil {
 			return fmt.Errorf("chdir to %s %s", container.WorkingDir, err)
 		}
 	}
+
 	return nil
 }
 
-func LoadContainerEnvironment(container *libcontainer.Container) error {
+func LoadContainerEnvironment(container *libcontainer.Config) error {
 	os.Clearenv()
 	for _, pair := range container.Env {
 		p := strings.SplitN(pair, "=", 2)

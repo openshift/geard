@@ -8,11 +8,9 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/docker/libcontainer"
+	"github.com/docker/docker/pkg/symlink"
 	"github.com/docker/libcontainer/label"
 	"github.com/docker/libcontainer/mount/nodes"
-	"github.com/dotcloud/docker/pkg/symlink"
-	"github.com/dotcloud/docker/pkg/system"
 )
 
 // default mount point flags
@@ -26,42 +24,50 @@ type mount struct {
 	data   string
 }
 
-// InitializeMountNamespace setups up the devices, mount points, and filesystems for use inside a
-// new mount namepsace
-func InitializeMountNamespace(rootfs, console string, container *libcontainer.Container) error {
+// InitializeMountNamespace sets up the devices, mount points, and filesystems for use inside a
+// new mount namespace.
+func InitializeMountNamespace(rootfs, console string, sysReadonly bool, mountConfig *MountConfig) error {
 	var (
 		err  error
 		flag = syscall.MS_PRIVATE
 	)
-	if container.NoPivotRoot {
+	if mountConfig.NoPivotRoot {
 		flag = syscall.MS_SLAVE
 	}
-	if err := system.Mount("", "/", "", uintptr(flag|syscall.MS_REC), ""); err != nil {
+	if err := syscall.Mount("", "/", "", uintptr(flag|syscall.MS_REC), ""); err != nil {
 		return fmt.Errorf("mounting / with flags %X %s", (flag | syscall.MS_REC), err)
 	}
-	if err := system.Mount(rootfs, rootfs, "bind", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
+	if err := syscall.Mount(rootfs, rootfs, "bind", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
 		return fmt.Errorf("mouting %s as bind %s", rootfs, err)
 	}
-	if err := mountSystem(rootfs, container); err != nil {
+	if err := mountSystem(rootfs, sysReadonly, mountConfig); err != nil {
 		return fmt.Errorf("mount system %s", err)
 	}
-	if err := setupBindmounts(rootfs, container.Mounts); err != nil {
+	if err := setupBindmounts(rootfs, mountConfig); err != nil {
 		return fmt.Errorf("bind mounts %s", err)
 	}
-	if err := nodes.CreateDeviceNodes(rootfs, container.DeviceNodes); err != nil {
+	if err := nodes.CreateDeviceNodes(rootfs, mountConfig.DeviceNodes); err != nil {
 		return fmt.Errorf("create device nodes %s", err)
 	}
-	if err := SetupPtmx(rootfs, console, container.Context["mount_label"]); err != nil {
+	if err := SetupPtmx(rootfs, console, mountConfig.MountLabel); err != nil {
 		return err
 	}
+
+	// stdin, stdout and stderr could be pointing to /dev/null from parent namespace.
+	// Re-open them inside this namespace.
+	if err := reOpenDevNull(rootfs); err != nil {
+		return fmt.Errorf("Failed to reopen /dev/null %s", err)
+	}
+
 	if err := setupDevSymlinks(rootfs); err != nil {
 		return fmt.Errorf("dev symlinks %s", err)
 	}
-	if err := system.Chdir(rootfs); err != nil {
+
+	if err := syscall.Chdir(rootfs); err != nil {
 		return fmt.Errorf("chdir into %s %s", rootfs, err)
 	}
 
-	if container.NoPivotRoot {
+	if mountConfig.NoPivotRoot {
 		err = MsMoveRoot(rootfs)
 	} else {
 		err = PivotRoot(rootfs)
@@ -70,25 +76,25 @@ func InitializeMountNamespace(rootfs, console string, container *libcontainer.Co
 		return err
 	}
 
-	if container.ReadonlyFs {
+	if mountConfig.ReadonlyFs {
 		if err := SetReadonly(); err != nil {
 			return fmt.Errorf("set readonly %s", err)
 		}
 	}
 
-	system.Umask(0022)
+	syscall.Umask(0022)
 
 	return nil
 }
 
 // mountSystem sets up linux specific system mounts like sys, proc, shm, and devpts
 // inside the mount namespace
-func mountSystem(rootfs string, container *libcontainer.Container) error {
-	for _, m := range newSystemMounts(rootfs, container.Context["mount_label"], container.Mounts) {
+func mountSystem(rootfs string, sysReadonly bool, mountConfig *MountConfig) error {
+	for _, m := range newSystemMounts(rootfs, mountConfig.MountLabel, sysReadonly, mountConfig.Mounts) {
 		if err := os.MkdirAll(m.path, 0755); err != nil && !os.IsExist(err) {
 			return fmt.Errorf("mkdirall %s %s", m.path, err)
 		}
-		if err := system.Mount(m.source, m.path, m.device, uintptr(m.flags), m.data); err != nil {
+		if err := syscall.Mount(m.source, m.path, m.device, uintptr(m.flags), m.data); err != nil {
 			return fmt.Errorf("mounting %s into %s %s", m.source, m.path, err)
 		}
 	}
@@ -145,7 +151,8 @@ func setupDevSymlinks(rootfs string) error {
 	return nil
 }
 
-func setupBindmounts(rootfs string, bindMounts libcontainer.Mounts) error {
+func setupBindmounts(rootfs string, mountConfig *MountConfig) error {
+	bindMounts := mountConfig.Mounts
 	for _, m := range bindMounts.OfType("bind") {
 		var (
 			flags = syscall.MS_BIND | syscall.MS_REC
@@ -169,16 +176,21 @@ func setupBindmounts(rootfs string, bindMounts libcontainer.Mounts) error {
 			return fmt.Errorf("Creating new bind-mount target, %s", err)
 		}
 
-		if err := system.Mount(m.Source, dest, "bind", uintptr(flags), ""); err != nil {
+		if err := syscall.Mount(m.Source, dest, "bind", uintptr(flags), ""); err != nil {
 			return fmt.Errorf("mounting %s into %s %s", m.Source, dest, err)
 		}
 		if !m.Writable {
-			if err := system.Mount(m.Source, dest, "bind", uintptr(flags|syscall.MS_REMOUNT), ""); err != nil {
+			if err := syscall.Mount(m.Source, dest, "bind", uintptr(flags|syscall.MS_REMOUNT), ""); err != nil {
 				return fmt.Errorf("remounting %s into %s %s", m.Source, dest, err)
 			}
 		}
+		if m.Relabel != "" {
+			if err := label.Relabel(m.Source, mountConfig.MountLabel, m.Relabel); err != nil {
+				return fmt.Errorf("relabeling %s to %s %s", m.Source, mountConfig.MountLabel, err)
+			}
+		}
 		if m.Private {
-			if err := system.Mount("", dest, "none", uintptr(syscall.MS_PRIVATE), ""); err != nil {
+			if err := syscall.Mount("", dest, "none", uintptr(syscall.MS_PRIVATE), ""); err != nil {
 				return fmt.Errorf("mounting %s private %s", dest, err)
 			}
 		}
@@ -188,14 +200,45 @@ func setupBindmounts(rootfs string, bindMounts libcontainer.Mounts) error {
 
 // TODO: this is crappy right now and should be cleaned up with a better way of handling system and
 // standard bind mounts allowing them to be more dynamic
-func newSystemMounts(rootfs, mountLabel string, mounts libcontainer.Mounts) []mount {
+func newSystemMounts(rootfs, mountLabel string, sysReadonly bool, mounts Mounts) []mount {
 	systemMounts := []mount{
 		{source: "proc", path: filepath.Join(rootfs, "proc"), device: "proc", flags: defaultMountFlags},
-		{source: "sysfs", path: filepath.Join(rootfs, "sys"), device: "sysfs", flags: defaultMountFlags},
 		{source: "tmpfs", path: filepath.Join(rootfs, "dev"), device: "tmpfs", flags: syscall.MS_NOSUID | syscall.MS_STRICTATIME, data: label.FormatMountLabel("mode=755", mountLabel)},
 		{source: "shm", path: filepath.Join(rootfs, "dev", "shm"), device: "tmpfs", flags: defaultMountFlags, data: label.FormatMountLabel("mode=1777,size=65536k", mountLabel)},
 		{source: "devpts", path: filepath.Join(rootfs, "dev", "pts"), device: "devpts", flags: syscall.MS_NOSUID | syscall.MS_NOEXEC, data: label.FormatMountLabel("newinstance,ptmxmode=0666,mode=620,gid=5", mountLabel)},
 	}
 
+	sysMountFlags := defaultMountFlags
+	if sysReadonly {
+		sysMountFlags |= syscall.MS_RDONLY
+	}
+	systemMounts = append(systemMounts, mount{source: "sysfs", path: filepath.Join(rootfs, "sys"), device: "sysfs", flags: sysMountFlags})
+
 	return systemMounts
+}
+
+// Is stdin, stdout or stderr were to be pointing to '/dev/null',
+// this method will make them point to '/dev/null' from within this namespace.
+func reOpenDevNull(rootfs string) error {
+	var stat, devNullStat syscall.Stat_t
+	file, err := os.Open(filepath.Join(rootfs, "/dev/null"))
+	if err != nil {
+		return fmt.Errorf("Failed to open /dev/null - %s", err)
+	}
+	defer file.Close()
+	if err = syscall.Fstat(int(file.Fd()), &devNullStat); err != nil {
+		return fmt.Errorf("Failed to stat /dev/null - %s", err)
+	}
+	for fd := 0; fd < 3; fd++ {
+		if err = syscall.Fstat(fd, &stat); err != nil {
+			return fmt.Errorf("Failed to stat fd %d - %s", fd, err)
+		}
+		if stat.Rdev == devNullStat.Rdev {
+			// Close and re-open the fd.
+			if err = syscall.Dup2(int(file.Fd()), fd); err != nil {
+				return fmt.Errorf("Failed to dup fd %d to fd %d - %s", file.Fd(), fd)
+			}
+		}
+	}
+	return nil
 }
