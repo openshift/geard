@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/docker/libcontainer/cgroups"
 )
 
 const (
@@ -31,7 +33,7 @@ func TestGetCgroupParamsInt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	} else if value != floatValue {
-		t.Fatalf("Expected %f to equal %f", value, floatValue)
+		t.Fatalf("Expected %d to equal %f", value, floatValue)
 	}
 
 	// Success with new line.
@@ -43,7 +45,7 @@ func TestGetCgroupParamsInt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	} else if value != floatValue {
-		t.Fatalf("Expected %f to equal %f", value, floatValue)
+		t.Fatalf("Expected %d to equal %f", value, floatValue)
 	}
 
 	// Not a float.
@@ -64,5 +66,22 @@ func TestGetCgroupParamsInt(t *testing.T) {
 	_, err = getCgroupParamInt(tempDir, cgroupFile)
 	if err == nil {
 		t.Fatal("Expecting error, got none")
+	}
+}
+
+func TestAbsolutePathHandling(t *testing.T) {
+	testCgroup := cgroups.Cgroup{
+		Name:   "bar",
+		Parent: "/foo",
+	}
+	cgroupData := data{
+		root:   "/sys/fs/cgroup",
+		cgroup: "/foo/bar",
+		c:      &testCgroup,
+		pid:    1,
+	}
+	expectedPath := filepath.Join(cgroupData.root, "cpu", testCgroup.Parent, testCgroup.Name)
+	if path, err := cgroupData.path("cpu"); path != expectedPath || err != nil {
+		t.Fatalf("expected path %s but got %s %s", expectedPath, path, err)
 	}
 }
