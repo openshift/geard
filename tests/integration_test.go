@@ -4,6 +4,7 @@ package tests
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/docker"
+	"github.com/openshift/geard/namespace"
 	"github.com/openshift/geard/systemd"
 	chk "launchpad.net/gocheck"
 )
@@ -391,6 +393,105 @@ func (s *IntegrationTestSuite) TestInstallSimpleStart(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	c.Log(string(data))
 	c.Assert(strings.Contains(string(data), "Loaded: loaded (/var/lib/containers/units/Te/ctr-TestInstallSimpleStart.service; enabled)"), chk.Equals, true)
+}
+
+func (s *IntegrationTestSuite) TestInstallVolume(c *chk.C) {
+	id, err := containers.NewIdentifier("TestInstallVolume")
+	c.Assert(err, chk.IsNil)
+	s.containerIds = append(s.containerIds, id)
+
+	hostContainerId := fmt.Sprintf("%v/%v", s.daemonURI, id)
+
+	mountPath, err := ioutil.TempDir("/tmp", "bind-rw")
+	c.Assert(err, chk.IsNil)
+
+	roMountPath, err := ioutil.TempDir("/tmp", "bind-ro")
+	c.Assert(err, chk.IsNil)
+	roTestFilePath := path.Join(roMountPath, "ro-test")
+	ioutil.WriteFile(roTestFilePath, []byte{}, 0664)
+
+	cmd := exec.Command("/usr/bin/gear", "install", TestImage, hostContainerId,
+		fmt.Sprintf("--volumes=/test-volume,%s:/test-bind-ro:ro,%s:/test-bind-rw", roMountPath, mountPath),
+		"--ports=8080:0", "--start")
+	data, err := cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerStarts(c, id)
+	oldPid := s.getContainerPid(id)
+
+	ports, err := containers.GetExistingPorts(id)
+	c.Assert(err, chk.IsNil)
+	c.Assert(len(ports), chk.Equals, 1)
+
+	httpAlive := func() bool {
+		resp, err := http.Get(fmt.Sprintf("http://0.0.0.0:%v", ports[0].External))
+		if err == nil {
+			c.Assert(resp.StatusCode, chk.Equals, 200)
+			return true
+		}
+		return false
+	}
+	if !until(TimeoutContainerStateChange, IntervalHttpCheck, httpAlive) {
+		c.Errorf("Unable to retrieve a 200 status code from port %d", ports[0].External)
+		c.FailNow()
+	}
+
+	exitCode, err := namespace.RunCommandInContainer(s.dockerClient,
+		"TestInstallVolume",
+		[]string{"/bin/busybox", "ls", "/test-bind-ro/ro-test"}, []string{})
+	c.Assert(err, chk.IsNil)
+	c.Assert(exitCode, chk.Equals, 0)
+
+	exitCode, err = namespace.RunCommandInContainer(s.dockerClient,
+		"TestInstallVolume",
+		[]string{"/bin/busybox", "touch", "/test-bind-ro/rw-test"}, []string{})
+	c.Assert(err, chk.IsNil)
+	c.Assert(exitCode, chk.Not(chk.Equals), 0)
+
+	exitCode, err = namespace.RunCommandInContainer(s.dockerClient,
+		"TestInstallVolume",
+		[]string{"/bin/busybox", "touch", "/test-bind-rw/rw-test"}, []string{})
+	c.Assert(err, chk.IsNil)
+	c.Assert(exitCode, chk.Equals, 0)
+
+	exitCode, err = namespace.RunCommandInContainer(s.dockerClient,
+		"TestInstallVolume",
+		[]string{"/bin/busybox", "touch", "/test-volume/rw-test"}, []string{})
+	c.Assert(err, chk.IsNil)
+	c.Assert(exitCode, chk.Equals, 0)
+
+	exitCode, err = namespace.RunCommandInContainer(s.dockerClient,
+		"TestInstallVolume",
+		[]string{"/bin/busybox", "touch", "/tmp/transient-file"}, []string{})
+	c.Assert(err, chk.IsNil)
+	c.Assert(exitCode, chk.Equals, 0)
+
+	cmd = exec.Command("/usr/bin/gear", "restart", hostContainerId)
+	data, err = cmd.CombinedOutput()
+	c.Log(string(data))
+	c.Assert(err, chk.IsNil)
+	s.assertContainerRestarts(c, id)
+
+	newPid := s.getContainerPid(id)
+	c.Assert(oldPid, chk.Not(chk.Equals), newPid)
+
+	exitCode, err = namespace.RunCommandInContainer(s.dockerClient,
+		"TestInstallVolume",
+		[]string{"/bin/busybox", "ls", "/test-bind-rw/rw-test"}, []string{})
+	c.Assert(err, chk.IsNil)
+	c.Assert(exitCode, chk.Equals, 0)
+
+	exitCode, err = namespace.RunCommandInContainer(s.dockerClient,
+		"TestInstallVolume",
+		[]string{"/bin/busybox", "ls", "/test-volume/rw-test"}, []string{})
+	c.Assert(err, chk.IsNil)
+	c.Assert(exitCode, chk.Equals, 0)
+
+	exitCode, err = namespace.RunCommandInContainer(s.dockerClient,
+		"TestInstallVolume",
+		[]string{"/bin/busybox", "ls", "/tmp/transient-file"}, []string{})
+	c.Assert(err, chk.IsNil)
+	c.Assert(exitCode, chk.Not(chk.Equals), 0)
 }
 
 func (s *IntegrationTestSuite) TestInstallEnvFile(c *chk.C) {

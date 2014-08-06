@@ -9,6 +9,7 @@ import (
 	"github.com/kraman/libcontainer"
 	"github.com/kraman/libcontainer/namespaces"
 	"github.com/kraman/libcontainer/utils"
+	"github.com/openshift/geard/docker"
 )
 
 func createContainer(containerName string, nsPid int, args []string, env []string) (*libcontainer.Container, error) {
@@ -64,4 +65,30 @@ func RunIn(containerName string, nsPid int, args []string, env []string) (int, e
 		return -1, fmt.Errorf("error waiting on child %s", err)
 	}
 	return exitcode, nil
+}
+
+func RunCommandInContainer(client *docker.DockerClient, name string, command []string, environment []string) (int, error) {
+	if len(command) == 0 {
+		fmt.Println("No command specified")
+		os.Exit(3)
+	}
+
+	container, err := client.InspectContainer(name)
+	if err != nil {
+		fmt.Printf("Unable to locate container named %v\n", name)
+		os.Exit(3)
+	}
+	containerNsPID, err := client.ChildProcessForContainer(container)
+	if err != nil {
+		fmt.Println("Couldn't create child process for container")
+		os.Exit(3)
+	}
+
+	containerEnv := environment
+
+	if len(containerEnv) == 0 {
+		containerEnv = container.Config.Env
+	}
+
+	return RunIn(name, containerNsPID, command, containerEnv)
 }
