@@ -13,8 +13,10 @@ type CpuUsage struct {
 	// percentage of available CPUs currently being used.
 	PercentUsage uint64 `json:"percent_usage,omitempty"`
 	// nanoseconds of cpu time consumed over the last 100 ms.
-	CurrentUsage uint64   `json:"current_usage,omitempty"`
-	PercpuUsage  []uint64 `json:"percpu_usage,omitempty"`
+	CurrentUsage uint64 `json:"current_usage,omitempty"`
+	// total nanoseconds of cpu time consumed
+	TotalUsage  uint64   `json:"total_usage,omitempty"`
+	PercpuUsage []uint64 `json:"percpu_usage,omitempty"`
 	// Time spent by tasks of the cgroup in kernel mode. Units: nanoseconds.
 	UsageInKernelmode uint64 `json:"usage_in_kernelmode"`
 	// Time spent by tasks of the cgroup in user mode. Units: nanoseconds.
@@ -53,17 +55,10 @@ type BlkioStats struct {
 	SectorsRecursive        []BlkioStatEntry `json:"sectors_recursive,omitempty"`
 }
 
-// TODO(Vishh): Remove freezer from stats since it does not logically belong in stats.
-type FreezerStats struct {
-	ParentState string `json:"parent_state,omitempty"`
-	SelfState   string `json:"self_state,omitempty"`
-}
-
 type Stats struct {
-	CpuStats     CpuStats     `json:"cpu_stats,omitempty"`
-	MemoryStats  MemoryStats  `json:"memory_stats,omitempty"`
-	BlkioStats   BlkioStats   `json:"blkio_stats,omitempty"`
-	FreezerStats FreezerStats `json:"freezer_stats,omitempty"`
+	CpuStats    CpuStats    `json:"cpu_stats,omitempty"`
+	MemoryStats MemoryStats `json:"memory_stats,omitempty"`
+	BlkioStats  BlkioStats  `json:"blkio_stats,omitempty"`
 }
 
 func NewStats() *Stats {

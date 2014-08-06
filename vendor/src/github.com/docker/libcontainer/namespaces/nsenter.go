@@ -1,17 +1,19 @@
+// +build linux
+
 package namespaces
 
 /*
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/limits.h>
 #include <linux/sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <getopt.h>
 
 static const kBufSize = 256;
 
@@ -49,6 +51,22 @@ void get_args(int *argc, char ***argv) {
 	(*argv)[*argc] = NULL;
 }
 
+// Use raw setns syscall for versions of glibc that don't include it (namely glibc-2.12)
+#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 14
+#define _GNU_SOURCE
+#include <sched.h>
+#include "syscall.h"
+#ifdef SYS_setns
+int setns(int fd, int nstype) {
+  return syscall(SYS_setns, fd, nstype);
+}
+#endif
+#endif
+
+void print_usage() {
+	fprintf(stderr, "<binary> nsenter --nspid <pid> --containerjson <container_json> -- cmd1 arg1 arg2...\n");
+}
+
 void nsenter() {
 	int argc;
 	char **argv;
@@ -64,56 +82,111 @@ void nsenter() {
 		fprintf(stderr, "nsenter: Incorrect usage, not enough arguments\n");
 		exit(1);
 	}
-	pid_t init_pid = strtol(argv[2], NULL, 10);
-	if (errno != 0 || init_pid <= 0) {
-		fprintf(stderr, "nsenter: Failed to parse PID from \"%s\" with error: \"%s\"\n", argv[2], strerror(errno));
+
+	static const struct option longopts[] = {
+		{ "nspid",         required_argument, NULL, 'n' },
+		{ "containerjson", required_argument, NULL, 'c' },
+                { "console",       required_argument, NULL, 't' },
+		{ NULL,            0,                 NULL,  0  }
+	};
+
+	int c;
+	pid_t init_pid = -1;
+	char *init_pid_str = NULL;
+	char *container_json = NULL;
+        char *console = NULL;
+	while ((c = getopt_long_only(argc, argv, "n:s:c:", longopts, NULL)) != -1) {
+		switch (c) {
+		case 'n':
+			init_pid_str = optarg;
+			break;
+		case 'c':
+			container_json = optarg;
+			break;
+		case 't':
+			console = optarg;
+			break;
+		}
+	}
+
+	if (container_json == NULL || init_pid_str == NULL) {
+		print_usage();
 		exit(1);
 	}
+
+	init_pid = strtol(init_pid_str, NULL, 10);
+	if (errno != 0 || init_pid <= 0) {
+		fprintf(stderr, "nsenter: Failed to parse PID from \"%s\" with error: \"%s\"\n", init_pid_str, strerror(errno));
+		print_usage();
+		exit(1);
+	}
+
 	argc -= 3;
 	argv += 3;
 
+        if (setsid() == -1) {
+               fprintf(stderr, "setsid failed. Error: %s\n", strerror(errno));
+               exit(1);
+        }
+
+        // before we setns we need to dup the console
+        int consolefd = -1;
+        if (console != NULL) {
+               consolefd = open(console, O_RDWR);
+               if (consolefd < 0) {
+                    fprintf(stderr, "nsenter: failed to open console %s %s\n", console, strerror(errno));
+                    exit(1);
+              }
+        }
+
 	// Setns on all supported namespaces.
-	char ns_dir[kBufSize];
-	memset(ns_dir, 0, kBufSize);
-	if (snprintf(ns_dir, kBufSize - 1, "/proc/%d/ns/", init_pid) < 0) {
-		fprintf(stderr, "nsenter: Error getting ns dir path with error: \"%s\"\n", strerror(errno));
-		exit(1);
-	}
-	struct dirent *dent;
-	DIR *dir = opendir(ns_dir);
-	if (dir == NULL) {
-		fprintf(stderr, "nsenter: Failed to open directory \"%s\" with error: \"%s\"\n", ns_dir, strerror(errno));
-		exit(1);
-	}
+	char ns_dir[PATH_MAX];
+	memset(ns_dir, 0, PATH_MAX);
+	snprintf(ns_dir, PATH_MAX - 1, "/proc/%d/ns/", init_pid);
 
-	while((dent = readdir(dir)) != NULL) {
-		if(strcmp(dent->d_name, ".") == 0 || strcmp(dent->d_name, "..") == 0 || strcmp(dent->d_name, "user") == 0) {
-			continue;
-		}
-
-		// Get and open the namespace for the init we are joining..
-		char buf[kBufSize];
-		memset(buf, 0, kBufSize);
-		strncat(buf, ns_dir, kBufSize - 1);
-		strncat(buf, dent->d_name, kBufSize - 1);
+	char* namespaces[] = {"ipc", "uts", "net", "pid", "mnt"};
+	const int num = sizeof(namespaces) / sizeof(char*);
+	int i;
+	for (i = 0; i < num; i++) {
+		char buf[PATH_MAX];
+		memset(buf, 0, PATH_MAX);
+		snprintf(buf, PATH_MAX - 1, "%s%s", ns_dir, namespaces[i]);
 		int fd = open(buf, O_RDONLY);
 		if (fd == -1) {
-			fprintf(stderr, "nsenter: Failed to open ns file \"%s\" for ns \"%s\" with error: \"%s\"\n", buf, dent->d_name, strerror(errno));
+			// Ignore nonexistent namespaces.
+			if (errno == ENOENT)
+				continue;
+
+			fprintf(stderr, "nsenter: Failed to open ns file \"%s\" for ns \"%s\" with error: \"%s\"\n", buf, namespaces[i], strerror(errno));
 			exit(1);
 		}
 
 		// Set the namespace.
 		if (setns(fd, 0) == -1) {
-			fprintf(stderr, "nsenter: Failed to setns for \"%s\" with error: \"%s\"\n", dent->d_name, strerror(errno));
+			fprintf(stderr, "nsenter: Failed to setns for \"%s\" with error: \"%s\"\n", namespaces[i], strerror(errno));
 			exit(1);
 		}
 		close(fd);
 	}
-	closedir(dir);
 
 	// We must fork to actually enter the PID namespace.
 	int child = fork();
 	if (child == 0) {
+       if (consolefd != -1) {
+        if (dup2(consolefd, STDIN_FILENO) != 0) {
+            fprintf(stderr, "nsenter: failed to dup 0 %s\n",  strerror(errno));
+            exit(1);
+        }
+        if (dup2(consolefd, STDOUT_FILENO) != STDOUT_FILENO) {
+            fprintf(stderr, "nsenter: failed to dup 1 %s\n",  strerror(errno));
+            exit(1);
+        }
+        if (dup2(consolefd, STDERR_FILENO) != STDERR_FILENO) {
+            fprintf(stderr, "nsenter: failed to dup 2 %s\n",  strerror(errno));
+            exit(1);
+        }
+}
+
 		// Finish executing, let the Go runtime take over.
 		return;
 	} else {

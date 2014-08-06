@@ -1,4 +1,4 @@
-package main
+package nsinit
 
 import (
 	"encoding/json"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/codegangsta/cli"
 	"github.com/docker/libcontainer"
-	"github.com/docker/libcontainer/cgroups/fs"
 )
 
 var statsCommand = cli.Command{
@@ -22,25 +21,19 @@ func statsAction(context *cli.Context) {
 		log.Fatal(err)
 	}
 
-	stats, err := getContainerStats(container)
+	state, err := libcontainer.GetState(dataPath)
 	if err != nil {
-		log.Fatalf("Failed to get stats - %v\n", err)
+		log.Fatal(err)
 	}
 
-	fmt.Printf("Stats:\n%v\n", stats)
-}
-
-// returns the container stats in json format.
-func getContainerStats(container *libcontainer.Container) (string, error) {
-	stats, err := fs.GetStats(container.Cgroups)
+	stats, err := libcontainer.GetStats(container, state)
 	if err != nil {
-		return "", err
+		log.Fatal(err)
+	}
+	data, err := json.MarshalIndent(stats, "", "\t")
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	out, err := json.MarshalIndent(stats, "", "\t")
-	if err != nil {
-		return "", err
-	}
-
-	return string(out), nil
+	fmt.Printf("%s", data)
 }
