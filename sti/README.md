@@ -87,12 +87,16 @@ Dependencies
 
 1. [Docker](http://www.docker.io)
 1. [Go](http://golang.org/)
+1. [Mercurial](http://mercurial.selenic.com/)
+1. Rpms: `libselinux libselinux-devel libselinux-utils`
 
 Installation
 ------------
 
-  go get github.com/openshift/geard
-  src/github.com/openshift/geard/contrib/build
+Assuming docker are installed and configured, execute the following commands:
+
+    go get github.com/openshift/geard
+    src/github.com/openshift/geard/contrib/build -s
 
 Getting Started
 ---------------
