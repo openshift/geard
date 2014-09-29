@@ -1,3 +1,0 @@
-#!/bin/bash
-find /var/lib/gears/units -maxdepth 1 -type f -printf "%f\n" | sed 's/^gear-\(.\+\)\.service$/\1/' | xargs -n 1 useradd -M -U -l
-find /var/lib/gears/access -type l -printf "%f\n" | sed 's/^\(.\+\)\.\(read\|write\)$/\1/' | xargs -n 1 useradd -M -U -l

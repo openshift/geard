@@ -1,6 +1,0 @@
-# Repo for RHEL7 packages
-[collider-rhel-7]
-name=Collider RHEL 7 Packages
-baseurl=http://download.devel.redhat.com/brewroot/repos/collider-rhel-7-build/latest/$basearch/
-enabled=1
-gpgcheck=0

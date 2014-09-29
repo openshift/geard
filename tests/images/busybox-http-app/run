@@ -1,8 +1,0 @@
-#!/bin/sh
-
-trap "kill %1" SIGTERM
-
-echo "Serving /usr/mock/source/ on port 8080..."
-
-/usr/sbin/httpd -h /usr/mock/source -p 8080 -f &
-wait %1
