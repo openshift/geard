@@ -26,17 +26,17 @@ func Usage(req *STIRequest) error {
 		defer removeDirectory(h.request.workingDir, h.request.Verbose)
 	}
 
-	dirs := []string{"scripts", "defaultScripts"}
+	dirs := []string{"upload/scripts", "downloads/scripts", "downloads/defaultScripts"}
 	for _, v := range dirs {
-		err := os.Mkdir(filepath.Join(h.request.workingDir, v), 0700)
+		err := os.MkdirAll(filepath.Join(h.request.workingDir, v), 0700)
 		if err != nil {
 			return err
 		}
 	}
 
 	if req.ScriptsUrl != "" {
-		url, _ := url.Parse(req.ScriptsUrl + "/" + "assemble")
-		downloadFile(url, h.request.workingDir+"/scripts/assemble", h.request.Verbose)
+		url, _ := url.Parse(req.ScriptsUrl + "/" + "usage")
+		err = downloadFile(url, h.request.workingDir+"/downloads/scripts/usage", h.request.Verbose)
 	}
 
 	defaultUrl, err := h.getDefaultUrl()
@@ -44,8 +44,8 @@ func Usage(req *STIRequest) error {
 		return err
 	}
 	if defaultUrl != "" {
-		url, _ := url.Parse(defaultUrl + "/" + "assemble")
-		downloadFile(url, h.request.workingDir+"/defaultScripts/assemble", h.request.Verbose)
+		url, _ := url.Parse(defaultUrl + "/" + "usage")
+		downloadFile(url, h.request.workingDir+"/downloads/defaultScripts/usage", h.request.Verbose)
 	}
 
 	h.request.usage = true

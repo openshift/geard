@@ -1,6 +1,7 @@
 package sti
 
 import (
+	"archive/tar"
 	"fmt"
 	"io"
 	"log"
@@ -12,12 +13,6 @@ import (
 	"sync/atomic"
 
 	"github.com/fsouza/go-dockerclient"
-)
-
-const (
-	SVirtSandboxFileLabel = "system_u:object_r:svirt_sandbox_file_t:s0"
-	ContainerInitDirName  = ".sti.init"
-	ContainerInitDirPath  = "/" + ContainerInitDirName
 )
 
 // STIRequest contains essential fields for any request: a Configuration, a base image, and an
@@ -96,15 +91,21 @@ func Build(req *STIRequest) (result *STIResult, err error) {
 		WorkingDir: h.request.workingDir,
 	}
 
-	dirs := []string{"tmp", "scripts", "defaultScripts"}
+	dirs := []string{"upload/scripts", "downloads/scripts", "downloads/defaultScripts"}
 	for _, v := range dirs {
-		err := os.Mkdir(filepath.Join(h.request.workingDir, v), 0700)
+		err := os.MkdirAll(filepath.Join(h.request.workingDir, v), 0700)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	err = h.downloadScripts()
+	if err != nil {
+		return nil, err
+	}
+
+	targetSourceDir := filepath.Join(h.request.workingDir, "upload", "src")
+	err = h.prepareSourceDir(h.request.Source, targetSourceDir, h.request.Ref)
 	if err != nil {
 		return nil, err
 	}
@@ -146,15 +147,7 @@ func Build(req *STIRequest) (result *STIResult, err error) {
 	return result, err
 }
 
-func (h requestHandler) buildInternal() (messages []string, imageID string, err error) {
-	volumeMap := make(map[string]struct{})
-	volumeMap["/tmp/src"] = struct{}{}
-	volumeMap["/tmp/scripts"] = struct{}{}
-	volumeMap["/tmp/defaultScripts"] = struct{}{}
-	if h.request.incremental {
-		volumeMap["/tmp/artifacts"] = struct{}{}
-	}
-
+func (h requestHandler) buildInternal(requiredScripts []string) (messages []string, imageID string, err error) {
 	if h.request.Verbose {
 		log.Printf("Using image name %s", h.request.BaseImage)
 	}
@@ -167,41 +160,32 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 		err = fmt.Errorf("No assemble script found in provided url, application source, or default image url. Aborting.")
 		return
 	}
-
-	runPath := h.determineScriptPath("run")
-	overrideRun := runPath != ""
-
-	if h.request.Verbose {
-		log.Printf("Using run script from %s", runPath)
-		log.Printf("Using assemble script from %s", assemblePath)
+	err = h.installScript(assemblePath)
+	if err != nil {
+		return
 	}
 
-	user := ""
-	if imageMetadata.Config != nil {
-		user = imageMetadata.Config.User
+	var runPath string
+	if !h.request.usage {
+		runPath = h.determineScriptPath("run")
+		if runPath == "" {
+			err = fmt.Errorf("No run script found in provided url, application source, or default image url. Aborting.")
+			return
+		}
+		err = h.installScript(runPath)
+		if err != nil {
+			return
+		}
 	}
 
-	hasUser := (user != "")
-	if hasUser && h.request.Verbose {
-		log.Printf("Image has username %s", user)
+	cmd := imageMetadata.Config.Cmd
+	cmd = append(cmd, "assemble")
+	config := docker.Config{
+		Image:     h.request.BaseImage,
+		OpenStdin: true,
+		StdinOnce: true,
+		Cmd:       cmd,
 	}
-
-	var cmd []string
-	if hasUser {
-		// run setup commands as root, then switch to container user
-		// to execute the assemble script.
-		cmd = []string{filepath.Join(ContainerInitDirPath, "init.sh")}
-		volumeMap[ContainerInitDirPath] = struct{}{}
-	} else if h.request.usage {
-		// invoke assemble script with usage argument
-		log.Println("Assemble script usage requested, invoking assemble script help")
-		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " -h"}
-	} else {
-		// normal assemble invocation
-		cmd = []string{"/bin/sh", "-c", "chmod 700 " + assemblePath + " && " + assemblePath + " && mkdir -p /opt/sti/bin && cp " + runPath + " /opt/sti/bin && chmod 700 /opt/sti/bin/run"}
-	}
-
-	config := docker.Config{User: "root", Image: h.request.BaseImage, Cmd: cmd, Volumes: volumeMap}
 
 	var cmdEnv []string
 	if len(h.request.Environment) > 0 {
@@ -220,83 +204,36 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 	}
 	defer h.removeContainer(container.ID)
 
-	binds := []string{filepath.Join(h.request.workingDir, "src") + ":/tmp/src"}
-	binds = append(binds, filepath.Join(h.request.workingDir, "defaultScripts")+":/tmp/defaultScripts")
-	binds = append(binds, filepath.Join(h.request.workingDir, "scripts")+":/tmp/scripts")
-	if h.request.incremental {
-		binds = append(binds, filepath.Join(h.request.workingDir, "artifacts")+":/tmp/artifacts")
-	}
-
-	if hasUser {
-		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ContainerInitDirName)
-		err = os.MkdirAll(containerInitDir, 0700)
-		if err != nil {
-			return
-		}
-
-		err = chcon(SVirtSandboxFileLabel, containerInitDir, true)
-		if err != nil {
-			err = fmt.Errorf("unable to set SELinux context: %s", err.Error())
-			return
-		}
-
-		buildScriptPath := filepath.Join(containerInitDir, "init.sh")
-		var buildScript *os.File
-		buildScript, err = os.OpenFile(buildScriptPath, os.O_CREATE|os.O_RDWR, 0700)
-		if err != nil {
-			return
-		}
-
-		templateFiller := struct {
-			User         string
-			Incremental  bool
-			AssemblePath string
-			RunPath      string
-			Usage        bool
-		}{user, h.request.incremental, assemblePath, runPath, h.request.Tag == ""}
-
-		err = buildTemplate.Execute(buildScript, templateFiller)
-		if err != nil {
-			return
-		}
-		buildScript.Close()
-
-		binds = append(binds, containerInitDir+":"+ContainerInitDirPath)
-	}
-
-	// only run chcon if it's not an incremental build, as saveArtifacts will have
-	// already run chcon if it is incremental
-	if !h.request.incremental {
-		err = chcon(SVirtSandboxFileLabel, h.request.workingDir, true)
-		if err != nil {
-			err = fmt.Errorf("Unable to set SELinux context for %s: %s", h.request.workingDir, err.Error())
-			return
-		}
-	}
-
-	hostConfig := docker.HostConfig{Binds: binds}
-	if h.request.Verbose {
-		log.Printf("Starting container with config: %+v\n", hostConfig)
-	}
-
-	err = h.dockerClient.StartContainer(container.ID, &hostConfig)
+	err = h.dockerClient.StartContainer(container.ID, nil)
 	if err != nil {
 		return
 	}
 
+	tarFileName, err := h.createTarUpload()
+	if err != nil {
+		return
+	}
+
+	tarFile, err := os.Open(tarFileName)
+	if err != nil {
+		return
+	}
+
+	attached := make(chan struct{})
 	attachOpts := docker.AttachToContainerOptions{
 		Container:    container.ID,
+		InputStream:  tarFile,
 		OutputStream: os.Stdout,
 		ErrorStream:  os.Stdout,
 		Stream:       true,
+		Stdin:        true,
 		Stdout:       true,
 		Stderr:       true,
-		Logs:         true}
-
-	err = h.dockerClient.AttachToContainer(attachOpts)
-	if err != nil {
-		log.Println("Couldn't attach to container")
+		Logs:         true,
+		Success:      attached,
 	}
+	go h.dockerClient.AttachToContainer(attachOpts)
+	attached <- <-attached
 
 	exitCode, err := h.dockerClient.WaitContainer(container.ID)
 	if err != nil {
@@ -314,16 +251,8 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 		return
 	}
 
-	config = docker.Config{Image: h.request.BaseImage, Env: cmdEnv}
-	if overrideRun {
-		config.Cmd = []string{"/opt/sti/bin/run"}
-	} else {
-		config.Cmd = imageMetadata.Config.Cmd
-		config.Entrypoint = imageMetadata.Config.Entrypoint
-	}
-	if hasUser {
-		config.User = user
-	}
+	config = docker.Config{Env: cmdEnv}
+	config.Cmd = []string{"/tmp/scripts/run"}
 
 	previousImageId := ""
 	if h.request.incremental && h.request.RemovePreviousImage {
@@ -362,20 +291,28 @@ func (h requestHandler) buildInternal() (messages []string, imageID string, err 
 
 func (h requestHandler) downloadScripts() error {
 	var (
-		wg         sync.WaitGroup
-		errorCount int32 = 0
+		wg            sync.WaitGroup
+		errorCount    int32 = 0
+		downloadCount int32 = 0
 	)
 
 	downloadAsync := func(scriptUrl *url.URL, targetFile string) {
 		defer wg.Done()
 		err := downloadFile(scriptUrl, targetFile, h.request.Verbose)
 		if err != nil {
+			return
+		}
+		atomic.AddInt32(&downloadCount, 1)
+
+		err = os.Chmod(targetFile, 0700)
+		if err != nil {
 			atomic.AddInt32(&errorCount, 1)
 		}
 	}
 
 	if h.request.ScriptsUrl != "" {
-		for file, url := range h.prepareScriptDownload(h.request.workingDir+"/scripts", h.request.ScriptsUrl) {
+		destDir := filepath.Join(h.request.workingDir, "/downloads/scripts")
+		for file, url := range h.prepareScriptDownload(destDir, h.request.ScriptsUrl) {
 			wg.Add(1)
 			go downloadAsync(url, file)
 		}
@@ -387,21 +324,21 @@ func (h requestHandler) downloadScripts() error {
 	}
 
 	if defaultUrl != "" {
-		for file, url := range h.prepareScriptDownload(h.request.workingDir+"/defaultScripts", defaultUrl) {
+		destDir := filepath.Join(h.request.workingDir, "/downloads/defaultScripts")
+		for file, url := range h.prepareScriptDownload(destDir, defaultUrl) {
 			wg.Add(1)
 			go downloadAsync(url, file)
 		}
 	}
 
-	// Wait for the scripts and the source code download to finish.
+	// Wait for the script downloads to finish.
 	//
 	wg.Wait()
-	if errorCount > 0 {
+	if downloadCount == 0 || errorCount > 0 {
 		return ErrScriptsDownloadFailed
 	}
 
-	targetSourceDir := filepath.Join(h.request.workingDir, "src")
-	return h.prepareSourceDir(h.request.Source, targetSourceDir, h.request.Ref)
+	return nil
 }
 
 func (h requestHandler) determineIncremental() error {
@@ -448,28 +385,31 @@ func (h requestHandler) getDefaultUrl() (string, error) {
 }
 
 func (h requestHandler) determineScriptPath(script string) string {
-	contextDir := h.request.workingDir
-
-	if _, err := os.Stat(filepath.Join(contextDir, "scripts", script)); err == nil {
-		// if the invoker provided a script via a url, prefer that.
-		if h.request.Verbose {
-			log.Printf("Using %s script from user provided url", script)
-		}
-		return filepath.Join("/tmp", "scripts", script)
-	} else if _, err := os.Stat(filepath.Join(contextDir, "src", ".sti", "bin", script)); err == nil {
-		// if they provided one in the app source, that is preferred next
-		if h.request.Verbose {
-			log.Printf("Using %s script from application source", script)
-		}
-		return filepath.Join("/tmp", "src", ".sti", "bin", script)
-	} else if _, err := os.Stat(filepath.Join(contextDir, "defaultScripts", script)); err == nil {
-		// lowest priority: script provided by default url reference in the image.
-		if h.request.Verbose {
-			log.Printf("Using %s script from image default url", script)
-		}
-		return filepath.Join("/tmp", "defaultScripts", script)
+	locations := map[string]string{
+		"downloads/scripts":        "user provided url",
+		"upload/src/.sti/bin":      "application source",
+		"downloads/defaultScripts": "default url reference in the image",
 	}
+
+	for location, description := range locations {
+		path := filepath.Join(h.request.workingDir, location, script)
+		if h.request.Verbose {
+			log.Printf("Looking for %s script at %s", script, path)
+		}
+		if _, err := os.Stat(path); err == nil {
+			if h.request.Verbose {
+				log.Printf("Found %s script from %s.", script, description)
+			}
+			return path
+		}
+	}
+
 	return ""
+}
+
+func (h requestHandler) installScript(path string) error {
+	script := filepath.Base(path)
+	return os.Rename(path, filepath.Join(h.request.workingDir, "upload/scripts", script))
 }
 
 // Turn the script name into proper URL
@@ -477,7 +417,7 @@ func (h requestHandler) prepareScriptDownload(targetDir, baseUrl string) map[str
 
 	os.MkdirAll(targetDir, 0700)
 
-	files := []string{"save-artifacts", "assemble", "run"}
+	files := []string{"save-artifacts", "assemble", "run", "usage"}
 	urls := make(map[string]*url.URL)
 
 	for _, file := range files {
@@ -494,7 +434,7 @@ func (h requestHandler) prepareScriptDownload(targetDir, baseUrl string) map[str
 }
 
 func (h requestHandler) saveArtifacts() error {
-	artifactTmpDir := filepath.Join(h.request.workingDir, "artifacts")
+	artifactTmpDir := filepath.Join(h.request.workingDir, "upload/artifacts")
 	err := os.Mkdir(artifactTmpDir, 0700)
 	if err != nil {
 		return err
@@ -506,33 +446,26 @@ func (h requestHandler) saveArtifacts() error {
 		log.Printf("Saving build artifacts from image %s to path %s\n", image, artifactTmpDir)
 	}
 
-	imageMetadata, err := h.dockerClient.InspectImage(image)
+	saveArtifactsScriptPath := h.determineScriptPath("save-artifacts")
+	err = h.installScript(saveArtifactsScriptPath)
 	if err != nil {
 		return err
 	}
 
-	saveArtifactsScriptPath := h.determineScriptPath("save-artifacts")
-
-	user := imageMetadata.Config.User
-	hasUser := (user != "")
-	if h.request.Verbose {
-		log.Printf("Artifact image hasUser=%t, user is %s\n", hasUser, user)
+	baseImage, err := h.dockerClient.InspectImage(h.request.BaseImage)
+	if err != nil {
+		return err
 	}
 
-	volumeMap := make(map[string]struct{})
-	volumeMap["/tmp/artifacts"] = struct{}{}
-	volumeMap["/tmp/src"] = struct{}{}
-	volumeMap["/tmp/scripts"] = struct{}{}
-	volumeMap["/tmp/defaultScripts"] = struct{}{}
+	cmd := baseImage.Config.Cmd
+	cmd = append(cmd, "save-artifacts")
 
-	cmd := []string{"/bin/sh", "-c", "chmod 777 " + saveArtifactsScriptPath + " && " + saveArtifactsScriptPath}
-
-	if hasUser {
-		volumeMap[ContainerInitDirPath] = struct{}{}
-		cmd = []string{filepath.Join(ContainerInitDirPath, "init.sh")}
+	config := docker.Config{
+		Image:     image,
+		Cmd:       cmd,
+		OpenStdin: true,
+		StdinOnce: true,
 	}
-
-	config := docker.Config{User: "root", Image: image, Cmd: cmd, Volumes: volumeMap}
 	if h.request.Verbose {
 		log.Printf("Creating container using config: %+v\n", config)
 	}
@@ -542,77 +475,77 @@ func (h requestHandler) saveArtifacts() error {
 	}
 	defer h.removeContainer(container.ID)
 
-	binds := []string{artifactTmpDir + ":/tmp/artifacts"}
-	binds = append(binds, filepath.Join(h.request.workingDir, "src")+":/tmp/src")
-	binds = append(binds, filepath.Join(h.request.workingDir, "defaultScripts")+":/tmp/defaultScripts")
-	binds = append(binds, filepath.Join(h.request.workingDir, "scripts")+":/tmp/scripts")
-
-	if hasUser {
-		// TODO: add custom errors?
-		if h.request.Verbose {
-			log.Println("Creating stub file")
-		}
-		stubFile, err := os.OpenFile(filepath.Join(artifactTmpDir, ".stub"), os.O_CREATE|os.O_RDWR, 0666)
-		if err != nil {
-			return err
-		}
-		defer stubFile.Close()
-
-		containerInitDir := filepath.Join(h.request.workingDir, "tmp", ContainerInitDirName)
-		if h.request.Verbose {
-			log.Printf("Creating dir %+v\n", containerInitDir)
-		}
-		err = os.MkdirAll(containerInitDir, 0700)
-		if err != nil {
-			return err
-		}
-
-		err = chcon(SVirtSandboxFileLabel, containerInitDir, true)
-		if err != nil {
-			return fmt.Errorf("unable to set SELinux context: %s", err.Error())
-		}
-
-		initScriptPath := filepath.Join(containerInitDir, "init.sh")
-		if h.request.Verbose {
-			log.Printf("Writing %+v\n", initScriptPath)
-		}
-		initScript, err := os.OpenFile(initScriptPath, os.O_CREATE|os.O_RDWR, 0766)
-		if err != nil {
-			return err
-		}
-
-		err = saveArtifactsInitTemplate.Execute(initScript, struct {
-			User              string
-			SaveArtifactsPath string
-		}{user, saveArtifactsScriptPath})
-		if err != nil {
-			return err
-		}
-		initScript.Close()
-
-		binds = append(binds, containerInitDir+":"+ContainerInitDirPath)
-	}
-
-	err = chcon(SVirtSandboxFileLabel, h.request.workingDir, true)
-	if err != nil {
-		err = fmt.Errorf("Unable to set SELinux context for %s: %s", h.request.workingDir, err.Error())
-		return err
-	}
-
-	hostConfig := docker.HostConfig{Binds: binds}
-	if h.request.Verbose {
-		log.Printf("Starting container with host config %+v\n", hostConfig)
-	}
-	err = h.dockerClient.StartContainer(container.ID, &hostConfig)
+	err = h.dockerClient.StartContainer(container.ID, nil)
 	if err != nil {
 		return err
 	}
 
-	attachOpts := docker.AttachToContainerOptions{Container: container.ID, OutputStream: os.Stdout,
-		ErrorStream: os.Stdout, Stream: true, Stdout: true, Stderr: true, Logs: true}
-	err = h.dockerClient.AttachToContainer(attachOpts)
+	tarFileName, err := h.createTarUpload()
 	if err != nil {
-		log.Printf("Couldn't attach to container")
+		return err
+	}
+
+	tarFile, err := os.Open(tarFileName)
+	if err != nil {
+		return err
+	}
+	defer tarFile.Close()
+
+	reader, writer := io.Pipe()
+	//TODO error check?
+	defer reader.Close()
+	defer writer.Close()
+
+	attached := make(chan struct{})
+	attachOpts := docker.AttachToContainerOptions{
+		Container:    container.ID,
+		Stdin:        true,
+		InputStream:  tarFile,
+		Stdout:       true,
+		OutputStream: writer,
+		Stream:       true,
+		Success:      attached,
+	}
+	go h.dockerClient.AttachToContainer(attachOpts)
+	attached <- <-attached
+
+	tarReader := tar.NewReader(reader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalln(err)
+			break
+		}
+		if header.FileInfo().IsDir() {
+			err = os.MkdirAll(filepath.Join(artifactTmpDir, header.Name), 0700)
+			if err != nil {
+				log.Fatalln(err)
+				break
+			}
+		} else {
+			dir := filepath.Dir(header.Name)
+			err = os.MkdirAll(filepath.Join(artifactTmpDir, dir), 0700)
+			if err != nil {
+				log.Fatalln(err)
+				break
+			}
+			//TODO should this be OpenFile so we can set the perms to 600 or 660?
+			file, err := os.Create(filepath.Join(artifactTmpDir, header.Name))
+			if err != nil {
+				log.Fatalln(err)
+				break
+			}
+			defer file.Close()
+
+			written, err := io.Copy(file, tarReader)
+			if written != header.Size {
+				log.Fatalf("Wrote %d bytes, expected to write %d\n", written, header.Size)
+				break
+			}
+		}
 	}
 
 	exitCode, err := h.dockerClient.WaitContainer(container.ID)
@@ -653,7 +586,6 @@ func (h requestHandler) prepareSourceDir(source, targetSourceDir, ref string) er
 			}
 		}
 	} else {
-		// TODO: investigate using bind-mounts instead
 		copy(source, targetSourceDir)
 	}
 

@@ -3,13 +3,13 @@ package docker
 import (
 	"errors"
 	"fmt"
-	gdocker "github.com/fsouza/go-dockerclient"
-	"github.com/fsouza/go-dockerclient/engine"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	gdocker "github.com/fsouza/go-dockerclient"
 )
 
 type containerLookupResult struct {
@@ -37,7 +37,7 @@ func GetConnection(dockerSocket string) (*DockerClient, error) {
 	var (
 		client          *gdocker.Client
 		err             error
-		info            *engine.Env
+		info            *gdocker.Env
 		executionDriver string
 	)
 
@@ -68,7 +68,7 @@ func (d *DockerClient) InspectContainer(containerName string) (*gdocker.Containe
 func (d *DockerClient) GetImage(imageName string) (*gdocker.Image, error) {
 	if img, err := d.client.InspectImage(imageName); err != nil {
 		if err == gdocker.ErrNoSuchImage {
-			if err := d.client.PullImage(gdocker.PullImageOptions{imageName, "", "", os.Stdout}, gdocker.AuthConfiguration{}); err != nil {
+			if err := d.client.PullImage(gdocker.PullImageOptions{imageName, "", "", os.Stdout, false}, gdocker.AuthConfiguration{}); err != nil {
 				return nil, err
 			}
 			return d.client.InspectImage(imageName)
