@@ -19,7 +19,7 @@ func validateGitRef(ref string) bool {
 
 var allowedSchemes = []string{"git", "http", "https", "file"}
 
-func validCloneSpec(source string, verbose bool) bool {
+func validCloneSpec(source string) bool {
 	url, err := url.Parse(source)
 	if err != nil {
 		return false

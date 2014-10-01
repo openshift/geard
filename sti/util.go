@@ -130,7 +130,9 @@ func downloadFile(url *url.URL, targetFile string, verbose bool) error {
 	}
 	reader, err := sr(url)
 	if err != nil {
-		log.Printf("ERROR: Reading error while downloading %s (%s)\n", url.String(), err)
+		if verbose {
+			log.Printf("ERROR: Unable to download %s (%s)\n", url.String(), err)
+		}
 		return err
 	}
 	defer reader.Close()
