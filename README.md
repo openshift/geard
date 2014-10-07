@@ -252,7 +252,7 @@ Report issues and contribute
 
 Bugs are tracked by the Red Hat and OpenShift test teams in [Bugzilla in the geard component](https://bugzilla.redhat.com/buglist.cgi?component=geard&product=OpenShift%20Origin), but you can always open a GitHub issue as well.
 
-We are glad to accept pull requests for fixes, features, and experimentation. The current roadmap is described on the [OpenShift geard Trello board](https://trello.com/b/KfPwHUAy/openshift-geard).  A rough map of the code structure is available [here](docs/code_structure.md).
+We are glad to accept pull requests for fixes, features, and experimentation. A rough map of the code structure is available [here](docs/code_structure.md).
 
 To submit a pull request, ensure your commit has a good description of the problem and contains a test case where possible for your function.  We use Travis to perform builds and test pull requests - if your pull request fails Travis we'll try to help you get it fixed.
 
