@@ -144,7 +144,7 @@ func (nfq *NFQueue) run() {
 //export go_callback
 func go_callback(queueId C.int, data *C.uchar, len C.int, cb *chan NFPacket) Verdict {
 	xdata := C.GoBytes(unsafe.Pointer(data), len)
-	packet := gopacket.NewPacket(xdata, layers.LayerTypeIPv4, gopacket.DecodeOptions{true, true})
+	packet := gopacket.NewPacket(xdata, layers.LayerTypeIPv4, gopacket.DecodeOptions{Lazy: true, NoCopy: true})
 	p := NFPacket{verdictChannel: make(chan Verdict), Packet: packet}
 	select {
 	case (*cb) <- p:
