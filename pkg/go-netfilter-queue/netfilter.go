@@ -57,8 +57,8 @@ func (p *NFPacket) SetRequeueVerdict(newQueueId uint16) {
 }
 
 type NFQueue struct {
-	h       *[0]byte
-	qh      *[0]byte
+	h       *C.struct_nfq_handle
+	qh      *C.struct_nfq_q_handle
 	fd      C.int
 	packets chan NFPacket
 }
