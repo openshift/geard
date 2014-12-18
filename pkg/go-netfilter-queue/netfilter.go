@@ -57,8 +57,8 @@ func (p *NFPacket) SetRequeueVerdict(newQueueId uint16) {
 }
 
 type NFQueue struct {
-	h       *[0]byte
-	qh      *[0]byte
+	h       *C.struct_nfq_handle
+	qh      *C.struct_nfq_q_handle
 	fd      C.int
 	packets chan NFPacket
 }
@@ -144,7 +144,7 @@ func (nfq *NFQueue) run() {
 //export go_callback
 func go_callback(queueId C.int, data *C.uchar, len C.int, cb *chan NFPacket) Verdict {
 	xdata := C.GoBytes(unsafe.Pointer(data), len)
-	packet := gopacket.NewPacket(xdata, layers.LayerTypeIPv4, gopacket.DecodeOptions{true, true})
+	packet := gopacket.NewPacket(xdata, layers.LayerTypeIPv4, gopacket.DecodeOptions{Lazy: true, NoCopy: true})
 	p := NFPacket{verdictChannel: make(chan Verdict), Packet: packet}
 	select {
 	case (*cb) <- p:
