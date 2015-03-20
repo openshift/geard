@@ -397,7 +397,7 @@ func (h requestHandler) downloadScripts() error {
 	//
 	wg.Wait()
 	if errorCount > 0 {
-		return ErrScriptsDownloadFailed
+		log.Printf("WARNING: %d STI scripts failed to download properly.\n", errorCount)
 	}
 
 	targetSourceDir := filepath.Join(h.request.workingDir, "src")
