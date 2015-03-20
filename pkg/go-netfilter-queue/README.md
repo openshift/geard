@@ -18,26 +18,22 @@ You can then use go-netfilter-queue to inspect the packets:
     package main
     
     import (
-            "fmt"
             "github.com/openshift/geard/pkg/go-netfilter-queue"
-            "os"
+            "log"
     )
     
     func main() {
-            var err error
-    
             nfq, err := netfilter.NewNFQueue(0, 100, netfilter.NF_DEFAULT_PACKET_SIZE)
             if err != nil {
-                    fmt.Println(err)
-                    os.Exit(1)
+                    log.Fatal(err)
             }
             defer nfq.Close()
             packets := nfq.GetPackets()
     
-            for true {
+            for {
                     select {
                     case p := <-packets:
-                            fmt.Println(p.Packet)
+                            log.Println(p.Packet)
                             p.SetVerdict(netfilter.NF_ACCEPT)
                     }
             }
