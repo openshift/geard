@@ -40,8 +40,8 @@ function build_test_images() {
       case "$image_name" in
         sti-fake-broken) ;&
         sti-fake-user) ;&
-        sti-fake) docker build -t sti_test/$image_name . ;;
-        *) docker build -t openshift/$image_name . ;;
+        sti-fake) retry_with_timeout "3" "10m" "docker build -t sti_test/$image_name ." ;;
+        *) retry_with_timeout "3" "10m" "docker build -t openshift/$image_name ." ;;
       esac
     popd >/dev/null
   done
@@ -91,10 +91,26 @@ function test_package() {
       fi
 
       echo "sudo -E ./$binary $verbose_arg $opts"
-      sudo -E ./$binary $verbose_arg $opts
+      retry_with_timeout "3" "5m" "sudo -E ./${binary} ${verbose_arg} ${opts}"
       echo "Done"
     fi
   popd >/dev/null
+}
+
+function retry_with_timeout() {
+  local count="$1"
+  local t="$2"
+  local cmd="$3"
+  local retval=0
+
+  for i in $(seq 1 $count); do
+    timeout -s 9 $t $cmd
+    retval="$?"
+    [ "$retval" != "124" ] && break
+    echo "Retry#${i}: ${cmd}"
+  done
+
+  return $retval
 }
 
 function show() {
