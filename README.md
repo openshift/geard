@@ -1,5 +1,6 @@
 geard [![Build Status](https://travis-ci.org/openshift/geard.png?branch=master)](https://travis-ci.org/openshift/geard)
 =====
+*Note:* geard is no longer maintained - see OpenShift 3 and Kubernetes
 
 geard is a command line client for installing [Docker](https://www.docker.io) images as containers onto a systemd-enabled Linux operating system (systemd 207 or newer).  It may be run as a command:
 
