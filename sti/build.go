@@ -109,6 +109,12 @@ func Build(req *STIRequest) (result *STIResult, err error) {
 		return nil, err
 	}
 
+	targetSourceDir := filepath.Join(h.request.workingDir, "src")
+	err = h.prepareSourceDir(h.request.Source, targetSourceDir, h.request.Ref)
+	if err != nil {
+		return nil, err
+	}
+
 	if !h.request.usage {
 		err = h.determineIncremental()
 		if err != nil {
@@ -132,9 +138,7 @@ func Build(req *STIRequest) (result *STIResult, err error) {
 		}
 	}
 
-	messages, imageID, err := h.buildInternal()
-	result.Messages = messages
-	result.ImageID = imageID
+	result.Messages, result.ImageID, err = h.buildInternal()
 	if err == nil {
 		result.Success = true
 	}
@@ -393,15 +397,14 @@ func (h requestHandler) downloadScripts() error {
 		}
 	}
 
-	// Wait for the scripts and the source code download to finish.
+	// Wait for the scripts download to finish
 	//
 	wg.Wait()
 	if errorCount > 0 {
 		return ErrScriptsDownloadFailed
 	}
 
-	targetSourceDir := filepath.Join(h.request.workingDir, "src")
-	return h.prepareSourceDir(h.request.Source, targetSourceDir, h.request.Ref)
+	return nil
 }
 
 func (h requestHandler) determineIncremental() error {
