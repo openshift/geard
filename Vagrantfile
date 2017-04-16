@@ -78,6 +78,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.synced_folder '.', "/vagrant/src/github.com/openshift/geard", create: true
   end
 
+  ## Share an additional folder that contains OpenShift code to support 
+  ## broker development environment.
+  if ENV['OPENSHIFT_DEV'] && ENV['OPENSHIFT_DEV'] != ""
+    puts "Sharing OpenShift code directory with VM"
+    config.vm.synced_folder ENV['OPENSHIFT_DEV'], '/openshift'
+  end
+
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
   # Example for VirtualBox:
