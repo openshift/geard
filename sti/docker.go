@@ -7,7 +7,7 @@ import (
 )
 
 // Determines whether the supplied image is in the local registry.
-func (h requestHandler) isImageInLocalRegistry(imageName string) (bool, error) {
+func (h *requestHandler) isImageInLocalRegistry(imageName string) (bool, error) {
 	image, err := h.dockerClient.InspectImage(imageName)
 
 	if image != nil {
@@ -20,7 +20,7 @@ func (h requestHandler) isImageInLocalRegistry(imageName string) (bool, error) {
 }
 
 // Pull an image into the local registry
-func (h requestHandler) checkAndPull(imageName string) (*docker.Image, error) {
+func (h *requestHandler) checkAndPull(imageName string) (*docker.Image, error) {
 	image, err := h.dockerClient.InspectImage(imageName)
 	if err != nil && err != docker.ErrNoSuchImage {
 		//TODO should this be a different error?
@@ -47,7 +47,7 @@ func (h requestHandler) checkAndPull(imageName string) (*docker.Image, error) {
 }
 
 // Creates a container from a given image name and returns the ID of the created container.
-func (h requestHandler) containerFromImage(imageName string) (*docker.Container, error) {
+func (h *requestHandler) containerFromImage(imageName string) (*docker.Container, error) {
 	config := docker.Config{Image: imageName, AttachStdout: false, AttachStderr: false, Cmd: []string{"/bin/true"}}
 	container, err := h.dockerClient.CreateContainer(docker.CreateContainerOptions{Name: "", Config: &config})
 	if err != nil {
@@ -73,12 +73,12 @@ func (h requestHandler) containerFromImage(imageName string) (*docker.Container,
 }
 
 // Remove a container and its associated volumes.
-func (h requestHandler) removeContainer(id string) {
+func (h *requestHandler) removeContainer(id string) {
 	h.dockerClient.RemoveContainer(docker.RemoveContainerOptions{id, true, true})
 }
 
 // Commit the container with the given ID with the given tag.
-func (h requestHandler) commitContainer(id, tag string) error {
+func (h *requestHandler) commitContainer(id, tag string) error {
 	// TODO: commit message / author?
 	_, err := h.dockerClient.CommitContainer(docker.CommitContainerOptions{Container: id, Repository: tag})
 	return err

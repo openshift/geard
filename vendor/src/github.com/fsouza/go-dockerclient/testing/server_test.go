@@ -7,7 +7,6 @@ package testing
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
 	"math/rand"
 	"net"
 	"net/http"
@@ -17,10 +16,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fsouza/go-dockerclient"
 )
 
 func TestNewServer(t *testing.T) {
-	server, err := NewServer("127.0.0.1:0", nil)
+	server, err := NewServer("127.0.0.1:0", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +34,7 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestServerStop(t *testing.T) {
-	server, err := NewServer("127.0.0.1:0", nil)
+	server, err := NewServer("127.0.0.1:0", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func TestServerStopNoListener(t *testing.T) {
 }
 
 func TestServerURL(t *testing.T) {
-	server, err := NewServer("127.0.0.1:0", nil)
+	server, err := NewServer("127.0.0.1:0", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,13 +72,32 @@ func TestServerURLNoListener(t *testing.T) {
 
 func TestHandleWithHook(t *testing.T) {
 	var called bool
-	server, _ := NewServer("127.0.0.1:0", func(*http.Request) { called = true })
+	server, _ := NewServer("127.0.0.1:0", nil, func(*http.Request) { called = true })
 	defer server.Stop()
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/containers/json?all=1", nil)
 	server.ServeHTTP(recorder, request)
 	if !called {
 		t.Error("ServeHTTP did not call the hook function.")
+	}
+}
+
+func TestCustomHandler(t *testing.T) {
+	var called bool
+	server, _ := NewServer("127.0.0.1:0", nil, nil)
+	addContainers(server, 2)
+	server.CustomHandler("/containers/json", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		fmt.Fprint(w, "Hello world")
+	}))
+	recorder := httptest.NewRecorder()
+	request, _ := http.NewRequest("GET", "/containers/json?all=1", nil)
+	server.ServeHTTP(recorder, request)
+	if !called {
+		t.Error("Did not call the custom handler")
+	}
+	if got := recorder.Body.String(); got != "Hello world" {
+		t.Errorf("Wrong output for custom handler: want %q. Got %q.", "Hello world", got)
 	}
 }
 
@@ -155,6 +175,25 @@ func TestCreateContainer(t *testing.T) {
 	}
 	if stored.State.Running {
 		t.Errorf("CreateContainer should not set container to running state.")
+	}
+}
+
+func TestCreateContainerWithNotifyChannel(t *testing.T) {
+	ch := make(chan *docker.Container, 1)
+	server := DockerServer{}
+	server.imgIDs = map[string]string{"base": "a1234"}
+	server.cChan = ch
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	body := `{"Hostname":"", "User":"", "Memory":0, "MemorySwap":0, "AttachStdin":false, "AttachStdout":true, "AttachStderr":true,
+"PortSpecs":null, "Tty":false, "OpenStdin":false, "StdinOnce":false, "Env":null, "Cmd":["date"], "Image":"base", "Volumes":{}, "VolumesFrom":""}`
+	request, _ := http.NewRequest("POST", "/containers/create", strings.NewReader(body))
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusCreated {
+		t.Errorf("CreateContainer: wrong status. Want %d. Got %d.", http.StatusCreated, recorder.Code)
+	}
+	if notified := <-ch; notified != server.containers[0] {
+		t.Errorf("CreateContainer: did not notify the proper container. Want %q. Got %q.", server.containers[0].ID, notified.ID)
 	}
 }
 
@@ -304,6 +343,58 @@ func TestInspectContainerNotFound(t *testing.T) {
 	}
 }
 
+func TestTopContainer(t *testing.T) {
+	server := DockerServer{}
+	addContainers(&server, 1)
+	server.containers[0].State.Running = true
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/top", server.containers[0].ID)
+	request, _ := http.NewRequest("GET", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Errorf("TopContainer: wrong status. Want %d. Got %d.", http.StatusOK, recorder.Code)
+	}
+	var got docker.TopResult
+	err := json.NewDecoder(recorder.Body).Decode(&got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Titles, []string{"UID", "PID", "PPID", "C", "STIME", "TTY", "TIME", "CMD"}) {
+		t.Fatalf("TopContainer: Unexpected titles, got: %#v", got.Titles)
+	}
+	if len(got.Processes) != 1 {
+		t.Fatalf("TopContainer: Unexpected process len, got: %d", len(got.Processes))
+	}
+	if got.Processes[0][len(got.Processes[0])-1] != "ls -la .." {
+		t.Fatalf("TopContainer: Unexpected command name, got: %s", got.Processes[0][len(got.Processes[0])-1])
+	}
+}
+
+func TestTopContainerNotFound(t *testing.T) {
+	server := DockerServer{}
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	request, _ := http.NewRequest("GET", "/containers/xyz/top", nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNotFound {
+		t.Errorf("TopContainer: wrong status. Want %d. Got %d.", http.StatusNotFound, recorder.Code)
+	}
+}
+
+func TestTopContainerStopped(t *testing.T) {
+	server := DockerServer{}
+	addContainers(&server, 1)
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/top", server.containers[0].ID)
+	request, _ := http.NewRequest("GET", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Errorf("TopContainer: wrong status. Want %d. Got %d.", http.StatusInternalServerError, recorder.Code)
+	}
+}
+
 func TestStartContainer(t *testing.T) {
 	server := DockerServer{}
 	addContainers(&server, 1)
@@ -317,6 +408,25 @@ func TestStartContainer(t *testing.T) {
 	}
 	if !server.containers[0].State.Running {
 		t.Error("StartContainer: did not set the container to running state")
+	}
+}
+
+func TestStartContainerWithNotifyChannel(t *testing.T) {
+	ch := make(chan *docker.Container, 1)
+	server := DockerServer{}
+	server.cChan = ch
+	addContainers(&server, 1)
+	addContainers(&server, 1)
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/start", server.containers[1].ID)
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Errorf("StartContainer: wrong status code. Want %d. Got %d.", http.StatusOK, recorder.Code)
+	}
+	if notified := <-ch; notified != server.containers[1] {
+		t.Errorf("StartContainer: did not notify the proper container. Want %q. Got %q.", server.containers[1].ID, notified.ID)
 	}
 }
 
@@ -363,6 +473,26 @@ func TestStopContainer(t *testing.T) {
 	}
 }
 
+func TestStopContainerWithNotifyChannel(t *testing.T) {
+	ch := make(chan *docker.Container, 1)
+	server := DockerServer{}
+	server.cChan = ch
+	addContainers(&server, 1)
+	addContainers(&server, 1)
+	server.containers[1].State.Running = true
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/stop", server.containers[1].ID)
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNoContent {
+		t.Errorf("StopContainer: wrong status code. Want %d. Got %d.", http.StatusNoContent, recorder.Code)
+	}
+	if notified := <-ch; notified != server.containers[1] {
+		t.Errorf("StopContainer: did not notify the proper container. Want %q. Got %q.", server.containers[1].ID, notified.ID)
+	}
+}
+
 func TestStopContainerNotFound(t *testing.T) {
 	server := DockerServer{}
 	server.buildMuxer()
@@ -388,6 +518,90 @@ func TestStopContainerNotRunning(t *testing.T) {
 	}
 }
 
+func TestPauseContainer(t *testing.T) {
+	server := DockerServer{}
+	addContainers(&server, 1)
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/pause", server.containers[0].ID)
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNoContent {
+		t.Errorf("PauseContainer: wrong status code. Want %d. Got %d.", http.StatusNoContent, recorder.Code)
+	}
+	if !server.containers[0].State.Paused {
+		t.Error("PauseContainer: did not pause the container")
+	}
+}
+
+func TestPauseContainerAlreadyPaused(t *testing.T) {
+	server := DockerServer{}
+	addContainers(&server, 1)
+	server.containers[0].State.Paused = true
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/pause", server.containers[0].ID)
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Errorf("PauseContainer: wrong status code. Want %d. Got %d.", http.StatusBadRequest, recorder.Code)
+	}
+}
+
+func TestPauseContainerNotFound(t *testing.T) {
+	server := DockerServer{}
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := "/containers/abc123/pause"
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNotFound {
+		t.Errorf("PauseContainer: wrong status code. Want %d. Got %d.", http.StatusNotFound, recorder.Code)
+	}
+}
+
+func TestUnpauseContainer(t *testing.T) {
+	server := DockerServer{}
+	addContainers(&server, 1)
+	server.containers[0].State.Paused = true
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/unpause", server.containers[0].ID)
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNoContent {
+		t.Errorf("UnpauseContainer: wrong status code. Want %d. Got %d.", http.StatusNoContent, recorder.Code)
+	}
+	if server.containers[0].State.Paused {
+		t.Error("UnpauseContainer: did not unpause the container")
+	}
+}
+
+func TestUnpauseContainerNotPaused(t *testing.T) {
+	server := DockerServer{}
+	addContainers(&server, 1)
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/unpause", server.containers[0].ID)
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Errorf("UnpauseContainer: wrong status code. Want %d. Got %d.", http.StatusBadRequest, recorder.Code)
+	}
+}
+
+func TestUnpauseContainerNotFound(t *testing.T) {
+	server := DockerServer{}
+	server.buildMuxer()
+	recorder := httptest.NewRecorder()
+	path := "/containers/abc123/unpause"
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNotFound {
+		t.Errorf("UnpauseContainer: wrong status code. Want %d. Got %d.", http.StatusNotFound, recorder.Code)
+	}
+}
+
 func TestWaitContainer(t *testing.T) {
 	server := DockerServer{}
 	addContainers(&server, 1)
@@ -405,7 +619,25 @@ func TestWaitContainer(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Errorf("WaitContainer: wrong status. Want %d. Got %d.", http.StatusOK, recorder.Code)
 	}
-	expected := `{"StatusCode":0}`
+	expected := `{"StatusCode":0}` + "\n"
+	if body := recorder.Body.String(); body != expected {
+		t.Errorf("WaitContainer: wrong body. Want %q. Got %q.", expected, body)
+	}
+}
+
+func TestWaitContainerStatus(t *testing.T) {
+	server := DockerServer{}
+	addContainers(&server, 1)
+	server.buildMuxer()
+	server.containers[0].State.ExitCode = 63
+	recorder := httptest.NewRecorder()
+	path := fmt.Sprintf("/containers/%s/wait", server.containers[0].ID)
+	request, _ := http.NewRequest("POST", path, nil)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Errorf("WaitContainer: wrong status. Want %d. Got %d.", http.StatusOK, recorder.Code)
+	}
+	expected := `{"StatusCode":63}` + "\n"
 	if body := recorder.Body.String(); body != expected {
 		t.Errorf("WaitContainer: wrong body. Want %q. Got %q.", expected, body)
 	}
@@ -601,7 +833,7 @@ func addImages(server *DockerServer, n int, repo bool) {
 
 func TestListImages(t *testing.T) {
 	server := DockerServer{}
-	addImages(&server, 2, false)
+	addImages(&server, 2, true)
 	server.buildMuxer()
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/images/json?all=1", nil)
@@ -612,8 +844,9 @@ func TestListImages(t *testing.T) {
 	expected := make([]docker.APIImages, 2)
 	for i, image := range server.images {
 		expected[i] = docker.APIImages{
-			ID:      image.ID,
-			Created: image.Created.Unix(),
+			ID:       image.ID,
+			Created:  image.Created.Unix(),
+			RepoTags: []string{"docker/python-" + image.ID},
 		}
 	}
 	var got []docker.APIImages
@@ -647,7 +880,8 @@ func TestRemoveImageByName(t *testing.T) {
 	addImages(&server, 1, true)
 	server.buildMuxer()
 	recorder := httptest.NewRecorder()
-	path := "/images/docker/python-" + server.images[0].ID
+	imgName := "docker/python-" + server.images[0].ID
+	path := "/images/" + imgName
 	request, _ := http.NewRequest("DELETE", path, nil)
 	server.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusNoContent {
@@ -656,78 +890,73 @@ func TestRemoveImageByName(t *testing.T) {
 	if len(server.images) > 0 {
 		t.Error("RemoveImage: did not remove the image.")
 	}
+	_, ok := server.imgIDs[imgName]
+	if ok {
+		t.Error("RemoveImage: did not remove image tag name.")
+	}
 }
 
 func TestPrepareFailure(t *testing.T) {
-	server := DockerServer{failures: make(map[string]FailureSpec)}
+	server := DockerServer{failures: make(map[string]string)}
 	server.buildMuxer()
-	errorId := "my_error"
-	failure := FailureSpec{UrlRegex: "containers/json"}
-	server.PrepareFailure(errorId, failure)
+	errorID := "my_error"
+	server.PrepareFailure(errorID, "containers/json")
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/containers/json?all=1", nil)
 	server.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusBadRequest {
 		t.Errorf("PrepareFailure: wrong status. Want %d. Got %d.", http.StatusBadRequest, recorder.Code)
 	}
-	if recorder.Body.String() != errorId+"\n" {
-		t.Errorf("PrepareFailure: wrong message. Want %s. Got %s.", errorId, recorder.Body.String())
-	}
-}
-
-func TestPrepareFailureUsingContainerPath(t *testing.T) {
-	server := DockerServer{failures: make(map[string]FailureSpec)}
-	addContainers(&server, 1)
-	server.buildMuxer()
-	errorId := "my_path_error"
-	failure := FailureSpec{UrlRegex: "containers/.*?/start", ContainerPath: "ls"}
-	server.PrepareFailure(errorId, failure)
-	recorder := httptest.NewRecorder()
-	path := fmt.Sprintf("/containers/%s/start", server.containers[0].ID)
-	request, _ := http.NewRequest("POST", path, nil)
-	server.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusBadRequest {
-		t.Errorf("TestPrepareFailureUsingContainerPath: wrong status. Want %d. Got %d.", http.StatusBadRequest, recorder.Code)
-	}
-	if recorder.Body.String() != errorId+"\n" {
-		t.Errorf("TestPrepareFailureUsingContainerPath: wrong message. Want %s. Got %s.", errorId, recorder.Body.String())
-	}
-}
-
-func TestPrepareFailureUsingContainerPathWithWrongPath(t *testing.T) {
-	server := DockerServer{failures: make(map[string]FailureSpec)}
-	addContainers(&server, 1)
-	server.buildMuxer()
-	errorId := "my_path_error"
-	failure := FailureSpec{UrlRegex: "containers/.*?/start", ContainerPath: "xxx"}
-	server.PrepareFailure(errorId, failure)
-	recorder := httptest.NewRecorder()
-	path := fmt.Sprintf("/containers/%s/start", server.containers[0].ID)
-	request, _ := http.NewRequest("POST", path, nil)
-	server.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Errorf("StartContainer: wrong status code. Want %d. Got %d.", http.StatusOK, recorder.Code)
+	if recorder.Body.String() != errorID+"\n" {
+		t.Errorf("PrepareFailure: wrong message. Want %s. Got %s.", errorID, recorder.Body.String())
 	}
 }
 
 func TestRemoveFailure(t *testing.T) {
-	server := DockerServer{failures: make(map[string]FailureSpec)}
+	server := DockerServer{failures: make(map[string]string)}
 	server.buildMuxer()
-	errorId := "my_error"
-	failure := FailureSpec{UrlRegex: "containers/json"}
-	server.PrepareFailure(errorId, failure)
+	errorID := "my_error"
+	server.PrepareFailure(errorID, "containers/json")
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/containers/json?all=1", nil)
 	server.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusBadRequest {
 		t.Errorf("PrepareFailure: wrong status. Want %d. Got %d.", http.StatusBadRequest, recorder.Code)
 	}
-	server.ResetFailure(errorId)
+	server.ResetFailure(errorID)
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "/containers/json?all=1", nil)
 	server.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Errorf("RemoveFailure: wrong status. Want %d. Got %d.", http.StatusOK, recorder.Code)
+	}
+}
+
+func TestMutateContainer(t *testing.T) {
+	server := DockerServer{failures: make(map[string]string)}
+	server.buildMuxer()
+	server.containers = append(server.containers, &docker.Container{ID: "id123"})
+	state := docker.State{Running: false, ExitCode: 1}
+	err := server.MutateContainer("id123", state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(server.containers[0].State, state) {
+		t.Errorf("Wrong state after mutation.\nWant %#v.\nGot %#v.",
+			state, server.containers[0].State)
+	}
+}
+
+func TestMutateContainerNotFound(t *testing.T) {
+	server := DockerServer{failures: make(map[string]string)}
+	server.buildMuxer()
+	state := docker.State{Running: false, ExitCode: 1}
+	err := server.MutateContainer("id123", state)
+	if err == nil {
+		t.Error("Unexpected <nil> error")
+	}
+	if err.Error() != "container not found" {
+		t.Errorf("wrong error message. Want %q. Got %q.", "container not found", err)
 	}
 }
 
@@ -760,5 +989,29 @@ func TestBuildImageWithRemoteDockerfile(t *testing.T) {
 	server.buildImage(recorder, request)
 	if _, ok := server.imgIDs[imageName]; ok == false {
 		t.Errorf("BuildImage: image %s not builded", imageName)
+	}
+}
+
+func TestPing(t *testing.T) {
+	server := DockerServer{}
+	recorder := httptest.NewRecorder()
+	request, _ := http.NewRequest("GET", "/_ping", nil)
+	server.pingDocker(recorder, request)
+	if recorder.Body.String() != "" {
+		t.Errorf("Ping: Unexpected body: %s", recorder.Body.String())
+	}
+	if recorder.Code != http.StatusOK {
+		t.Errorf("Ping: Expected code %d, got: %d", http.StatusOK, recorder.Code)
+	}
+}
+
+func TestDefaultHandler(t *testing.T) {
+	server, err := NewServer("127.0.0.1:0", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.listener.Close()
+	if server.mux != server.DefaultHandler() {
+		t.Fatalf("DefaultHandler: Expected to return server.mux, got: %#v", server.DefaultHandler())
 	}
 }

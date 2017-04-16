@@ -50,10 +50,10 @@ func Execute() {
 	req = &sti.STIRequest{}
 
 	stiCmd := &cobra.Command{
-		Use:  "sti",
-		Long: "Source-to-images (STI) is a tool for building repeatable docker images.\n\n"+
-			  "A command line interface that injects and assembles an application source into a docker image.\n"+
-			  "Complete documentation is available at http://github.com/openshift/geard/tree/master/sti",
+		Use: "sti",
+		Long: "Source-to-images (STI) is a tool for building repeatable docker images.\n\n" +
+			"A command line interface that injects and assembles an application source into a docker image.\n" +
+			"Complete documentation is available at http://github.com/openshift/geard/tree/master/sti",
 		Run: func(c *cobra.Command, args []string) {
 			c.Help()
 		},
