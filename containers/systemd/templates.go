@@ -37,6 +37,8 @@ var ContainerUnitTemplate = template.Must(template.New("unit.service").Parse(`
 {{define "COMMON_UNIT"}}
 [Unit]
 Description=Container {{.Id}}
+After=docker.service
+Requires=docker.service
 {{end}}
 
 {{define "COMMON_SERVICE"}}
